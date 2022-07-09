@@ -27,6 +27,7 @@
     ```bash
     wasm-pack test --headless --chrome --release
     ```
+    edit ops.rs ```compute_all_operations``` to change test ops.
 * Native time:
     ```bash
     cargo bench
