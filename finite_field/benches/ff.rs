@@ -93,7 +93,7 @@ fn all_operation_works(c: &mut Criterion) {
                         );
                     })
                 });
-} 
+}   
 
 
 

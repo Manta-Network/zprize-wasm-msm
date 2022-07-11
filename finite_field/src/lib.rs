@@ -2,7 +2,7 @@ use wasm_bindgen::prelude::wasm_bindgen;
 use ark_bls12_381::{Fq,Fr};
 
 pub mod ops;
-
+pub mod elliptic_ops;
 
 #[wasm_bindgen]
 pub fn compute_ff_scalar(sclar1:&ScalarVectorInput,
