@@ -51,3 +51,13 @@ Check the correctness (TODO)
 | 2^20 | 2061 | 4026 | 143 |
 | 2^22 | 7796 | 9956 | 533 |
 | 2^24 | - | - | 1991 |
+
+
+### BLS12_381 EC Results (Doubling add)
+(test on macbook)
+|Loop | WASM (ms) | Native (ms) | Ratio |
+| --- | --- | --- | --- |
+| 2^12 | - | 140 |  |
+| 2^14 | - | 553 |  |
+| 2^16 | -| 2704 |  |
+| 2^18 | - | 9512 |  |

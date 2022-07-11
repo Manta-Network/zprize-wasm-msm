@@ -1,13 +1,12 @@
-//! MSM Implementation on CPUs.
-
-use ark_ec::{msm, AffineCurve, ProjectiveCurve};
-use ark_ff::{PrimeField, UniformRand};
+use ark_ec::{ AffineCurve, ProjectiveCurve};
+use ark_ff::{UniformRand};
 use ark_std::test_rng;
 use criterion::{ criterion_group, criterion_main, Criterion};
-use ark_bls12_377::G1Affine;
-use web_sys::console;
+//use ark_bls12_377::G1Affine;
+use ark_bls12_381::G1Affine;
 
-/// Generates MSM inputs including a scalar vector and a point vector.
+
+/// Generates inputs including two point vectors.
 pub fn generate_elliptic_inputs<G>(
     size: usize,
 ) -> (
@@ -53,14 +52,8 @@ where
 
 
 
-
-/// Testing Suite
-//mod test {
-//    use super::{compute_elliptic_ops, generate_elliptic_inputs};
-    
-    /// Checks if MSM on BLS-12-377 runs for CPU.
 fn elliptic_ops_test(c: &mut Criterion) {
-    let length = 8;
+    let length = 18;
     let (point_vec1, point_vec2) = generate_elliptic_inputs::<G1Affine>(2<<length);
     let start_time = instant::Instant::now();
     let _ = compute_elliptic_ops::<G1Affine>(point_vec1, point_vec2);
@@ -70,7 +63,7 @@ fn elliptic_ops_test(c: &mut Criterion) {
 
     
 }
-//}
+
 
 criterion_group!(benches, elliptic_ops_test);
 criterion_main!(benches);
