@@ -63,20 +63,6 @@ where
     }
 }
 
-
-
-
-
-fn compute_all_operations<F>(lhs: &Vec<F>, rhs: &Vec<F>)
-where
-    F: PrimeField,
-{
-    let _ = Operations::add(lhs, rhs);
-    let _ = Operations::sub(lhs, rhs);
-    let _ = Operations::mul(lhs, rhs);
-    let _ = Operations::mul(lhs, rhs);
-}
-
 fn compute_add<F>(lhs: &Vec<F>, rhs: &Vec<F>)
 where
     F: PrimeField,
@@ -98,10 +84,18 @@ where
     let _ = Operations::mul(lhs, rhs);
 }
 
+fn compute_div<F>(lhs: &Vec<F>, rhs: &Vec<F>)
+where
+    F: PrimeField,
+{
+    let _ = Operations::div(lhs, rhs);
+}
+
+
 
 /// Checks whether algebra operation works.
 fn all_operation_works(c: &mut Criterion) {
-    for size in (18..26).step_by(2) {
+    for size in (8..24).step_by(2) {
         let start_time = instant::Instant::now();
         compute_add::<Fr>(
             &generate_scalar_vector::<Fr>(1<<size),
@@ -122,11 +116,18 @@ fn all_operation_works(c: &mut Criterion) {
         );
         let mul_time = instant::Instant::now();
 
-        println!("Vector size: 2^{:?}, add: {:?}, sub: {:?}, mul: {:?}",
+        compute_div::<Fr>(
+            &generate_scalar_vector::<Fr>(1<<size),
+            &generate_scalar_vector::<Fr>(1<<size),
+        );
+        let div_time = instant::Instant::now();
+
+        println!("Vector size: 2^{:?}, add: {:?}, sub: {:?}, mul: {:?}, div: {:?}",
         size,
         (add_time - start_time),
         (sub_time - add_time),
-        (mul_time - sub_time)
+        (mul_time - sub_time),
+        (div_time - mul_time)
     )
     }
 } 

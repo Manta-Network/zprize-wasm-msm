@@ -1,8 +1,6 @@
 const assert = require("assert");
 const bigInt = require("big-integer");
-
-const buildF1 = require("../index.js").buildF1;
-const buildF1m = require("../src/build_f1m");
+const buildF1 = require("../src/build_f1");
 const buildProtoboard = require("wasmbuilder").buildProtoboard;
 const buildTest1 = require("../src/build_test.js").buildTest1;
 const buildTest2 = require("../src/build_test.js").buildTest2;
@@ -13,38 +11,47 @@ describe("Basic tests for FF", () => {
         const A = bigInt("674E1D7463D34C49F9C9F388646067D796542CCBF66F38D3AB574D0EE422C588",16);
         const B = bigInt("5FB51E0EE491C6F26F2FD3AB01162C4D3AD3AFF73FC213510EBBF34FAA74C07E",16);
 
-        const pbF1m = await buildProtoboard((module) => {
-            buildF1m(module, q);
-            buildTest2(module, "f1m_mul");
-            buildTest2(module, "f1m_add");
-            buildTest2(module, "f1m_sub");
-        }, 32);
+        const pbF1 = await buildProtoboard((module) => {
+            buildF1(module, q);
+            buildTest2(module, "f1_mul");
+            buildTest2(module, "f1_add");
+            buildTest2(module, "f1_sub");
+        }, 32); 
 
-        const pA = pbF1m.alloc();
-        const pB = pbF1m.alloc();
-        const pC = pbF1m.alloc();
+        const pA = pbF1.alloc();
+        const pB = pbF1.alloc();
+        const pC = pbF1.alloc();
 
-        pbF1m.set(pA, A);
-        pbF1m.set(pB, B);
+        pbF1.set(pA, A);
+        pbF1.set(pB, B);
 
-        const op1 = pbF1m.get(pA);
-        const op2 = pbF1m.get(pB);
+        const op1 = pbF1.get(pA);
+        const op2 = pbF1.get(pB);
         console.log("Operand1: " + op1);
         console.log("Operand2: " + op2);
 
-        // native rust result: 531594301EC795F435BFEF2B5BD4BC1F7D6A38C03632F025BA13405F8E978605
+        // wasm result: 531594301EC795F435BFEF2B5BD4BC1F7D6A38C03632F025BA13405F8E978605
         // wasmsnark: 3.758009297654969e+76
-        pbF1m.f1m_add(pA, pB, pC);
-        console.log("Operand1 add operand2: " + pbF1m.get(pC));
+        pbF1.f1_add(pA, pB, pC);
+        console.log("Operand1 add operand2: " + pbF1.get(pC));
         
-        // native rust result: 0798FF657F4185578A9A1FDD634A3B8A5B807CD4B6AD25829C9B59BF39AE050A
+        // wasm result: 0798FF657F4185578A9A1FDD634A3B8A5B807CD4B6AD25829C9B59BF39AE050A
         // wasmsnark: 3.4365133756038387e+75
-        pbF1m.f1m_sub(pA, pB, pC)
-        console.log("Operand1 sub operand2:" + pbF1m.get(pC));
+        pbF1.f1_sub(pA, pB, pC)
+        console.log("Operand1 sub operand2: " + pbF1.get(pC));
 
-        // wrong answer
-        // pbF1m.f1m_mul(pA, pB, pC)
-        // console.log("Operand1 sub operand2 :" + pbF1m.get(pC));
+        // wasm result: 4B21C405077FB95DF30A958F837B54640F4F57EB3A5EC173399ABCD4916DF74A
+        // wasmsnark: 3.3983122474756097e+76
+        pbF1.f1_mul(pA, pB, pC)
+        console.log("Operand1 mul operand2: " + pbF1.get(pC));
+
+        // wasm result: 427D8B799CA353FA64575246ED0F662AA437E96577EB58E2EFA8DAF3EA9C922E
+        // wasmsnark: 3.007446651098454e+76
+        const pB_inv = pbF1.alloc();
+        pbF1.f1_inverse(pB,pB_inv);
+        pbF1.f1_mul(pB_inv,pA,pC);
+        console.log("Operand1 div operand2: " + pbF1.get(pC));
+
     }).timeout(10000000);
 
     it("It should test time consumption", async () => {
@@ -52,40 +59,57 @@ describe("Basic tests for FF", () => {
         const A = bigInt("674E1D7463D34C49F9C9F388646067D796542CCBF66F38D3AB574D0EE422C588",16);
         const B = bigInt("5FB51E0EE491C6F26F2FD3AB01162C4D3AD3AFF73FC213510EBBF34FAA74C07E",16);
 
-        const pbF1m = await buildProtoboard((module) => {
-            buildF1m(module, q);
-            buildTest2(module, "f1m_mul");
-            buildTest2(module, "f1m_add");
-            buildTest2(module, "f1m_sub");
+        const pbF1 = await buildProtoboard((module) => {
+            buildF1(module, q);
+            buildTest2(module, "f1_mul");
+            buildTest2(module, "f1_add");
+            buildTest2(module, "f1_sub");
+            buildTest1(module, "f1_inverse");
         }, 32);
 
-        const pA = pbF1m.alloc();
-        const pB = pbF1m.alloc();
-        const pC = pbF1m.alloc();
+        const pA = pbF1.alloc();
+        const pB = pbF1.alloc();
+        const pC = pbF1.alloc();
+        
 
-        pbF1m.set(pA, A);
-        pbF1m.set(pB, B);
+        pbF1.set(pA, A);
+        pbF1.set(pB, B);
 
         const SIZE = 18;
 
-        let start, end, end2, time;
+        let start, end_add, end_sub, end_mul, end_div, time;
         
-        for (let SIZE=18; SIZE<=24; SIZE+=2){
+        for (let SIZE=14; SIZE<24; SIZE+=2){
             let loops = 1<<SIZE;
 
             // test add
             start = new Date().getTime();
-            pbF1m.test_f1m_add(pA, pB, pC, loops);
-            end = new Date().getTime();
-            time = end - start;
+            pbF1.test_f1_add(pA, pB, pC, loops);
+            end_add = new Date().getTime();
+            time = end_add - start;
             console.log("ADD: loops: 2^"+ SIZE +". Test Time (ms): " + time);
 
             // test sub
-            start = new Date().getTime();
-            pbF1m.test_f1m_sub(pA, pB, pC, loops)
-            end2 = new Date().getTime();
-            time = end2 - end;
+            pbF1.test_f1_sub(pA, pB, pC, loops)
+            end_sub = new Date().getTime();
+            time = end_sub - end_add;
             console.log("SUB: loops: 2^"+ SIZE +". Test Time (ms): " + time);
+
+            // test mul
+            pbF1.test_f1_mul(pA, pB, pC, loops)
+            end_mul = new Date().getTime();
+            time = end_mul - end_sub;
+            console.log("MUL: loops: 2^"+ SIZE +". Test Time (ms): " + time);
+
+            // test div
+            // use a inverse and a mul 
+            const pB_inv = pbF1.alloc();
+            pbF1.set(pB_inv, B);
+            pbF1.test_f1_inverse(pB,pB_inv,loops);
+            pbF1.test_f1_mul(pA, pB_inv, pC, loops);
+            end_div = new Date().getTime();
+            time = end_div - end_mul;
+            console.log("DIV: loops: 2^"+ SIZE +". Test Time (ms): " + time);
         }
     }).timeout(10000000);
 });
