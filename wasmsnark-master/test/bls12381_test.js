@@ -189,13 +189,13 @@ describe("Basic tests for g1 in bls12-381", function () {
         const start = new Date().getTime();
         
         var i = 1;
-        while(i<10000){
+        while(i<(1<<18)){
         pb.g1m_add(pG1, pG1, p1); // 2*G1
-        pb.g1m_add(p1, pG1, p1);  // 3*G1
-        pb.g1m_add(p1, pG1, p1);  // 4*G1
+        // pb.g1m_add(p1, pG1, p1);  // 3*G1
+        // pb.g1m_add(p1, pG1, p1);  // 4*G1
 
-        pb.g1m_double(pG1, p2); // 2*G1
-        pb.g1m_double(p2, p2); // 4*G1
+        // pb.g1m_double(pG1, p2); // 2*G1
+        // pb.g1m_double(p2, p2); // 4*G1
 
         i++
         }
@@ -205,11 +205,11 @@ describe("Basic tests for g1 in bls12-381", function () {
 
         
         
-        assert.equal(pb.g1m_isZero(pG1), 0);
-        assert.equal(pb.g1m_eq(p1, p2), 1);
+        // assert.equal(pb.g1m_isZero(pG1), 0);
+        // assert.equal(pb.g1m_eq(p1, p2), 1);
 
-        pb.g1m_sub(p1, p2, p1);  // 0
-        assert.equal(pb.g1m_isZero(p1), 1);
+        // pb.g1m_sub(p1, p2, p1);  // 0
+        // assert.equal(pb.g1m_isZero(p1), 1);
 
     });
     it("It should timesScalar G1", async () => {
@@ -265,16 +265,16 @@ describe("Basic tests for g1 in bls12-381", function () {
         
         const start = new Date().getTime();
         var i=1;
-        while(i<10000){
+        while(i<(1<<1)){
            
         
         pb.g2m_add(pG2, pG2, p1); // 2*G1
-        pb.g2m_add(p1, pG2, p1);  // 3*G1      
-        pb.g2m_add(p1, pG2, p1);  // 4*G1
+        // pb.g2m_add(p1, pG2, p1);  // 3*G1      
+        // pb.g2m_add(p1, pG2, p1);  // 4*G1
 
-        pb.g2m_double(pG2, p2); // 2*G1
+        // pb.g2m_double(pG2, p2); // 2*G1
         
-        pb.g2m_double(p2, p2); // 4*G1
+        // pb.g2m_double(p2, p2); // 4*G1
         
         i++;
         }
@@ -284,11 +284,11 @@ describe("Basic tests for g1 in bls12-381", function () {
         console.log("Time to compute G2 add (ms): " + time);
 
 
-        assert.equal(pb.g2m_isZero(pG2), 0);
-        assert.equal(pb.g2m_eq(p1, p2), 1);
+        // assert.equal(pb.g2m_isZero(pG2), 0);
+        // assert.equal(pb.g2m_eq(p1, p2), 1);
 
-        pb.g2m_sub(p1, p2, p1);  // 0
-        assert.equal(pb.g2m_isZero(p1), 1);
+        // pb.g2m_sub(p1, p2, p1);  // 0
+        // assert.equal(pb.g2m_isZero(p1), 1);
 
     });
     it("Should test unitary", async () => {

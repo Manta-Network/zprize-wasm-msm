@@ -12,7 +12,7 @@ describe("Basic tests for g1 in bls12-381", function () {
     function getFieldElementF12(pR) {
         pb.ftm_fromMontgomery(pR, pR);
         const res =  [
-            [
+            [ 
                 [
                     pb.get(pR),
                     pb.get(pR+n8),

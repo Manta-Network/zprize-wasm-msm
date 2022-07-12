@@ -71,23 +71,28 @@ describe("Basic tests for Int", () => {
         const pC = pbInt.alloc(64);
 
         let start, end, time;
+        //pb.set(pr, bigInt("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001", 16));
 
-        const A = bigInt.one.shiftLeft(256).minus(1);
-        const B = bigInt.one.shiftLeft(256).minus(1);
+        // const A = bigInt.one.shiftLeft(256).minus(1);
+        // const B = bigInt.one.shiftLeft(256).minus(1);
+
+        const A = bigInt("10719222850664546238301075827032876239176124476888588364803088858357331359854", 10);
+        const B = bigInt("10719222850664546238301075827032876239176124476888588364803088858357331359854", 10);
 
         pbInt.set(pA, A);
         pbInt.set(pB, B);
 
-        start = new Date().getTime();
-        pbInt.test_int_mul(pA, pB, pC, 50000000);
-        end = new Date().getTime();
-        time = end - start;
+        // start = new Date().getTime();
+        // pbInt.test_int_mul(pA, pB, pC, 50000000);
+        // end = new Date().getTime();
+        // time = end - start;
+        //console.log("Mul Time (ms): " + time);
 
         const c1 = pbInt.get(pC, 1, 64);
         assert(c1.equals(A.times(B)));
 
-        console.log("Mul Time (ms): " + time);
-
+        
+        console.log("a+b: " + time);
         // start = new Date().getTime();
         // pbInt.test_int_mulOld(pA, pB, pC, 50000000);
         // end = new Date().getTime();

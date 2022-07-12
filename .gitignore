@@ -13,3 +13,4 @@
 /finite_field/record
 /finite_field/www/package-lock.json
 .DS_Store
+/wasmsnark-master/node_modules
