@@ -83,8 +83,9 @@ fn all_operation_corect(c: &mut Criterion) {
     println!("a*b {:?}", (a[0]*b[1]).to_string());
     println!("a/b {:?}", (a[0]/b[1]).to_string());
 
-    println!("e   {:?}",&e.to_string());
+    println!("c   {:?}",&c.to_string());
     println!("d   {:?}",&d.to_string());
+    println!("e   {:?}",&e.to_string());
     println!("e*d {:?}", (e*d).to_string());
 
 } 
