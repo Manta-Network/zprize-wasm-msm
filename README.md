@@ -66,7 +66,7 @@ Test WASMSNARK and Native Rust on Fr.
 | 2^22 | - | - | 90664 | 22173 |
 
 
-### Check Correctness (ADD and SUB)
+### Check Correctness 
 * Native Rust: For now, you should first edit the **[[bench]]** in Cargo.toml, and then run:
     ```bash
     cargo bench
