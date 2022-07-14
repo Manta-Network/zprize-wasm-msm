@@ -1,18 +1,18 @@
 use wasm_bindgen_test::{wasm_bindgen_test, wasm_bindgen_test_configure};
-use wasm_zkp_challenge::{compute_ff_scalar,FrVectorInput,FqVectorInput,compute_ff_point};
-use wasm_zkp_challenge::{fr_add,fr_sub,fr_mul,fr_div};
+use wasm_bls12_381::{fr_add, fr_div, fr_mul, fr_sub};
+use wasm_bls12_381::{FqVectorInput, FrVectorInput};
 use web_sys::console;
 
 wasm_bindgen_test_configure!(run_in_browser);
 
 static REPEAT: usize = 5;
- 
+
 #[wasm_bindgen_test]
 fn benchmark() {
     for size in (18..20).step_by(2) {
         let start_time = instant::Instant::now();
-        let fr1 = FrVectorInput::new(2<<size);
-        let fr2 = FrVectorInput::new(2<<size);
+        let fr1 = FrVectorInput::new(2 << size);
+        let fr2 = FrVectorInput::new(2 << size);
         // let Fq1 = FqVectorInput::new(2<<size);
         // let Fq2 = FqVectorInput::new(2<<size);
 

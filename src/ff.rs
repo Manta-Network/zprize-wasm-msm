@@ -3,7 +3,6 @@
 use ark_ff::{PrimeField, UniformRand};
 use ark_std::test_rng;
 
-
 /// Randomly generates a scalar vector.
 pub fn generate_scalar_vector<F>(size: usize) -> Vec<F>
 where
@@ -27,7 +26,6 @@ pub trait Operations {
     /// Divides `self` by `rhs`.
     fn div(&self, rhs: &Self) -> Self;
 }
-
 
 impl<F> Operations for Vec<F>
 where
@@ -60,19 +58,6 @@ where
             .map(|(l, r)| *l / *r)
             .collect::<Vec<F>>()
     }
-}
-
- 
-
-pub fn compute_all_operations<F>(lhs: &Vec<F>, rhs: &Vec<F>)
-where
-    F: PrimeField,
-{
-    
-    let _ = Operations::add(lhs, rhs);
-    let _ = Operations::sub(lhs, rhs);
-    let _ = Operations::mul(lhs, rhs);
-    let _ = Operations::mul(lhs, rhs);
 }
 
 pub fn compute_add<F>(lhs: &Vec<F>, rhs: &Vec<F>)

@@ -1,6 +1,6 @@
 [package]
 edition = "2021"
-name = "wasm-zkp-challenge"
+name = "wasm-bls12-381"
 version = "0.1.0"
 
 [package.metadata.wasm-pack.profile.release]
