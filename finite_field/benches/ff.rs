@@ -95,12 +95,17 @@ where
 
 /// Checks whether algebra operation works.
 fn all_operation_works(c: &mut Criterion) {
-    for size in (8..24).step_by(2) {
+    for size in (18..20).step_by(2) {
+        let lhs = generate_scalar_vector::<Fr>(1<<size);
+        let rhs = generate_scalar_vector::<Fr>(1<<size);
         let start_time = instant::Instant::now();
-        compute_add::<Fr>(
-            &generate_scalar_vector::<Fr>(1<<size),
-            &generate_scalar_vector::<Fr>(1<<size),
-        );
+        for _ in 0..100{
+            compute_add::<Fr>(
+                &lhs,
+                &rhs,
+            );
+        }
+        
         let add_time = instant::Instant::now();
     
         
