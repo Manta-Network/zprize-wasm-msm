@@ -1,4 +1,4 @@
-import { compute_msm, PointVectorInput, ScalarVectorInput } from "wasm-prover";
+import { compute_msm, FqVectorInput, FrVectorInput } from "wasm-prover";
 
 const pre = document.getElementById("wasm-prover");
 
@@ -13,8 +13,8 @@ const median = arr => {
 function wasm_bench_msm() {
   let out_text = "";
   for (let size = 8; size <= 8 ; size += 2) {
-    const point_vec = new PointVectorInput(Math.pow(2, size));
-    const scalar_vec = new ScalarVectorInput(Math.pow(2, size));
+    const point_vec = new FqVectorInput(Math.pow(2, size));
+    const scalar_vec = new FrVectorInput(Math.pow(2, size));
       const perf = Array.from(
       { length: REPEAT },
       (_, i) => {

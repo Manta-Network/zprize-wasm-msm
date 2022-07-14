@@ -11,9 +11,8 @@ crate-type = ["cdylib", "lib"]
 
 [[bench]]
 harness = false
-#name = "ff"
-# name = "elliptic_ops"
-name = "check_ff"
+name = "ff"
+
  
 [dependencies]
 ark-bls12-381 = {version = "0.3.0"}

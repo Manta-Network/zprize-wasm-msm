@@ -4,7 +4,6 @@
     ```bash
     wasm-pack test --headless --chrome --release
     ```
-    edit ops.rs ```compute_all_operations``` to change test ops.
 * Native time:
     ```bash
     cargo bench
@@ -66,13 +65,14 @@ All operations time
 
 
 ### Check Correctness 
-* Native Rust: For now, you should first edit the **[[bench]]** in Cargo.toml, and then run:
+* Native Rust: 
     ```bash
-    cargo bench
+    cargo test --package wasm-zkp-challenge --lib -- check_ff::tests::all_operation_corect --exact --nocapture 
     ```
 * WASMSNARK:
     ```bash
     mocha wasmsnark-master/test/ff_test.js
+    ```
 
 Then you can get something like this: 
 

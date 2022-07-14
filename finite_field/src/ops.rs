@@ -1,3 +1,5 @@
+//! Finite Filed Operations
+
 use ark_ff::{PrimeField, UniformRand};
 use ark_std::test_rng;
 
@@ -71,4 +73,32 @@ where
     let _ = Operations::sub(lhs, rhs);
     let _ = Operations::mul(lhs, rhs);
     let _ = Operations::mul(lhs, rhs);
+}
+
+pub fn compute_add<F>(lhs: &Vec<F>, rhs: &Vec<F>)
+where
+    F: PrimeField,
+{
+    let _ = Operations::add(lhs, rhs);
+}
+
+pub fn compute_sub<F>(lhs: &Vec<F>, rhs: &Vec<F>)
+where
+    F: PrimeField,
+{
+    let _ = Operations::sub(lhs, rhs);
+}
+
+pub fn compute_mul<F>(lhs: &Vec<F>, rhs: &Vec<F>)
+where
+    F: PrimeField,
+{
+    let _ = Operations::mul(lhs, rhs);
+}
+
+pub fn compute_div<F>(lhs: &Vec<F>, rhs: &Vec<F>)
+where
+    F: PrimeField,
+{
+    let _ = Operations::div(lhs, rhs);
 }

@@ -1,8 +1,8 @@
+//! Elliptic Curve Add
+
 use ark_ec::{ AffineCurve, ProjectiveCurve};
 use ark_ff::{UniformRand};
 use ark_std::test_rng;
-use criterion::{ criterion_group, criterion_main, Criterion};
-//use ark_bls12_377::G1Affine;
 use ark_bls12_381::G1Affine;
 
 
@@ -50,20 +50,19 @@ where
               .collect::<Vec<<G::Projective as ProjectiveCurve>::Affine>>()
 }
 
+#[cfg(test)]
+mod elliptic_tests{
+    use super::*;
+    #[test]
+    fn elliptic_ops_test() {
+        
+        let length = 8;
+        let (point_vec1, point_vec2) = generate_elliptic_inputs::<G1Affine>(2<<length);
+        let start_time = instant::Instant::now();
+        let _ = compute_elliptic_ops::<G1Affine>(point_vec1, point_vec2);
+        let end_time = instant::Instant::now();
 
+        println!("Input vector length: 2^{:?}, Latency: {:?}",length,(end_time - start_time));   
+    }
 
-fn elliptic_ops_test(c: &mut Criterion) {
-    let length = 18;
-    let (point_vec1, point_vec2) = generate_elliptic_inputs::<G1Affine>(2<<length);
-    let start_time = instant::Instant::now();
-    let _ = compute_elliptic_ops::<G1Affine>(point_vec1, point_vec2);
-    let end_time = instant::Instant::now();
-
-    println!("Input vector length: 2^{:?}, Latency: {:?}",length,(end_time - start_time));
-
-    
 }
-
-
-criterion_group!(benches, elliptic_ops_test);
-criterion_main!(benches);
