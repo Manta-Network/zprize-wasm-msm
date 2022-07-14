@@ -5,7 +5,6 @@ use ark_ff::{PrimeField, UniformRand, BigInteger};
 use ark_std::test_rng;
 use ark_bls12_381::{Fq, Fr};
 
-
 /// Randomly generates a scalar vector.
 pub fn generate_scalar_vector<F>(size: usize) -> Vec<F>
 where
