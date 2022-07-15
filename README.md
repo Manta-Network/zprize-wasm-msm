@@ -45,7 +45,7 @@
 | 2^24 | - | - | 5382 | 962 |
 
 #### DIV
-**Use an inverse and mulplication to substitute division**
+**Use an inverse and mulplication to substitute division in WASMSNARK**
 
 |Loop | WASM Fr(ms) | WASM Fq (ms) | WASMSNARK Fr (ms)| Native Rust Fr (ms)|
 | --- | --- | --- | --- | --- |
