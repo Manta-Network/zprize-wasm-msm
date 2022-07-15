@@ -692,7 +692,7 @@ describe("Basic tests for g1 in bls12-381", function () {
         const pPreQ = pb.alloc(n8*2*3 + n8*2*3*70);
 
         pb.bls12381_prepareG1(pG1s, pPreP);
-        pb.bls12381_prepareG2(pG2gen, pPreQ);
+        pb.bls12381_prepareG2(pG2gen, pPreQ); 
 
 
         // printG1("pPreP: ", pPreP);

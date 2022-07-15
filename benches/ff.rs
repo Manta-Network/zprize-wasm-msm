@@ -5,7 +5,6 @@ use ark_ff::{PrimeField, UniformRand, BigInteger};
 use ark_std::test_rng;
 use ark_bls12_381::{Fq, Fr};
 
-
 /// Randomly generates a scalar vector.
 pub fn generate_scalar_vector<F>(size: usize) -> Vec<F>
 where
@@ -99,7 +98,7 @@ fn all_operation_works(c: &mut Criterion) {
         let lhs = generate_scalar_vector::<Fr>(1<<size);
         let rhs = generate_scalar_vector::<Fr>(1<<size);
         let start_time = instant::Instant::now();
-        for _ in 0..100{
+        for _ in 0..10000{
             compute_add::<Fr>(
                 &lhs,
                 &rhs,

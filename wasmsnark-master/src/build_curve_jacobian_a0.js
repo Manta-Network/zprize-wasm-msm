@@ -28,7 +28,7 @@ module.exports = function buildCurve(module, prefix, prefixField) {
     if (module.modules[prefix]) return prefix;  // already builded
     module.modules[prefix] = {
         n64: n64*3
-    };
+    }; 
 
     function buildIsZero() {
         const f = module.addFunction(prefix + "_isZero");

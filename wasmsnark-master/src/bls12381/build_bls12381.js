@@ -7,7 +7,7 @@ const buildF2m =require("../build_f2m.js");
 const buildF3m =require("../build_f3m.js");
 const buildCurve =require("../build_curve_jacobian_a0.js");
 const buildFFT = require("../build_fft");
-const buildMultiexp = require("../build_multiexp");
+const buildMultiexp = require("../build_multiexp"); 
 const buildPol = require("../build_pol");
 
 // Definition here: https://electriccoin.co/blog/new-snark-curve/
@@ -60,6 +60,34 @@ module.exports = function buildBLS12381(module, _prefix) {
             ...utils.bigInt2BytesLE( toMontgomery(G1gen[2]), f1size ),
         ]
     );
+
+    const test_point_1 = [
+        bigInt("1962BC58DEBAA92A5B3EA680800FD53D40F650B12892E238D17CA5B2DF0507A54F8A11E0104C33181B4990D47E98E53F",16),
+        bigInt("14C79E7BA141AA8214CBC801B5276EE63BA44758ADEE859E4A13F01075E9D19FAEB4F674B61F83DF34600D5A7F4DBBAA",16),
+        bigInt.one
+    ];
+    const test_point_2 = [
+        bigInt("09E6D1D66DFA60E9ADFBD794757A762D6ED7DCA5D870C2CCF2ED1675B7BFD9A86BE35D7F2D5029D2A3C7D3D5A0A3DE10",16),
+        bigInt("12C264FCB1FD549F819817B1D48C3AB9D6FBB3169D98021F75CB0C36B41536211DC4337EA2BE64105CC70969801CCEC8",16),
+        bigInt.one
+    ];
+
+    const test_point_1_gen = module.alloc(
+        [
+            ...utils.bigInt2BytesLE( toMontgomery(test_point_1[0]), f1size ),
+            ...utils.bigInt2BytesLE( toMontgomery(test_point_1[1]), f1size ),
+            ...utils.bigInt2BytesLE( toMontgomery(test_point_1[2]), f1size ),
+        ]
+    );
+
+    const test_point_2_gen = module.alloc(
+        [
+            ...utils.bigInt2BytesLE( toMontgomery(test_point_2[0]), f1size ),
+            ...utils.bigInt2BytesLE( toMontgomery(test_point_2[1]), f1size ),
+            ...utils.bigInt2BytesLE( toMontgomery(test_point_2[2]), f1size ),
+        ]
+    );
+
 
     const G1zero = [
         bigInt.zero,
@@ -213,6 +241,8 @@ module.exports = function buildBLS12381(module, _prefix) {
     const ftmPrefix = buildF2m(module, f6mPrefix+"_mulNR", "ftm", f6mPrefix);
 
     module.modules[prefix] = {
+        test_point_1_gen: test_point_1_gen, 
+        test_point_2_gen: test_point_2_gen, 
         n64: n64,
         pG1gen: pG1gen,
         pG1zero: pG1zero,

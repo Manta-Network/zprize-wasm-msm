@@ -1,8 +1,7 @@
+//! Finite Filed Operations
 
 use ark_ff::{PrimeField, UniformRand};
 use ark_std::test_rng;
-
- 
 
 /// Randomly generates a scalar vector.
 pub fn generate_scalar_vector<F>(size: usize) -> Vec<F>
@@ -61,42 +60,30 @@ where
     }
 }
 
-#[cfg(test)]
-mod tests{
-    use super::*;
-    use ark_bls12_381::Fr;
-    
-    #[test]
-    /// Checks whether algebra operation works.
-    fn all_operation_corect() {
-        
-        let a = generate_scalar_vector::<Fr>(2);
-        let b = generate_scalar_vector::<Fr>(2);
-
-        
-        let c  = ark_bls12_381::Fr::from(1);// 1
-        let d  = ark_bls12_381::Fr::from(2);// 2
-        let e = c-d;  // q - 1
-        let f = c + e; // 0
-        // c.to_string();
-
-
-        println!("a   {:?}",&a[0].to_string());
-        println!("b   {:?}",&b[1].to_string());
-        println!("a+b {:?}", (a[0]+b[1]).to_string());
-        println!("a-b {:?}", (a[0]-b[1]).to_string());
-        println!("a*b {:?}", (a[0]*b[1]).to_string());
-        println!("a/b {:?}", (a[0]/b[1]).to_string());
-
-        println!("c   {:?}",&c.to_string());
-        println!("d   {:?}",&d.to_string());
-        println!("e   {:?}",&e.to_string());
-        println!("e*d {:?}", (e*d).to_string());
-        println!("f   {:?}",&f.to_string());
-
-        assert!(f==ark_bls12_381::Fr::from(0));
-        assert!((a[0]/b[1]) == (c/b[1]*a[0]));
-    } 
+pub fn compute_add<F>(lhs: &Vec<F>, rhs: &Vec<F>)
+where
+    F: PrimeField,
+{
+    let _ = Operations::add(lhs, rhs);
 }
 
+pub fn compute_sub<F>(lhs: &Vec<F>, rhs: &Vec<F>)
+where
+    F: PrimeField,
+{
+    let _ = Operations::sub(lhs, rhs);
+}
 
+pub fn compute_mul<F>(lhs: &Vec<F>, rhs: &Vec<F>)
+where
+    F: PrimeField,
+{
+    let _ = Operations::mul(lhs, rhs);
+}
+
+pub fn compute_div<F>(lhs: &Vec<F>, rhs: &Vec<F>)
+where
+    F: PrimeField,
+{
+    let _ = Operations::div(lhs, rhs);
+}

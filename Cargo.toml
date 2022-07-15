@@ -1,6 +1,6 @@
 [package]
 edition = "2021"
-name = "wasm-zkp-challenge"
+name = "wasm-bls12-381"
 version = "0.1.0"
 
 [package.metadata.wasm-pack.profile.release]
@@ -9,10 +9,13 @@ wasm-opt = false
 [lib]
 crate-type = ["cdylib", "lib"]
 
+# [[bench]]
+# harness = false
+# name = "ff_refactor"
+
 [[bench]]
 harness = false
-name = "ff"
-
+name = "elliptic_curve"
  
 [dependencies]
 ark-bls12-381 = {version = "0.3.0"}
@@ -23,9 +26,6 @@ instant = {version = "0.1", features = ["wasm-bindgen"]}
 wasm-bindgen = {version = "^0.2"}
 wasm-bindgen-test = {version = "^0.3"}
 web-sys = {version = "^0.3", features = ["console"]}
-ark-bls12-377 = { version = "0.3.0", default-features = false, features = ["curve"] }
-
-
 
 [dev-dependencies]
 criterion = "0.3"
