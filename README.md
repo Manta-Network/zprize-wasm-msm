@@ -16,17 +16,27 @@
     mocha --version # Should be at least 10.0.0
     ```
 
+* Install `big-integer` js module
+    ```bash
+    npm install big-integer
+    ```
+
+## Benchmark
+
 * WASM time:
     ```bash
     wasm-pack test --headless --chrome --release
     ```
+
 * Native time:
     ```bash
     cargo bench
     ```
+
 * WASMSNARK time:
     ```bash
     mocha wasmsnark-master/test/ff_test.js
+    mocha wasmsnark-master/test/bls12381_test.js
     ```
 
 ## FF Results

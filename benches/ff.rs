@@ -1,142 +1,76 @@
+// Copyright 2019-2022 Manta Network.
+// This file is part of manta-rs.
+//
+// manta-rs is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// manta-rs is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with manta-rs.  If not, see <http://www.gnu.org/licenses/>.
 
-use criterion::{ criterion_group, criterion_main, Criterion};
+//! Finite Field Benchmarks
 
-use ark_ff::{PrimeField, UniformRand, BigInteger};
-use ark_std::test_rng;
-use ark_bls12_381::{Fq, Fr};
+use ark_bls12_381::Fr;
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use wasm_bls12_381::ff::{generate_scalar_vector, Operations};
 
-/// Randomly generates a scalar vector.
-pub fn generate_scalar_vector<F>(size: usize) -> Vec<F>
-where
-    F: UniformRand,
-{
-    let mut rng = test_rng();
-    (0..size).map(|_| F::rand(&mut rng)).collect::<Vec<_>>()
-}
-
-/// Finite field operations
-pub trait Operations {
-    /// Adds `rhs` to `self`.
-    fn add(&self, rhs: &Self) -> Self;
-
-    /// Subtracts `rhs` from `self`.
-    fn sub(&self, rhs: &Self) -> Self;
-
-    /// Multiplies `rhs` with `self`.
-    fn mul(&self, rhs: &Self) -> Self;
-
-    /// Divides `self` by `rhs`.
-    fn div(&self, rhs: &Self) -> Self;
-}
-
-impl<F> Operations for Vec<F>
-where
-    F: PrimeField,
-{
-    fn add(&self, rhs: &Self) -> Self {
-        self.iter()
-            .zip(rhs.iter())
-            .map(|(l, r)| *l + *r)
-            .collect::<Vec<F>>()
-    }
-
-    fn sub(&self, rhs: &Self) -> Self {
-        self.iter()
-            .zip(rhs.iter())
-            .map(|(l, r)| *l - *r)
-            .collect::<Vec<F>>()
-    }
-
-    fn mul(&self, rhs: &Self) -> Self {
-        self.iter()
-            .zip(rhs.iter())
-            .map(|(l, r)| *l * *r)
-            .collect::<Vec<F>>()
-    }
-
-    fn div(&self, rhs: &Self) -> Self {
-        self.iter()
-            .zip(rhs.iter())
-            .map(|(l, r)| *l / *r)
-            .collect::<Vec<F>>()
+fn fr_add(c: &mut Criterion) {
+    let mut group = c.benchmark_group("fr addition");
+    for size in (16..26).step_by(2) {
+        let lhs = black_box(generate_scalar_vector::<Fr>(1 << size));
+        let rhs = black_box(generate_scalar_vector::<Fr>(1 << size));
+        group.bench_function(format!("Input vector length: 2^{}", size), |b| {
+            b.iter(|| {
+                let _ = black_box(Operations::add(&lhs, &rhs));
+            })
+        });
     }
 }
 
-fn compute_add<F>(lhs: &Vec<F>, rhs: &Vec<F>)
-where
-    F: PrimeField,
-{
-    let _ = Operations::add(lhs, rhs);
-}
-
-fn compute_sub<F>(lhs: &Vec<F>, rhs: &Vec<F>)
-where
-    F: PrimeField,
-{
-    let _ = Operations::sub(lhs, rhs);
-}
-
-fn compute_mul<F>(lhs: &Vec<F>, rhs: &Vec<F>)
-where
-    F: PrimeField,
-{
-    let _ = Operations::mul(lhs, rhs);
-}
-
-fn compute_div<F>(lhs: &Vec<F>, rhs: &Vec<F>)
-where
-    F: PrimeField,
-{
-    let _ = Operations::div(lhs, rhs);
-}
-
-
-
-/// Checks whether algebra operation works.
-fn all_operation_works(c: &mut Criterion) {
-    for size in (18..20).step_by(2) {
-        let lhs = generate_scalar_vector::<Fr>(1<<size);
-        let rhs = generate_scalar_vector::<Fr>(1<<size);
-        let start_time = instant::Instant::now();
-        for _ in 0..10000{
-            compute_add::<Fr>(
-                &lhs,
-                &rhs,
-            );
-        }
-        
-        let add_time = instant::Instant::now();
-    
-        
-        compute_sub::<Fr>(
-            &generate_scalar_vector::<Fr>(1<<size),
-            &generate_scalar_vector::<Fr>(1<<size),
-        );
-        let sub_time = instant::Instant::now();
-
-        compute_mul::<Fr>(
-            &generate_scalar_vector::<Fr>(1<<size),
-            &generate_scalar_vector::<Fr>(1<<size),
-        );
-        let mul_time = instant::Instant::now();
-
-        compute_div::<Fr>(
-            &generate_scalar_vector::<Fr>(1<<size),
-            &generate_scalar_vector::<Fr>(1<<size),
-        );
-        let div_time = instant::Instant::now();
-
-        println!("Vector size: 2^{:?}, add: {:?}, sub: {:?}, mul: {:?}, div: {:?}",
-        size,
-        (add_time - start_time),
-        (sub_time - add_time),
-        (mul_time - sub_time),
-        (div_time - mul_time)
-    )
+fn fr_sub(c: &mut Criterion) {
+    let mut group = c.benchmark_group("fr subtraction");
+    for size in (16..26).step_by(2) {
+        let lhs = black_box(generate_scalar_vector::<Fr>(1 << size));
+        let rhs = black_box(generate_scalar_vector::<Fr>(1 << size));
+        group.bench_function(format!("Input vector length: 2^{}", size), |b| {
+            b.iter(|| {
+                let _ = black_box(Operations::sub(&lhs, &rhs));
+            })
+        });
     }
-} 
+}
 
+fn fr_mul(c: &mut Criterion) {
+    let mut group = c.benchmark_group("fr multiplication");
+    for size in (16..26).step_by(2) {
+        let lhs = black_box(generate_scalar_vector::<Fr>(1 << size));
+        let rhs = black_box(generate_scalar_vector::<Fr>(1 << size));
+        group.bench_function(format!("Input vector length: 2^{}", size), |b| {
+            b.iter(|| {
+                let _ = black_box(Operations::mul(&lhs, &rhs));
+            })
+        });
+    }
+}
 
+fn fr_div(c: &mut Criterion) {
+    let mut group = c.benchmark_group("fr division");
+    for size in (8..18).step_by(2) {
+        let lhs = black_box(generate_scalar_vector::<Fr>(1 << size));
+        let rhs = black_box(generate_scalar_vector::<Fr>(1 << size));
+        group.bench_function(format!("Input vector length: 2^{}", size), |b| {
+            b.iter(|| {
+                let _ = black_box(Operations::div(&lhs, &rhs));
+            })
+        });
+    }
+}
 
-criterion_group!(benches, all_operation_works);
+criterion_group!(benches, fr_add, fr_sub, fr_mul, fr_div);
 criterion_main!(benches);

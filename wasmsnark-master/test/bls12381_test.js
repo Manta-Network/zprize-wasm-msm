@@ -64,29 +64,27 @@ describe("Basic tests for g1 in bls12-381", function () {
         
     });
 
+    // TODO: Add scalar mul correct test.
 
-    
+    it("It should do a basic point doubling adding G1 (projective)", async () => {
+        // TODO: Update to pG1 + pG2
+        const pG1 = pb.bls12381.pG1gen;
 
-
-    // it("It should do a basic point doubling adding G1 (projective)", async () => {
-    //     const pG1 = pb.bls12381.pG1gen;
-
-    //     const p1 = pb.alloc(n8*3);
-    //     const p2 = pb.alloc(n8*3);
+        const p1 = pb.alloc(n8*3);
+        const p2 = pb.alloc(n8*3);
         
 
-    //     for(var size=10;size<18;size+=2){
-    //         const start = new Date().getTime();
-    //         for(var i=0;i<100;i++){
-    //             pb.test_g1m_add(pG1, pG1, p1,1<<size); // 2*G1
-    //         }
+        for(var size=10;size<18;size+=2){
+            const start = new Date().getTime();
+            for(var i=0;i<100;i++){
+                pb.test_g1m_add(pG1, pG1, p1,1<<size); // 2*G1
+            }
 
-    //         const end = new Date().getTime();
-    //         const time = end - start;
-    //         console.log("size: 2^"+ size+", Time to compute G1 add (ms): " + time/100);
-    //     }
-    // });
-
+            const end = new Date().getTime();
+            const time = end - start;
+            console.log("size: 2^"+ size+", Time to compute G1 add (ms): " + time/100);
+        }
+    });
 
     it("It should timesScalar G1", async () => {
         const s=BigInt("0x674E1D7463D34C49F9C9F388646067D796542CCBF66F38D3AB574D0EE422C588",16);
@@ -115,6 +113,5 @@ describe("Basic tests for g1 in bls12-381", function () {
             const time = end - start;
             console.log("size: 2^"+ size+", Time to compute timesscalar (ms): " + time/REPEAT);
         }
-    
     });
 });
