@@ -1,5 +1,21 @@
 # MSM-WASM
 
+## Environment Setup
+
+* Update `node.js` version:
+    ```bash
+    npm cache clean -f
+    npm install -g n
+    n stable 
+    node --version # Should be at least v16.16.0
+    ```
+    
+* Install Mocha
+    ```bash
+    npm install mocha
+    mocha --version # Should be at least 10.0.0
+    ```
+
 * WASM time:
     ```bash
     wasm-pack test --headless --chrome --release
