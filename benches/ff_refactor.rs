@@ -90,5 +90,5 @@ fn fr_div(c: &mut Criterion) {
 }
 
 
-criterion_group!(benches, fr_div);
+criterion_group!(benches, fr_add, fr_sub, fr_mul, fr_div);
 criterion_main!(benches);

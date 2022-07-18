@@ -87,3 +87,53 @@ where
 {
     let _ = Operations::div(lhs, rhs);
 }
+
+
+
+
+#[cfg(test)]
+mod tests{
+    use super::*; 
+    use ark_bls12_381::{Fr, FrParameters};
+    use ark_ff::{
+        biginteger::BigInteger256 as BigInteger,
+    };
+    
+    #[test]
+    /// Checks whether algebra operation works.
+    fn all_operation_works() {
+        for size in (8..24).step_by(2) {
+            
+            let REPEAT = 100;
+            
+            let lhs = generate_scalar_vector::<Fr>(1<<size);
+            let rhs = generate_scalar_vector::<Fr>(1<<size);
+            let start_time = instant::Instant::now();
+            for _ in 0..REPEAT {
+                compute_add::<Fr>(
+                    &lhs,
+                    &rhs,
+                );
+            }
+            let add_time = instant::Instant::now();
+        
+            for _ in 0..REPEAT {
+                compute_sub::<Fr>(
+                    &lhs,
+                    &rhs,
+                );
+            }
+            let sub_time = instant::Instant::now();
+    
+            println!("Vector size: 2^{:?}, add: {:?}, sub: {:?}",
+            size,
+            (add_time - start_time)/REPEAT ,
+            (sub_time - add_time)/REPEAT
+        )
+        }
+    } 
+        
+} 
+
+
+

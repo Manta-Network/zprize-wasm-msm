@@ -61,6 +61,7 @@ module.exports = function buildBLS12381(module, _prefix) {
         ]
     );
 
+    // 1 and 2 for affine test
     const test_point_1 = [
         bigInt("1962BC58DEBAA92A5B3EA680800FD53D40F650B12892E238D17CA5B2DF0507A54F8A11E0104C33181B4990D47E98E53F",16),
         bigInt("14C79E7BA141AA8214CBC801B5276EE63BA44758ADEE859E4A13F01075E9D19FAEB4F674B61F83DF34600D5A7F4DBBAA",16),
@@ -85,6 +86,34 @@ module.exports = function buildBLS12381(module, _prefix) {
             ...utils.bigInt2BytesLE( toMontgomery(test_point_2[0]), f1size ),
             ...utils.bigInt2BytesLE( toMontgomery(test_point_2[1]), f1size ),
             ...utils.bigInt2BytesLE( toMontgomery(test_point_2[2]), f1size ),
+        ]
+    );
+
+    // 3 and 4 for projective test
+    const test_point_3 = [
+        bigInt("167B300B241DA715ABA2FB2B8667A1F2D7AFE3EA70621C6DAE518C9A5DB1603FBE504E492D49E42569CA4DA7606162DF",16),
+        bigInt("50F89508B95C57F9D7DCC912E9A830F1042D577BD07FD0443ADC0D83B18D62BF563BE0E7829414A68203DA7B8AB0B3C",16),
+        bigInt("131F9587337E61223F8AE0DA2023890CCEFDF6AFF2CDC8474FFA51B08BEC26E10D5E1E6AC1D8062E9427D41BF612D950",16),
+
+    ];
+    const test_point_4 = [
+        bigInt("FB25C191742AB8F73C2A572ED2134A3374D7A4B797B2CFD3A93DA850B9FE70ED36190DAF49B6F1FF032DC1860F084CF",16),
+        bigInt("1941FDDECD105C160CB23AF0C78D09490246C96BFC2D05EA888683695DD80929F41002BD5049797B42DAABD3E9CC4AAD",16),
+        bigInt("0EA726BB76E056FD5A7D47365F6BBD3E45D39A14CD60A8D3C6E0887132BA4AEC4967FD213880443E8C65D2E11BF66D6F",16),
+    ];
+
+    const test_point_3_gen = module.alloc(
+        [
+            ...utils.bigInt2BytesLE( toMontgomery(test_point_3[0]), f1size ),
+            ...utils.bigInt2BytesLE( toMontgomery(test_point_3[1]), f1size ),
+            ...utils.bigInt2BytesLE( toMontgomery(test_point_3[2]), f1size ),
+        ]
+    );
+    const test_point_4_gen = module.alloc(
+        [
+            ...utils.bigInt2BytesLE( toMontgomery(test_point_4[0]), f1size ),
+            ...utils.bigInt2BytesLE( toMontgomery(test_point_4[1]), f1size ),
+            ...utils.bigInt2BytesLE( toMontgomery(test_point_4[2]), f1size ),
         ]
     );
 
@@ -242,7 +271,9 @@ module.exports = function buildBLS12381(module, _prefix) {
 
     module.modules[prefix] = {
         test_point_1_gen: test_point_1_gen, 
-        test_point_2_gen: test_point_2_gen, 
+        test_point_2_gen: test_point_2_gen,
+        test_point_3_gen: test_point_3_gen, 
+        test_point_4_gen: test_point_4_gen, 
         n64: n64,
         pG1gen: pG1gen,
         pG1zero: pG1zero,

@@ -13,7 +13,7 @@
     mocha wasmsnark-master/test/ff_test.js
     ```
 
-## Initial Results
+## FF Results
 
 ###  Operation (Test on BLS 12-381)
 #### ADD
@@ -76,6 +76,7 @@ Operand2: 387B871A42CC7E352F862DB864633FA7433EDC24198C03528255C7E9F7A37C04
 
 
 
+## EC Results
 ### BLS12_381 EC Add Results 
 * Native time:
     ```bash
@@ -87,20 +88,33 @@ Operand2: 387B871A42CC7E352F862DB864633FA7433EDC24198C03528255C7E9F7A37C04
     ```
 |Loop | WASM  (ms) | Native Affine (ms) | Native Projective (ms)  | WASMSNARK Projective (ms) |
 | --- | --- | --- | ---| --- |
-| 2^10 | --- | 8.8 | 1.83 | 4.62 |
-| 2^12 | - | 35 | 6.17 | 18.06 |
-| 2^14 | - | 143 | 24 | 72.3 |
-| 2^16 | - | 566 | 100 | 312.46 |
+| 2^10 | 10.6 | 8.8 | 1.83 | 4.62 |
+| 2^12 | 42 | 35 | 6.17 | 18.06 |
+| 2^14 | 170 | 143 | 24 | 72.3 |
+| 2^16 | 679 | 566 | 100 | 312.46 |
 | 2^18 | -| 2367 | 403 | -- |
 | 2^20 | -| 9588 |--- |  -- |
 
 ### Check EC Add Correctness 
 * Native Rust (Affine): 
     ```bash
-    cargo test --package wasm-bls12-381 --lib -- check_ec::tests::ec_add_corect --exact --nocapture
+    cargo test --package wasm-bls12-381 --lib -- check_ec_affine::tests::ec_add_corect --exact --nocapture
+    ```
+* Native Rust (Projective): 
+    ```bash
+    cargo test --package wasm-bls12-381 --lib -- check_ec_projective::tests::ec_add_corect --exact --nocapture
     ```
 * WASMSNARK (Projective):
     ```bash
     mocha wasmsnark-master/test/bls12381_test.js
     ```
 
+ ### BLS12_381 EC Times Scalar Results 
+ (TODO: check the timesscalar result)
+ |Loop | WASM  (ms) | Native Projective (ms)  | WASMSNARK Projective (ms) |
+| --- | --- |  ---| --- |
+| 2^6 | 158 | 22 | 79 | 
+| 2^8 | 612 | 93 | 332 | 
+| 2^10 | 2454 | 391 | 1245 | 
+| 2^12 | 9767 | 1419 | 4977 | 
+| 2^14 | -- | 5805 | -- | 
