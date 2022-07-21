@@ -24,7 +24,7 @@ module.exports = function buildInt(module, n64, _prefix) {
     const prefix = _prefix || "int";
     if (module.modules[prefix]) return prefix;  // already builded
     module.modules[prefix] = {};
-
+ 
     const n32 = n64*2;
     const n8 = n64*8;
 
@@ -150,6 +150,7 @@ module.exports = function buildInt(module, n64, _prefix) {
 
 
     function buildGte() {
+        // Great than?
         const f = module.addFunction(prefix+"_gte");
         f.addParam("px", "i32");
         f.addParam("py", "i32");

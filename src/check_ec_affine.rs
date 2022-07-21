@@ -6,7 +6,7 @@ use ark_std::test_rng;
 use ark_bls12_381::G1Affine;
 
 /// Generates inputs including two point vectors.
-pub fn generate_elliptic_inputs<G>(
+pub fn generate_elliptic_inputs_affine<G>(
     size: usize,
 ) -> (
     Vec<<G::Projective as ProjectiveCurve>::Affine>,
@@ -27,16 +27,11 @@ where
                 .map(|_| G::Projective::rand(&mut rng))
                 .collect::<Vec<_>>(),
         )
-        //G::Projective::batch_normalization();
-
-        // (0..size)
-        //     .map(|_| G::ScalarField::rand(&mut rng).into_repr())
-        //     .collect::<Vec<_>>(),
     )
 }
 
 
-pub fn compute_elliptic_ops<G>(
+pub fn compute_elliptic_ops_affine<G>(
     point_vec1: &Vec<<G::Projective as ProjectiveCurve>::Affine>,
     point_vec2: &Vec<<G::Projective as ProjectiveCurve>::Affine>,
 ) -> Vec<<G::Projective as ProjectiveCurve>::Affine>
@@ -61,7 +56,7 @@ mod tests{
     
     #[test]
     fn ec_add_corect(){
-        let (lhs,rhs) = generate_elliptic_inputs::<G1Affine>(2);
+        let (lhs,rhs) = generate_elliptic_inputs_affine::<G1Affine>(2);
         let mut p1 = lhs[0];
         let mut p2 = lhs[1];
 

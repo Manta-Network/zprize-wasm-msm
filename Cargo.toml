@@ -9,13 +9,13 @@ wasm-opt = false
 [lib]
 crate-type = ["cdylib", "lib"]
 
-# [[bench]]
-# harness = false
-# name = "ff_refactor"
-
 [[bench]]
 harness = false
-name = "elliptic_curve"
+name = "ff"
+
+# [[bench]]
+# harness = false
+# name = "elliptic_curve"
  
 [dependencies]
 ark-bls12-381 = {version = "0.3.0"}

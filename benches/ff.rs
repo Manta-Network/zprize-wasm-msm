@@ -16,7 +16,7 @@
 
 //! Finite Field Benchmarks
 
-use ark_bls12_381::Fr;
+use ark_bls12_381::{Fr, Fq, fq};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use wasm_bls12_381::ff::{generate_scalar_vector, Operations};
 
@@ -72,5 +72,57 @@ fn fr_div(c: &mut Criterion) {
     }
 }
 
-criterion_group!(benches, fr_add, fr_sub, fr_mul, fr_div);
+fn fq_add(c: &mut Criterion) {
+    let mut group = c.benchmark_group("fq addition");
+    for size in (16..26).step_by(2) {
+        let lhs = black_box(generate_scalar_vector::<Fq>(1 << size));
+        let rhs = black_box(generate_scalar_vector::<Fq>(1 << size));
+        group.bench_function(format!("Input vector length: 2^{}", size), |b| {
+            b.iter(|| {
+                let _ = black_box(Operations::add(&lhs, &rhs));
+            })
+        });
+    }
+}
+
+fn fq_sub(c: &mut Criterion) {
+    let mut group = c.benchmark_group("fq subtraction");
+    for size in (16..26).step_by(2) {
+        let lhs = black_box(generate_scalar_vector::<Fq>(1 << size));
+        let rhs = black_box(generate_scalar_vector::<Fq>(1 << size));
+        group.bench_function(format!("Input vector length: 2^{}", size), |b| {
+            b.iter(|| {
+                let _ = black_box(Operations::sub(&lhs, &rhs));
+            })
+        });
+    }
+}
+
+fn fq_mul(c: &mut Criterion) {
+    let mut group = c.benchmark_group("fq multiplication");
+    for size in (16..26).step_by(2) {
+        let lhs = black_box(generate_scalar_vector::<Fq>(1 << size));
+        let rhs = black_box(generate_scalar_vector::<Fq>(1 << size));
+        group.bench_function(format!("Input vector length: 2^{}", size), |b| {
+            b.iter(|| {
+                let _ = black_box(Operations::mul(&lhs, &rhs));
+            })
+        });
+    }
+}
+
+fn fq_div(c: &mut Criterion) {
+    let mut group = c.benchmark_group("fq division");
+    for size in (8..18).step_by(2) {
+        let lhs = black_box(generate_scalar_vector::<Fq>(1 << size));
+        let rhs = black_box(generate_scalar_vector::<Fq>(1 << size));
+        group.bench_function(format!("Input vector length: 2^{}", size), |b| {
+            b.iter(|| {
+                let _ = black_box(Operations::div(&lhs, &rhs));
+            })
+        });
+    }
+}criterion_group!(benches, fr_add);
+
+//criterion_group!(benches, fr_add, fr_sub, fr_mul, fr_div, fq_add, fq_sub, fq_mul, fq_div);
 criterion_main!(benches);

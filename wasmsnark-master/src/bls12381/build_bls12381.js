@@ -12,7 +12,7 @@ const buildPol = require("../build_pol");
 
 // Definition here: https://electriccoin.co/blog/new-snark-curve/
 
-module.exports = function buildBLS12381(module, _prefix) {
+module.exports = function buildBLS12381(module, _prefix) { 
 
     const prefix = _prefix || "bls12381";
 

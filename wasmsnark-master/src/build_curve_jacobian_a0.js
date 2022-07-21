@@ -20,7 +20,7 @@
 const buildTimesScalar = require("./build_timesscalar");
 
 module.exports = function buildCurve(module, prefix, prefixField) {
-
+    //prefix=g1m prefixField=f1m
 
     const n64 = module.modules[prefixField].n64;
     const n8 = n64*8;
@@ -41,7 +41,7 @@ module.exports = function buildCurve(module, prefix, prefixField) {
             prefixField + "_isZero",
             c.i32_add(
                 c.getLocal("p1"),
-                c.i32_const(n8*2)
+                c.i32_const(n8*2)  // =0 if z equals 0
             )
         ));
     }
@@ -53,12 +53,14 @@ module.exports = function buildCurve(module, prefix, prefixField) {
 
         const c = f.getCodeBuilder();
 
+        // copy x
         f.addCode(c.call(
             prefixField + "_copy",
             c.getLocal("p1"),
             c.getLocal("pr")
         ));
 
+        // copy y
         f.addCode(c.call(
             prefixField + "_copy",
             c.i32_add(
@@ -71,11 +73,12 @@ module.exports = function buildCurve(module, prefix, prefixField) {
             )
         ));
 
+        // copy z
         f.addCode(c.call(
             prefixField + "_copy",
             c.i32_add(
                 c.getLocal("p1"),
-                c.i32_const(n8*2)
+                c.i32_const(n8*2) 
             ),
             c.i32_add(
                 c.getLocal("pr"),
@@ -90,11 +93,13 @@ module.exports = function buildCurve(module, prefix, prefixField) {
 
         const c = f.getCodeBuilder();
 
+        // set x 0
         f.addCode(c.call(
             prefixField + "_zero",
             c.getLocal("pr")
         ));
 
+        // set y 0
         f.addCode(c.call(
             prefixField + "_one",
             c.i32_add(
@@ -103,6 +108,7 @@ module.exports = function buildCurve(module, prefix, prefixField) {
             )
         ));
 
+        // set z 0
         f.addCode(c.call(
             prefixField + "_zero",
             c.i32_add(
@@ -142,26 +148,31 @@ module.exports = function buildCurve(module, prefix, prefixField) {
 
 
         f.addCode(
+            // if p1 == p2 == 0; ret 1
             c.if(
                 c.call(prefix + "_isZero", c.getLocal("p1")),
                 c.ret( c.call(prefix + "_isZero", c.getLocal("p2"))),
             ),
+            // if p1 !=0 && p2==0; ret 0
             c.if(
                 c.call(prefix + "_isZero", c.getLocal("p2")),
                 c.ret(c.i32_const(0))
             ),
 
+            // f1m filed
             c.call(prefixField + "_square", z1, Z1Z1),
             c.call(prefixField + "_square", z2, Z2Z2),
-            c.call(prefixField + "_mul", x1, Z2Z2, U1),
-            c.call(prefixField + "_mul", x2, Z1Z1, U2),
+            c.call(prefixField + "_mul", x1, Z2Z2, U1), // U1 = x1z1z1
+            c.call(prefixField + "_mul", x2, Z1Z1, U2), // U2 = x2z1z1
             c.call(prefixField + "_mul", z1, Z1Z1, Z1_cubed),
             c.call(prefixField + "_mul", z2, Z2Z2, Z2_cubed),
-            c.call(prefixField + "_mul", y1, Z2_cubed, S1),
-            c.call(prefixField + "_mul", y2, Z1_cubed, S2),
+            c.call(prefixField + "_mul", y1, Z2_cubed, S1), // s1 = y1z2z2z2
+            c.call(prefixField + "_mul", y2, Z1_cubed, S2), // s2 = y2z1z1z1
 
+            //  if(x1z1z1 == x2z2z2 &&  y1z2z2z2==y2z1z1z1) ret 1;
+            //  else ret 0;
             c.if(
-                c.call(prefixField + "_eq", U1, U2),
+                c.call(prefixField + "_eq", U1, U2), 
                 c.if(
                     c.call(prefixField + "_eq", S1, S2),
                     c.ret(c.i32_const(1))
@@ -173,6 +184,7 @@ module.exports = function buildCurve(module, prefix, prefixField) {
 
     function buildDouble() {
         const f = module.addFunction(prefix + "_double");
+        // pr = p1 * p1
         f.addParam("p1", "i32");
         f.addParam("pr", "i32");
 
@@ -195,6 +207,7 @@ module.exports = function buildCurve(module, prefix, prefixField) {
         const eightC = c.i32_const(module.alloc(n8));
 
         f.addCode(
+            // if (p1 ==0); {pr =0;  ret;}
             c.if(
                 c.call(prefix + "_isZero", c.getLocal("p1")),
                 [
@@ -203,34 +216,34 @@ module.exports = function buildCurve(module, prefix, prefixField) {
                 ]
             ),
 
-            c.call(prefixField + "_square", x, A),
-            c.call(prefixField + "_square", y, B),
-            c.call(prefixField + "_square", B, C),
+            c.call(prefixField + "_square", x, A),// A = xx
+            c.call(prefixField + "_square", y, B),// B = yy
+            c.call(prefixField + "_square", B, C),// C = yyyy
 
-            c.call(prefixField + "_add", x, B, D),
-            c.call(prefixField + "_square", D, D),
-            c.call(prefixField + "_sub", D, A, D),
-            c.call(prefixField + "_sub", D, C, D),
-            c.call(prefixField + "_add", D, D, D),
+            c.call(prefixField + "_add", x, B, D),// D = yy+x
+            c.call(prefixField + "_square", D, D),// D = (yy+x)(yy+x)
+            c.call(prefixField + "_sub", D, A, D),// D =  (yy+x)(yy+x) -xx = yyyy+2xyy
+            c.call(prefixField + "_sub", D, C, D),// D =  (yy+x)(yy+x) -xx - yyyy = 2xyy
+            c.call(prefixField + "_add", D, D, D),// D = 4xyy
 
-            c.call(prefixField + "_add", A, A, E),
-            c.call(prefixField + "_add", E, A, E),
-            c.call(prefixField + "_square", E, F),
+            c.call(prefixField + "_add", A, A, E),// E = 2xx
+            c.call(prefixField + "_add", E, A, E),// E = 3xx
+            c.call(prefixField + "_square", E, F),// F = 9xxxx
 
-            c.call(prefixField + "_mul", y, z, G),
+            c.call(prefixField + "_mul", y, z, G),// G = yz
 
-            c.call(prefixField + "_add", D, D, x3),
-            c.call(prefixField + "_sub", F, x3, x3),
+            c.call(prefixField + "_add", D, D, x3),// x3 = 8xyy
+            c.call(prefixField + "_sub", F, x3, x3),// x3 = 9xxxx - 8xyy
 
-            c.call(prefixField + "_add", C, C, eightC),
+            c.call(prefixField + "_add", C, C, eightC),// eightC = 2yyyy
             c.call(prefixField + "_add", eightC, eightC, eightC),
-            c.call(prefixField + "_add", eightC, eightC, eightC),
+            c.call(prefixField + "_add", eightC, eightC, eightC),// eightC = 8yyyy
 
-            c.call(prefixField + "_sub", D, x3, y3),
-            c.call(prefixField + "_mul", y3, E, y3),
-            c.call(prefixField + "_sub", y3, eightC, y3),
+            c.call(prefixField + "_sub", D, x3, y3),// y3 = 12xyy -9xxxx 
+            c.call(prefixField + "_mul", y3, E, y3),// y3 = 3xx(12xyy-9xxxx)
+            c.call(prefixField + "_sub", y3, eightC, y3),// y3 = 3xx(12xyy-9xxxx) - 8yyyy
 
-            c.call(prefixField + "_add", G, G, z3),
+            c.call(prefixField + "_add", G, G, z3),//2yz
         );
     }
 

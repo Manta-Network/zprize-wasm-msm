@@ -64,11 +64,32 @@ describe("Basic tests for g1 in bls12-381", function () {
         
     });
 
-    // TODO: Add scalar mul correct test.
+    it("It should test ec mul correctness (projective)", async () => {
+
+        const s=10;
+        const pG2 = pb.bls12381.pG2gen;
+
+        const p1 = pb.alloc(n8*6);
+        const p2 = pb.alloc(n8*6);
+        const ps = pb.alloc(n8);
+
+        pb.set(ps, s);
+
+        pb.g2m_timesScalar(pG2, ps, n8, p1);
+
+        pb.g2m_zero(p2);
+
+        for (let i=0; i<s; i++) {
+            pb.g2m_add(pG2,p2, p2);
+        }
+
+        assert.equal(pb.g2m_eq(p1, p2), 1);
+    });
+
 
     it("It should do a basic point doubling adding G1 (projective)", async () => {
-        // TODO: Update to pG1 + pG2
         const pG1 = pb.bls12381.pG1gen;
+        const pG2 = pb.bls12381.pG2gen;
 
         const p1 = pb.alloc(n8*3);
         const p2 = pb.alloc(n8*3);
@@ -77,7 +98,7 @@ describe("Basic tests for g1 in bls12-381", function () {
         for(var size=10;size<18;size+=2){
             const start = new Date().getTime();
             for(var i=0;i<100;i++){
-                pb.test_g1m_add(pG1, pG1, p1,1<<size); // 2*G1
+                pb.test_g1m_add(pG1, pG2, p1,1<<size); 
             }
 
             const end = new Date().getTime();
@@ -88,8 +109,6 @@ describe("Basic tests for g1 in bls12-381", function () {
 
     it("It should timesScalar G1", async () => {
         const s=BigInt("0x674E1D7463D34C49F9C9F388646067D796542CCBF66F38D3AB574D0EE422C588",16);
-        //5FB51E0EE491C6F26F2FD3AB01162C4D3AD3AFF73FC213510EBBF34FAA74C07E
-        //5FB51E0EE491C6F26F2FD3AB01162C4D3AD3AFF73FC213510EBBF34FAA74C07E
         const pG1 = pb.bls12381.pG1gen;
 
         const p1 = pb.alloc(n8*3);
@@ -99,7 +118,6 @@ describe("Basic tests for g1 in bls12-381", function () {
         pb.set(ps, s);
 
         const REPEAT = 100;
-        //const size = 8;
         
         for(var size=6;size<10;size+=2){
             const loops = 1<<size;
