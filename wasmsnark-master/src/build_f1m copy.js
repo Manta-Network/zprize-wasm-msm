@@ -252,11 +252,7 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
 
         const c = f.getCodeBuilder();
 
-        // np32 = 4294967295 = FFFFFFFF = 100000000 - 1 
-        // q 52435875175126190479447740508185965837690552500527637822603658699938581184513
         const np32 = bigInt("100000000",16).minus( q.modInv(bigInt("100000000",16))).toJSNumber();
-        //console.log("np32 "+ np32.toString(16));
-
 
         f.addCode(c.setLocal("np32", c.i64_const(np32)));
 

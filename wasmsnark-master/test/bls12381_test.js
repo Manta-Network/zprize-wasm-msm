@@ -4,7 +4,7 @@ const internal = require("stream");
 const buildBls12381 = require("../src/bls12381/build_bls12381.js");
 const buildProtoboard = require("wasmbuilder").buildProtoboard;
 const buildTest2 = require("../src/build_test.js").buildTest2;
-
+ 
 
 describe("Basic tests for g1 in bls12-381", function () {
 
@@ -89,16 +89,25 @@ describe("Basic tests for g1 in bls12-381", function () {
 
     it("It should do a basic point doubling adding G1 (projective)", async () => {
         const pG1 = pb.bls12381.pG1gen;
-        const pG2 = pb.bls12381.pG2gen;
-
+        const s1 = 333;
+        const s2 = 444;
+     
+        const ps1 = pb.alloc(n8);
+        const ps2 = pb.alloc(n8);
+        pb.set(ps1, s1);
+        pb.set(ps2, s2);
         const p1 = pb.alloc(n8*3);
-        const p2 = pb.alloc(n8*3);
-        
+        const p2 = pb.alloc(n8*3); 
+
+        const pr = pb.alloc(n8*3); 
+
+        pb.g1m_timesScalar(pG1, ps1, n8, p1);
+        pb.g1m_timesScalar(pG1, ps2, n8, p2);
 
         for(var size=10;size<18;size+=2){
             const start = new Date().getTime();
             for(var i=0;i<100;i++){
-                pb.test_g1m_add(pG1, pG2, p1,1<<size); 
+                pb.test_g1m_add(p1, p2, pr,1<<size); 
             }
 
             const end = new Date().getTime();
@@ -119,7 +128,7 @@ describe("Basic tests for g1 in bls12-381", function () {
 
         const REPEAT = 100;
         
-        for(var size=6;size<10;size+=2){
+        for(var size=6;size<6;size+=2){
             const loops = 1<<size;
             const start = new Date().getTime();
             for (var i =0; i<REPEAT ;i++){

@@ -86,7 +86,7 @@ describe("Basic tests for Fr and Fq", () => {
             // test add
             start = new Date().getTime();
             for (let i = 0; i < REPEAT; i++) {
-                pbF1.test_f1_add(pA, pB, pC, loops);
+                pbF1.test_f1_add(pA, pB, pC, loops); 
             }
             end_add = new Date().getTime();
             time = (end_add - start) / REPEAT;

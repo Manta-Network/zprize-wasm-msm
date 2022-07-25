@@ -122,7 +122,7 @@ fn fq_div(c: &mut Criterion) {
             })
         });
     }
-}criterion_group!(benches, fr_add);
+}criterion_group!(benches, fq_add);
 
 //criterion_group!(benches, fr_add, fr_sub, fr_mul, fr_div, fq_add, fq_sub, fq_mul, fq_div);
 criterion_main!(benches);

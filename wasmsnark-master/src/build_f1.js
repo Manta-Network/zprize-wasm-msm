@@ -43,6 +43,7 @@ module.exports = function buildF1(module, _q, _prefix, _f1mPrefix, _intPrefix) {
 
     function buildMul() {
         const pAux1 = module.alloc(n8);
+        //console.log(pAux1.toString());
 
         const f = module.addFunction(prefix+ "_mul");
         f.addParam("x", "i32");
