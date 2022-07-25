@@ -145,7 +145,7 @@ Operand2: 387B871A42CC7E352F862DB864633FA7433EDC24198C03528255C7E9F7A37C04
     ```bash
     mocha wasmsnark-master/test/bls12381_test.js
     ```
-|Loop | WASM  (ms) |  Native Projective (ms)  | WASMSNARK Projective (ms) | ffjavascript Projective (ms) |
+|Loop | WASM Projective (ms) |  Native Projective (ms)  | WASMSNARK Projective (ms) | ffjavascript Projective (ms) |
 | --- | --- | ---| --- | --- |
 | 2^10 | 10.6 |  1.83 | 4.62 | 8.7 |
 | 2^12 | 42 |  6.17 | 18.06 | 35 |
@@ -176,7 +176,7 @@ Operand2: 387B871A42CC7E352F862DB864633FA7433EDC24198C03528255C7E9F7A37C04
     ```
 
  ### BLS12_381 EC Times Scalar Results 
- |Loop | WASM  (ms) | Native Projective (ms)  | WASMSNARK Projective (ms) | ffjavascript Projective (ms) |
+ |Loop | WASM Projective (ms) | Native Projective (ms)  | WASMSNARK Projective (ms) | ffjavascript Projective (ms) |
 | --- | --- |  ---| --- | --- |
 | 2^6 | 158 | 22 | 79 | 67 |
 | 2^8 | 612 | 93 | 332 | 282 |
