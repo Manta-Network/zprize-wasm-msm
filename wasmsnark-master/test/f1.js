@@ -361,7 +361,7 @@ describe("Basic tests for Zq", () => {
         const pR = f1.allocInt(r);
         const pRes = f1.allocInt();
         const pRes2 = f1.allocInt();
-
+ 
         f1.f1m_toMontgomery(pR, pRes);
         const res = f1.getInt(pRes);
 
@@ -743,7 +743,7 @@ describe("Basic tests for Zq", () => {
 
 
         start = new Date().getTime();
-        pbF1m.test_f1m_mul(pA, pB, pC, 50000000);
+        pbF1m.test_f1m_mul(pA, pB, pC, 1<<20);
         end = new Date().getTime();
         time = end - start;
 

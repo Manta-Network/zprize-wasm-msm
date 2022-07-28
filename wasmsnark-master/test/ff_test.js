@@ -1,6 +1,7 @@
 const assert = require("assert");
 const bigInt = require("big-integer");
 const buildF1 = require("../src/build_f1");
+const buildInt = require("../src/build_int");
 const buildProtoboard = require("wasmbuilder").buildProtoboard;
 const buildTest1 = require("../src/build_test.js").buildTest1;
 const buildTest2 = require("../src/build_test.js").buildTest2;
@@ -199,4 +200,6 @@ describe("Basic tests for Fr and Fq", () => {
             console.log("DIV: loops: 2^" + SIZE + ". Test Time (ms): " + time);
         }
     }).timeout(10000000);
+
+
 });

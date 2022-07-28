@@ -122,7 +122,31 @@ fn fq_div(c: &mut Criterion) {
             })
         });
     }
-}criterion_group!(benches, fq_add);
+}
+
+pub fn onemul(a:i128, b:i128) {
+    let repeat = 1<<30;
+    
+    for _ in 1..repeat {
+        let c = a*b;
+    }
+    
+}
+
+fn int_mul(c: &mut Criterion) {
+    let mut group = c.benchmark_group("fq multiplication");
+    for size in (20..22).step_by(2) {
+        let lhs = black_box(123321123131231123223213123421i128);
+        let rhs = black_box(233242123123213211313123123124);
+        group.bench_function(format!("Input vector length: 2^{}", size), |b| {
+            b.iter(|| {
+                let _ = black_box(onemul(lhs , rhs));
+            })
+        });
+    }
+}
+
+criterion_group!(benches, int_mul);
 
 //criterion_group!(benches, fr_add, fr_sub, fr_mul, fr_div, fq_add, fq_sub, fq_mul, fq_div);
 criterion_main!(benches);

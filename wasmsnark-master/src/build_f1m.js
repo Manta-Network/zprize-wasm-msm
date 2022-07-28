@@ -255,10 +255,13 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
         // np32 = 4294967295 = FFFFFFFF = 100000000 - 1 
         // q 52435875175126190479447740508185965837690552500527637822603658699938581184513
         const np32 = bigInt("100000000",16).minus( q.modInv(bigInt("100000000",16))).toJSNumber();
-        //console.log("np32 "+ np32.toString(16));
+        
+        //console.log("pq "+ pq.toString(16));
+        
 
 
         f.addCode(c.setLocal("np32", c.i64_const(np32)));
+
 
 
         const loadX = [];
@@ -285,7 +288,8 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
         function mulqm(i, j) {
             let Q,M;
             if (!loadQ[i]) {
-                Q = c.teeLocal("q"+i, c.i64_load32_u(c.i32_const(0), pq+i*4 ));
+                // get corresponding q (offset i*4)
+                Q = c.teeLocal("q"+i, c.i64_load32_u(  c.i32_const(0),pq+i*4 ));
                 loadQ[i] = true;
             } else {
                 Q = c.getLocal("q"+i);
@@ -299,10 +303,33 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
         let c0 = "c0";
         let c1 = "c1";
 
-        for (let k=0; k<n32*2-1; k++) {
-            for (let i=Math.max(0, k-n32+1); (i<=k)&&(i<n32); i++) {
-                const j= k-i;
+    
+ 
+        // console.log(c.i32_const(0));
+        // console.log(pq+1);
+        // console.log(c.i64_load32_u(c.i32_const(0), pq+4  ));
+        // console.log(n64);
+        // console.log(bigInt.one.shiftLeft(n64*64).square().mod(q));
+        // f.addCode(
+        //     c.i64_store32(
+        //         c.getLocal("r"),
+        //         0,
+        //         c.i64_load32_u(c.i32_const(0), 504  )
+        //     )
+        // )
+        // c.setLocal("r",
+        //     c.i64_load32_u(c.i32_const(0), pq+4  )
+        // )
 
+        // mul begin
+        for (let k=0; k<n32*2-1; k++) {
+            // calculate pos k results
+            // this takes 
+            for (let i=Math.max(0, k-n32+1); (i<=k)&&(i<n32); i++) {
+                
+                const j= k-i;
+                
+                // c0 = (c0 & 0xFFFFFFFF) + x_i * y_j
                 f.addCode(
                     c.setLocal(c0,
                         c.i64_add(
@@ -315,6 +342,7 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
                     )
                 );
 
+                // c1 = c1 + (c0 >> 32)
                 f.addCode(
                     c.setLocal(c1,
                         c.i64_add(
@@ -326,12 +354,13 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
                         )
                     )
                 );
-            }
+            }// finsih calculate pos k
 
-
+            // below takes 60ms
             for (let i=Math.max(1, k-n32+1); (i<=k)&&(i<n32); i++) {
                 const j= k-i;
 
+                // c0 = (c0 & 0xFFFFFFFF) + q_i * mj
                 f.addCode(
                     c.setLocal(c0,
                         c.i64_add(
@@ -344,6 +373,7 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
                     )
                 );
 
+                // c1 = c1 + (c0 >> 32)
                 f.addCode(
                     c.setLocal(c1,
                         c.i64_add(
@@ -356,7 +386,10 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
                     )
                 );
             }
+
+            
             if (k<n32) {
+                // mk =  ((c0 & 0xFFFFFFFF) * np32 ) & 0xFFFFFFFF 
                 f.addCode(
                     c.setLocal(
                         "m"+k,
@@ -370,10 +403,10 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
                             ),
                             c.i64_const("0xFFFFFFFF")
                         )
-                    )
+                    ) // set mk
                 );
 
-
+                // c0 = (c0 & 0xFFFFFFFF) +  q_0 * mk     
                 f.addCode(
                     c.setLocal(c0,
                         c.i64_add(
@@ -384,8 +417,9 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
                             mulqm(0,k)
                         )
                     )
-                );
+                ); // set c0
 
+                // c1 = c1 + c0>>32
                 f.addCode(
                     c.setLocal(c1,
                         c.i64_add(
@@ -397,9 +431,10 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
                         )
                     )
                 );
-            }
+            } // k<n32 end
 
 
+            // r_{(k-n32)*4} = c0
             if (k>=n32) {
                 f.addCode(
                     c.i64_store32(
@@ -408,7 +443,9 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
                         c.getLocal(c0)
                     )
                 );
-            }
+            } // k>=n32 end
+
+            // for next loop
             [c0, c1] = [c1, c0];
             f.addCode(
                 c.setLocal(c1,
@@ -418,7 +455,8 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
                     )
                 )
             );
-        }
+        }// loop over all k end
+
         f.addCode(
             c.i64_store32(
                 c.getLocal("r"),
@@ -982,7 +1020,465 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
     }
 
 
+    function buildCacheMulF1m() {
 
+        const f = module.addFunction(prefix+"_cachemulf1m");
+        f.addParam("x", "i32");
+        f.addParam("y", "i32");
+        f.addParam("r", "i32");
+        f.addLocal("c0", "i64");
+        f.addLocal("c1", "i64");
+        f.addLocal("np32", "i64");
+
+
+        for (let i=0;i<n32; i++) {
+            f.addLocal("x"+i, "i64");
+            f.addLocal("y"+i, "i64");
+            f.addLocal("m"+i, "i64");
+            f.addLocal("q"+i, "i64");
+        }
+
+        const c = f.getCodeBuilder();
+
+        // np32 = 4294967295 = FFFFFFFF = 100000000 - 1 
+        // q 52435875175126190479447740508185965837690552500527637822603658699938581184513
+        const np32 = bigInt("100000000",16).minus( q.modInv(bigInt("100000000",16))).toJSNumber();
+        
+        //console.log("pq "+ pq.toString(16));
+        
+
+
+        f.addCode(c.setLocal("np32", c.i64_const(np32)));
+
+
+
+        const loadX = [];
+        const loadY = [];
+        const loadQ = [];
+        function mulij(i, j) { //30ms
+            //return c.i64_const(123);
+            let X,Y;
+            if (!loadX[i]) {
+                X = c.teeLocal("x"+i, c.i64_load32_u( c.getLocal("x"), i*4));
+                loadX[i] = true;
+            } else {
+                X = c.getLocal("x"+i);
+            }
+            if (!loadY[j]) {
+                Y = c.teeLocal("y"+j, c.i64_load32_u( c.getLocal("y"), j*4));
+                loadY[j] = true;
+            } else {
+                Y = c.getLocal("y"+j);
+            }
+            return c.i64_mul( X, Y );
+            
+        }
+
+        function mulqm(i, j) { //30ms
+            //return c.i64_const(111);
+
+            let Q,M;
+            if (!loadQ[i]) {
+                // get corresponding q (offset i*4)
+                Q = c.teeLocal("q"+i, c.i64_load32_u(  c.i32_const(0),pq+i*4 ));
+                loadQ[i] = true;
+            } else {
+                Q = c.getLocal("q"+i);
+            }
+            M = c.getLocal("m"+j);
+
+            return c.i64_mul( Q, M );
+        }
+
+
+        let c0 = "c0";
+        let c1 = "c1";
+
+    
+ 
+        // console.log(c.i32_const(0));
+        // console.log(pq+1);
+        // console.log(c.i64_load32_u(c.i32_const(0), pq+4  ));
+        // console.log(n64);
+        // console.log(bigInt.one.shiftLeft(n64*64).square().mod(q));
+        // f.addCode(
+        //     c.i64_store32(
+        //         c.getLocal("r"),
+        //         0,
+        //         c.i64_load32_u(c.i32_const(0), 504  )
+        //     )
+        // )
+        // c.setLocal("r",
+        //     c.i64_load32_u(c.i32_const(0), pq+4  )
+        // )
+
+        // mul begin
+        for (let k=0; k<n32*2-1; k++) {
+            // calculate pos k results
+            // this takes 
+            for (let i=Math.max(0, k-n32+1); (i<=k)&&(i<n32); i++) {
+                
+                const j= k-i;
+                
+                // c0 = (c0 & 0xFFFFFFFF) + x_i * y_j
+                f.addCode(
+                    c.setLocal(c0,
+                        c.i64_add(
+                            c.i64_and(
+                                c.getLocal(c0),
+                                c.i64_const(0xFFFFFFFF)
+                            ),
+                            mulij(i,j)
+                        )
+                    )
+                );
+
+                // c1 = c1 + (c0 >> 32)
+                f.addCode(
+                    c.setLocal(c1,
+                        
+                        c.i64_add(
+                            c.getLocal(c1),
+                            c.i64_shr_u(
+                                c.getLocal(c0),
+                                c.i64_const(32)
+                            )
+                        )
+                    )
+                );
+            }// finsih calculate pos k
+
+            // below takes 60ms
+            for (let i=Math.max(1, k-n32+1); (i<=k)&&(i<n32); i++) {
+                const j= k-i;
+
+                // c0 = (c0 & 0xFFFFFFFF) + q_i * mj
+                f.addCode(
+                    c.setLocal(c0,
+                        c.i64_add(
+                            c.i64_and(
+                                c.getLocal(c0),
+                                c.i64_const(0xFFFFFFFF)
+                            ),
+                            mulqm(i,j)
+                        )
+                    )
+                );
+
+                // c1 = c1 + (c0 >> 32)
+                f.addCode(
+                    c.setLocal(c1,
+                        c.i64_add(
+                            c.getLocal(c1),
+                            c.i64_shr_u(
+                                c.getLocal(c0),
+                                c.i64_const(32)
+                            )
+                        )
+                    )
+                );
+            }
+
+            
+            if (k<n32) {
+                // mk =  ((c0 & 0xFFFFFFFF) * np32 ) & 0xFFFFFFFF 
+                f.addCode(
+                    c.setLocal(
+                        "m"+k,
+                        c.i64_and(
+                            c.i64_mul(
+                                c.i64_and(
+                                    c.getLocal(c0),
+                                    c.i64_const(0xFFFFFFFF)
+                                ),
+                                c.getLocal("np32")
+                            ),
+                            c.i64_const("0xFFFFFFFF")
+                        )
+                    ) // set mk
+                );
+
+                // c0 = (c0 & 0xFFFFFFFF) +  q_0 * mk     
+                f.addCode(
+                    c.setLocal(c0,
+                        c.i64_add(
+                            c.i64_and(
+                                c.getLocal(c0),
+                                c.i64_const(0xFFFFFFFF)
+                            ),
+                            mulqm(0,k)
+                        )
+                    )
+                ); // set c0
+
+                // c1 = c1 + c0>>32
+                f.addCode(
+                    c.setLocal(c1,
+                        c.i64_add(
+                            c.getLocal(c1),
+                            c.i64_shr_u(
+                                c.getLocal(c0),
+                                c.i64_const(32)
+                            )
+                        )
+                    )
+                );
+            } // k<n32 end
+
+
+            // r_{(k-n32)*4} = c0
+            if (k>=n32) {
+                f.addCode(
+                    c.i64_store32(
+                        c.getLocal("r"),
+                        (k-n32)*4,
+                        c.getLocal(c0)
+                    )
+                );
+            } // k>=n32 end
+
+            // for next loop
+            [c0, c1] = [c1, c0];
+            f.addCode(
+                c.setLocal(c1,
+                    c.i64_shr_u(
+                        c.getLocal(c0),
+                        c.i64_const(32)
+                    )
+                )
+            );
+        }// loop over all k end
+
+        f.addCode(
+            c.i64_store32(
+                c.getLocal("r"),
+                n32*4-4,
+                c.getLocal(c0)
+            )
+        );
+
+        f.addCode(
+            c.if(
+                c.i32_wrap_i64(c.getLocal(c1)),
+                c.drop(c.call(intPrefix+"_sub", c.getLocal("r"), c.i32_const(pq), c.getLocal("r"))),
+                c.if(
+                    c.call(intPrefix+"_gte", c.getLocal("r"), c.i32_const(pq)  ),
+                    c.drop(c.call(intPrefix+"_sub", c.getLocal("r"), c.i32_const(pq), c.getLocal("r"))),
+                )
+            )
+        );
+
+    }
+
+    function buildCacheMul() {
+
+        const f = module.addFunction(prefix+"_cachemul");
+        f.addParam("x", "i32");
+        f.addParam("y", "i32");
+        f.addParam("r", "i32");
+        
+        
+        
+        f.addLocal("c0", "i64");
+        f.addLocal("c1", "i64");
+
+        f.addLocal("tmp", "i64");
+        
+
+
+        for (let i=0;i<n32; i++) {
+            f.addLocal("x"+i, "i64");
+            f.addLocal("y"+i, "i64");
+        }
+        
+        for (let i=0;i<n32*2-1; i++) {
+            f.addLocal("r"+i, "i64");
+        }
+        
+
+        const c = f.getCodeBuilder();
+
+        const loadX = [];
+        const loadY = [];
+        for(let i =0;i<n32;i++){
+            f.addCode(
+                c.setLocal("x"+i, c.i64_load32_u( c.getLocal("x"), i*4))
+            );
+        }
+        for(let i =0;i<n32;i++){
+            f.addCode(
+                c.setLocal("y"+i, c.i64_load32_u( c.getLocal("y"), i*4))
+            );
+        }
+        
+        
+        function mulij(i, j) { // 270 -> 35ms if return const(1)
+            let X,Y;
+            // if (!loadX[i]) {
+            //     X = c.teeLocal("x"+i, c.i64_load32_u( c.getLocal("x"), i*4));
+            //     loadX[i] = true;
+            // } else {
+            //     X = c.getLocal("x"+i);
+            // }
+            // if (!loadY[j]) {
+            //     Y = c.teeLocal("y"+j, c.i64_load32_u( c.getLocal("y"), j*4));
+            //     loadY[j] = true;
+            // } else {
+            //     Y = c.getLocal("y"+j);
+            // }
+            
+
+            // if (!loadX[i]) {
+            //     X = c.teeLocal("x"+i, c.i64_load32_u( c.getLocal("x"), i*4));
+            //     loadX[i] = true;
+            // } else {
+            //     X = c.getLocal("x"+i);
+            // }
+            // if (!loadY[j]) {
+            //     Y = c.teeLocal("y"+j, c.i64_load32_u( c.getLocal("y"), j*4));
+            //     loadY[j] = true;
+            // } else {
+            //     Y = c.getLocal("y"+j);
+            // }
+            X = c.getLocal("x"+i);
+            Y = c.getLocal("y"+j);
+            
+            return c.i64_mul( X, Y );
+            //return c.i64_const(1);
+        }
+        console.log("n32 in f1m cache mul:"+ n32)
+            
+
+        for(let i = 0;i < n32;i++){
+            for(let j = 0; j< n32 ; j++){
+                f.addCode(
+                    c.setLocal(
+                        "r"+(i+j),
+                        c.i64_add(
+                            c.getLocal("r"+(i+j)),
+                            c.i64_and(
+                                c.i64_const(0xFFFFFFFF),
+                                c.teeLocal(
+                                    "tmp",
+                                    mulij(i,j)
+                                )
+                            )
+                        )
+                    )
+                )
+                
+
+                if(i+j<n32*2-2){
+                    f.addCode(
+                        c.setLocal(
+                            "r"+(i+j+1),
+                            c.i64_add(
+                                c.getLocal("r"+(i+j+1)),
+                                c.i64_shr_u(
+                                    c.getLocal("tmp"),
+                                    c.i64_const(32)
+                                )
+                            )
+                        )
+                    )
+                }
+            }
+        }
+
+        for (let k=0; k<2*n32-1; k++){
+            // very slow, one iter 20ms
+            if(k==0){
+                f.addCode(
+                    c.i64_store32(
+                        c.getLocal("r"),
+                        k*4,
+                        c.getLocal("r0")
+                    )
+                );
+            }
+            else{
+                f.addCode(
+                    c.i64_store32(
+                        c.getLocal("r"),
+                        k*4,
+                        //c.getLocal("r"+k) //360ms
+                        c.getLocal("r0") //48ms
+                        //c.i64_const(0) // 44ms
+                    )
+                );
+                
+            }
+        }
+
+
+
+
+        //mul begin
+        // let c0 = "c0";//[32 ,3] opcode offset
+        // let c1 = "c1";//[32,4]
+        // for (let k=0; k<n32*2-1; k++) {
+        //     for (let i=Math.max(0, k-n32+1); (i<=k)&&(i<n32); i++) {
+        //         const j= k-i;
+
+        //         f.addCode(
+        //             c.setLocal(c0,
+        //                 c.i64_add(
+        //                     c.i64_and(
+        //                         c.getLocal(c0),
+        //                         c.i64_const(0xFFFFFFFF)
+        //                     ),
+        //                     mulij(i,j)
+        //                 )
+        //             )
+        //         );
+
+        //         f.addCode(
+        //             c.setLocal(c1,
+        //                 c.i64_add(
+        //                     c.getLocal(c1),
+        //                     c.i64_shr_u(
+        //                         c.getLocal(c0),
+        //                         c.i64_const(32)
+        //                     )
+        //                 )
+        //             )
+        //         );
+
+        //     }
+
+        //     f.addCode(
+        //         c.i64_store32(
+        //             c.getLocal("r"),
+        //             k*4,
+        //             c.getLocal(c0)
+        //         )
+        //     );
+        //     [c0, c1] = [c1, c0];
+
+        //     // now c0 = c1,  c1 should be c2, so c1(new c2) = c0(new c1)>>32
+        //     f.addCode(
+        //         c.setLocal(c1,
+        //             c.i64_shr_u(
+        //                 c.getLocal(c0),
+        //                 c.i64_const(32)
+        //             )
+        //         )
+        //     );
+        // }
+        // f.addCode(
+        //     c.i64_store32(
+        //         c.getLocal("r"),
+        //         n32*4*2-4,
+        //         c.getLocal(c0)
+        //     )
+        // );
+
+    }
+
+
+
+    buildCacheMulF1m();
+    buildCacheMul();
 
     buildAdd();
     buildSub();
@@ -998,6 +1494,10 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
     buildOne();
     buildLoad();
     buildTimesScalar();
+
+    module.exportFunction(prefix + "_cachemulf1m");
+    module.exportFunction(prefix + "_cachemul");
+
     module.exportFunction(prefix + "_add");
     module.exportFunction(prefix + "_sub");
     module.exportFunction(prefix + "_neg");

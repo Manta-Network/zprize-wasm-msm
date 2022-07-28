@@ -102,7 +102,10 @@ mod tests{
     #[test]
     /// Checks whether algebra operation works.
     fn all_operation_works() {
-        for size in (8..24).step_by(2) {
+        
+
+
+        for size in (8..8).step_by(2) {
             
             let REPEAT = 100;
             

@@ -98,6 +98,13 @@
 | 2^20 | 830 | 707 | 89 | 1112 |
 | 2^22 | 2780 | 2905 | 508 | --- |
 
+WASMSNARK INT MUL (256bit * 256bit):
+| Loop | WASMSNARK INT Time (ms) | WASMSNARK FF Fr (ms) | WASMSNARK F1m (ms)|
+| --- | --- | --- | --- |
+| 2^20 | 78 | 354 | 148.46 | 
+| 2^22 | 270 | 1328 | 613 |
+**Note: F1m is half of the F1**
+
 #### DIV
 **Use an inverse and mulplication to substitute division in WASMSNARK**
 

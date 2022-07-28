@@ -285,6 +285,7 @@ module.exports = function buildInt(module, n64, _prefix) {
 
     function buildMul() {
 
+        //console.log("n32 in int.js int mul:"+ n32)
         const f = module.addFunction(prefix+"_mul");
         f.addParam("x", "i32");
         f.addParam("y", "i32");
@@ -396,6 +397,8 @@ module.exports = function buildInt(module, n64, _prefix) {
                 )
             );
             [c0, c1] = [c1, c0];
+
+            // now c0 = c1,  c1 should be c2, so c1(new c2) = c0(new c1)>>32
             f.addCode(
                 c.setLocal(c1,
                     c.i64_shr_u(
