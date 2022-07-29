@@ -1291,7 +1291,7 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
             f.addLocal("y"+i, "i64");
         }
         
-        for (let i=0;i<n32*2-1; i++) {
+        for (let i=0;i<=n32*2-1; i++) {
             f.addLocal("r"+i, "i64");
         }
         
@@ -1300,16 +1300,16 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
 
         const loadX = [];
         const loadY = [];
-        for(let i =0;i<n32;i++){
-            f.addCode(
-                c.setLocal("x"+i, c.i64_load32_u( c.getLocal("x"), i*4))
-            );
-        }
-        for(let i =0;i<n32;i++){
-            f.addCode(
-                c.setLocal("y"+i, c.i64_load32_u( c.getLocal("y"), i*4))
-            );
-        }
+        // for(let i =0;i<n32;i++){
+        //     f.addCode(
+        //         c.setLocal("x"+i, c.i64_load32_u( c.getLocal("x"), i*4))
+        //     );
+        // }
+        // for(let i =0;i<n32;i++){
+        //     f.addCode(
+        //         c.setLocal("y"+i, c.i64_load32_u( c.getLocal("y"), i*4))
+        //     );
+        // }
         
         
         function mulij(i, j) { // 270 -> 35ms if return const(1)
@@ -1328,20 +1328,20 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
             // }
             
 
-            // if (!loadX[i]) {
-            //     X = c.teeLocal("x"+i, c.i64_load32_u( c.getLocal("x"), i*4));
-            //     loadX[i] = true;
-            // } else {
-            //     X = c.getLocal("x"+i);
-            // }
-            // if (!loadY[j]) {
-            //     Y = c.teeLocal("y"+j, c.i64_load32_u( c.getLocal("y"), j*4));
-            //     loadY[j] = true;
-            // } else {
-            //     Y = c.getLocal("y"+j);
-            // }
-            X = c.getLocal("x"+i);
-            Y = c.getLocal("y"+j);
+            if (!loadX[i]) {
+                X = c.teeLocal("x"+i, c.i64_load32_u( c.getLocal("x"), i*4));
+                loadX[i] = true;
+            } else {
+                X = c.getLocal("x"+i);
+            }
+            if (!loadY[j]) {
+                Y = c.teeLocal("y"+j, c.i64_load32_u( c.getLocal("y"), j*4));
+                loadY[j] = true;
+            } else {
+                Y = c.getLocal("y"+j);
+            }
+            // X = c.getLocal("x"+i);
+            // Y = c.getLocal("y"+j);
             
             return c.i64_mul( X, Y );
             //return c.i64_const(1);
@@ -1368,7 +1368,7 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
                 )
                 
 
-                if(i+j<n32*2-2){
+                if(i+j<n32*2-1){  // 012345678
                     f.addCode(
                         c.setLocal(
                             "r"+(i+j+1),
@@ -1382,33 +1382,92 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
                         )
                     )
                 }
-            }
-        }
-
-        for (let k=0; k<2*n32-1; k++){
-            // very slow, one iter 20ms
-            if(k==0){
-                f.addCode(
-                    c.i64_store32(
-                        c.getLocal("r"),
-                        k*4,
-                        c.getLocal("r0")
-                    )
-                );
-            }
-            else{
-                f.addCode(
-                    c.i64_store32(
-                        c.getLocal("r"),
-                        k*4,
-                        //c.getLocal("r"+k) //360ms
-                        c.getLocal("r0") //48ms
-                        //c.i64_const(0) // 44ms
-                    )
-                );
                 
+                // Store pos i, since (i,0) complete
+                if(j==0){ 
+                    if(i==0){ // (0,0)
+                        f.addCode(
+                            c.i64_store32(
+                                c.getLocal("r"),
+                                i*4,
+                                //c.getLocal("r"+k) //360ms
+                                c.getLocal("r0") //48ms
+                                //c.i64_const(0) // 44ms
+                            )
+                        );
+                    } //(i,0)
+                    else{
+                        f.addCode(
+                            c.i64_store32(
+                                c.getLocal("r"),
+                                i*4,   
+                                c.teeLocal(
+                                    "r"+i,
+                                    c.i64_add(
+                                        c.getLocal("r"+i),
+                                        c.i64_shr_u(
+                                            c.getLocal("r"+(i-1)),
+                                            c.i64_const(32)
+                                        )
+                                    ) 
+                                )                      
+                            )
+                        );
+                    }
+                }
+                else if(i==n32){
+                    f.addCode(
+                        c.i64_store32(
+                            c.getLocal("r"),
+                            (i+j)*4,   
+                            c.teeLocal(
+                                "r"+(i+j),
+                                c.i64_add(
+                                    c.getLocal("r"+(i+j)),
+                                    c.i64_shr_u(
+                                        c.getLocal("r"+(i+j-1)),
+                                        c.i64_const(32)
+                                    )
+                                ) 
+                            )                      
+                        )
+                    );
+                }
             }
         }
+        
+        f.addCode(
+            c.i64_store32(
+                c.getLocal("r"),
+                n32*4*2-4,
+                c.getLocal("r"+(n32*2-1))                    
+            )
+        );
+        // store
+        // for (let k=0; k<2*n32-1; k++){
+        //     // very slow, one iter 20ms
+        //     if(k==0){
+        //         f.addCode(
+        //             c.i64_store32(
+        //                 c.getLocal("r"),
+        //                 k*4,
+        //                 c.getLocal("r0")
+        //             )
+        //         );
+        //     }
+        //     else{
+        //         f.addCode(
+        //             c.i64_store32(
+        //                 c.getLocal("r"),
+        //                 k*4,
+        //                 //c.getLocal("r"+k) //360ms
+        //                 c.getLocal("r0") //48ms
+        //                 //c.i64_const(0) // 44ms
+        //             )
+        //         );
+                
+        //     }
+        // }
 
 
 

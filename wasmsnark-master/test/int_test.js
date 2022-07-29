@@ -75,8 +75,12 @@ describe("Basic tests for Int", () => {
         const q = bigInt("21888242871839275222246405745257275088548364400416034343698204186575808495617");
         // const A=q.minus(1);
         // const B=q.minus(1).shiftRight(1);
-        const A = bigInt.one.shiftLeft(255).minus(1111111);
-        const B = bigInt.one.shiftLeft(256).minus(2000000000);
+        
+        //const A = bigInt.one.shiftLeft(255).minus(1111111);
+        //const B = bigInt.one.shiftLeft(256).minus(2000000000);
+
+        const A = bigInt("1234");
+        const B = bigInt("10000000");
 
         const pbF1m = await buildProtoboard((module) => {
             buildF1m(module, q);
@@ -108,7 +112,7 @@ describe("Basic tests for Int", () => {
         console.log("F1m buildCacheMul Time (ms): " + time);
 
 
-        let repeat_f1m = 10;
+        let repeat_f1m = 0;
         let start3 = new Date().getTime();
         for (let i = 0; i < repeat_f1m; i++) {
             pbF1m.test_f1m_cachemulf1m(pA, pB, pC, 1<<20); // f1m mul 167-200ms  remove and0xFFFFFFF 120ms
