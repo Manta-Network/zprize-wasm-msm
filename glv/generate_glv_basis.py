@@ -3,18 +3,7 @@ GLV Basis Generation
 
 The function `generate_basis` computes the basis vectors for GLV using extended Euclidean division.
 """
-
 import math
-
-def xgcd_round(a, b, prevx, prevy, x, y):
-    """
-    TODO: ...
-    """
-    q = a // b
-    x, prevx = prevx - q*x, x
-    y, prevy = prevy - q*y, y
-    a, b = b, a % b
-    return a, b, prevx, prevy, x, y
 
 def shorter(v, u):
     """
@@ -23,7 +12,7 @@ def shorter(v, u):
     if math.sqrt(v[0]*v[0] + v[1]*v[1]) < math.sqrt(u[0]*u[0] + u[1]*u[1]):
         return v
     else:
-        return u; # TODO: implement
+        return u; 
 
 def generate_basis(n, l):
     """
@@ -32,23 +21,22 @@ def generate_basis(n, l):
     """
     v1 = (0, 0)
     v2 = (0, 0)
-    a, b = l, n
-    prevx, x = 1, 0; prevy, y = 0, 1
-    while b:
-        if b >= math.sqrt(n):
-            a_next, b_next, prevx_next, prevy_next, x_next, y_next = xgcd_round(a, b, prevx, prevy, x, y);
-            v1 = (b_next, -y) # TODO: `None` is either x or y
-            a_next, b_next, _, _, x_next, y_next = xgcd_round(a_next, b_next, prevx_next, prevy_next, x_next, y_next);
-            v2 = shorter((b, -y_next), (b_next, -y_next)) # TODO: `None` is either `x_next` or `y_next`
-            break;
-        a, b, prevx, prevy, x, y = xgcd_round(a, b, prevx, prevy, x, y);
+    next_r, r = l, n
+    next_x, x = 0, 1; next_y, y = 1, 0
+
+    while r >= math.sqrt(n):
+        v1 = (next_r,-next_y)
+        v2 = (r, -y)
+        q = r // next_r
+        r, next_r = next_r, r - q*next_r
+        x, next_x = next_x, x - q*next_x
+        y, next_y = next_y, y - q*next_y
+        v2 = shorter(v2, (next_r, -next_y))
     return v1, v2
  
 def main():
     v1, v2 = generate_basis(199, 196)
     print(f'v1 = {v1}, v2 = {v2}')
-    a_next, b_next, prevx_next, prevy_next, x_next, y_next = xgcd_round(199, 196, 1, 0, 0, 1);
-    print(f'a_next = {a_next}, b_next = {b_next},prevx_next = {prevx_next}, prevy_next = {prevx_next},x_next = {x_next}, y_next = {y_next}')
 
 
 if __name__ == '__main__':
