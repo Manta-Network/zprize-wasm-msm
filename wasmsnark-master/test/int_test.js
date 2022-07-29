@@ -51,12 +51,12 @@ describe("Basic tests for Int", () => {
         
         console.log("a: " + pbInt.get(pA).toString());
         console.log("b: " + pbInt.get(pB).toString());
-        console.log("a+b result: " + pbInt.get(pC).toString());
+        console.log("a+b result: " + pbInt.get(pC).toString(16));
 
-        let repeat = 0;
+        let repeat = 10;
         start = new Date().getTime();
         for (let i = 0; i < repeat; i++) {
-            pbInt.test_int_mul(pA, pB, pC, 1<<20);
+            pbInt.test_int_mul(pA, pB, pC, 1<<22);
         }
         end = new Date().getTime();
         time = (end - start) / repeat;
@@ -76,11 +76,11 @@ describe("Basic tests for Int", () => {
         // const A=q.minus(1);
         // const B=q.minus(1).shiftRight(1);
         
-        //const A = bigInt.one.shiftLeft(255).minus(1111111);
-        //const B = bigInt.one.shiftLeft(256).minus(2000000000);
+        const A = bigInt.one.shiftLeft(255).minus(1111111);
+        const B = bigInt.one.shiftLeft(256).minus(2000000000);
 
-        const A = bigInt("1234");
-        const B = bigInt("10000000");
+        // const A = bigInt("1234");
+        // const B = bigInt("20000000000000000");
 
         const pbF1m = await buildProtoboard((module) => {
             buildF1m(module, q);
@@ -108,7 +108,7 @@ describe("Basic tests for Int", () => {
         }
         let end2 = new Date().getTime();
         time = (end2 - start2) / repeat;
-        console.log("a+b result: " + pbF1m.get(pC).toString());
+        console.log("a+b result: " + pbF1m.get(pC).toString(16));
         console.log("F1m buildCacheMul Time (ms): " + time);
 
 

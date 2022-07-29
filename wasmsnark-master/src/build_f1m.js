@@ -1368,20 +1368,9 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
                 )
                 
 
-                if(i+j<n32*2-1){  // 012345678
-                    f.addCode(
-                        c.setLocal(
-                            "r"+(i+j+1),
-                            c.i64_add(
-                                c.getLocal("r"+(i+j+1)),
-                                c.i64_shr_u(
-                                    c.getLocal("tmp"),
-                                    c.i64_const(32)
-                                )
-                            )
-                        )
-                    )
-                }
+                
+                
+                
                 
                 // Store pos i, since (i,0) complete
                 if(j==0){ 
@@ -1395,8 +1384,9 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
                                 //c.i64_const(0) // 44ms
                             )
                         );
-                    } //(i,0)
-                    else{
+                    } 
+                    else{//(1,0) (2,0) ...
+                        //console.log(i + " " + j);
                         f.addCode(
                             c.i64_store32(
                                 c.getLocal("r"),
@@ -1415,7 +1405,22 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
                         );
                     }
                 }
-                else if(i==n32){
+                // 012345678
+                f.addCode(
+                    c.setLocal(
+                        "r"+(i+j+1),
+                        c.i64_add(
+                            c.getLocal("r"+(i+j+1)),
+                            c.i64_shr_u(
+                                c.getLocal("tmp"),
+                                c.i64_const(32)
+                            )
+                        )
+                    )
+                )
+
+                if(i == n32-1 && j!=0){ //(4,1) (4,2) ..(4,4)
+                    //console.log(i + " " + j);
                     f.addCode(
                         c.i64_store32(
                             c.getLocal("r"),
@@ -1435,14 +1440,22 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
                 }
             }
         }
-        
+        //6703903964971298549787012499102923063739682910296196688861780721860766094289672107641878364819062301948932676353911453038284733376209747229433723144113152
         f.addCode(
             c.i64_store32(
                 c.getLocal("r"),
                 n32*4*2-4,
-                c.getLocal("r"+(n32*2-1))                    
+
+                c.i64_add(
+                    c.getLocal("r"+(n32*2-1)),
+                    c.i64_shr_u(
+                        c.getLocal("r"+(n32*2-2)),
+                        c.i64_const(32)
+                    )
+                )                             
             )
         );
+
         // store
         // for (let k=0; k<2*n32-1; k++){
         //     // very slow, one iter 20ms
