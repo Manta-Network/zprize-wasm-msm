@@ -1294,8 +1294,6 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
         for (let i=0;i<=n32*2-1; i++) {
             f.addLocal("r"+i, "i64");
         }
-        f.addLocal("tmp2","i64")
-        f.addLocal("tmp3","i32")
         
 
         const c = f.getCodeBuilder();
@@ -1321,862 +1319,118 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
             // X = c.getLocal("x"+i);
             // Y = c.getLocal("y"+j);
             
-            // change i64_mul to i64_add, no improvement
-            return c.i64_mul( X, Y ); //240-270
-            //return c.i64_mul( c.i64_const(0x1234), c.i64_const(0x4321) ); //38
-            //return c.i64_add( X, Y ); // 265
-            //return c.i64_const(1);//32
+            return c.i64_mul( X, Y );
+            //return c.i64_const(1);
         }
         console.log("n32 in f1m cache mul:"+ n32)
-        for (let i=0; i<n32*2-1; i++) {
-
-            f.addLocal("tmp_i64"+i,"i64");
-        }
             
 
         for(let i = 0;i < n32;i++){
-            for(let j = 0; j< n32 ; j++){ // store 
-                if(j==0 || i == n32-1){
-                    if(i==0){  //(0,0)
-                        f.addCode(
-                            c.i64_store32(
-                                c.getLocal("r"),
-                                0,  
+            for(let j = 0; j< n32 ; j++){
+                f.addCode(
+                    c.setLocal(
+                        "r"+(i+j),
+                        c.i64_add(
+                            c.getLocal("r"+(i+j)),
+                            c.i64_and(
+                                c.i64_const(0xFFFFFFFF),
                                 c.teeLocal(
-                                    "r0",       
-                                    c.i64_and(// mulij low 32bit 
-                                        c.i64_const(0xFFFFFFFF),
-                                        c.teeLocal(
-                                            "tmp",
-                                            mulij(i,j)
-                                        )
-                                    )    
-                                )
-                            )
-                        )
-                        // 012345678
-                        f.addCode(
-                            c.setLocal(
-                                "r1",
-                                c.i64_add(
-                                    c.getLocal("r1"),
-                                    c.i64_shr_u(
-                                        c.getLocal("tmp"),
-                                        c.i64_const(32)
-                                    )
-                                )
-                            )
-                        )
-                    }
-                    else if(j==0 && i == 1){ // store (1,0)
-                        f.addCode(
-                            c.i64_store32(
-                                c.getLocal("r"),
-                                (i+j)*4,  
-                                c.teeLocal(
-                                    "r"+(i+j),
-                                    c.i64_add( 
-                                        c.getLocal("r"+(i+j)),// accumulated r_ij
-                                        c.i64_and(// mulij low 32bit 
-                                            c.i64_const(0xFFFFFFFF),
-                                            c.teeLocal(
-                                                "tmp",
-                                                mulij(i,j)
-                                            )
-                                        )
-                                    )   
-                                )
-                            )
-                        )
-                        // 012345678
-                        f.addCode(
-                            c.setLocal(
-                                "r"+(i+j+1),
-                                c.i64_add(
-                                    c.getLocal("r"+(i+j+1)),
-                                    c.i64_shr_u(
-                                        c.getLocal("tmp"),
-                                        c.i64_const(32)
-                                    )
-                                )
-                            )
-                        )
-                    }
-                    
-                    else{  // store (i,0) - (0,0) - (1,0)
-                        f.addCode(
-                            c.i64_store32(
-                                c.getLocal("r"),
-                                (i+j)*4,  
-                                c.teeLocal(
-                                    "r"+(i+j),
-                                    c.i64_add(// merge i+j-1 to i+j
-                                        c.i64_add( 
-                                            c.getLocal("r"+(i+j)),// accumulated r_ij
-                                            c.i64_and(// mulij low 32bit 
-                                                c.i64_const(0xFFFFFFFF),
-                                                c.teeLocal(
-                                                    "tmp",
-                                                    mulij(i,j)
-                                                )
-                                            )
-                                        ),
-                                        c.i64_shr_u(
-                                            c.getLocal("r"+(i+j-1)),
-                                            c.i64_const(32)
-                                        )
-                                    )
-                                )
-                            )
-                        )
-                        
-                        // f.addCode(
-                        //         c.setLocal(
-                        //             "tmp2",
-                        //             c.i64_add(// merge i+j-1 to i+j
-                        //                 c.i64_add( 
-                        //                     c.getLocal("r"+(i+j)),// accumulated r_ij
-                        //                     c.i64_and(// mulij low 32bit 
-                        //                         c.i64_const(0xFFFFFFFF),
-                        //                         c.teeLocal(
-                        //                             "tmp",
-                        //                             mulij(i,j)
-                        //                         )
-                        //                     )
-                        //                 ),
-                        //                 c.i64_shr_u(
-                        //                     c.getLocal("r"+(i+j-1)),
-                        //                     c.i64_const(32)
-                        //                 )
-                        //             )
-                        //         )   
-                        // )
-                        // f.addCode(
-                        //     c.setLocal(
-                        //       "tmp3",
-                        //          //(i+j)*4,  
-                        //          c.i32_wrap_i64(c.getLocal("tmp2"))
-                        //          //c.getLocal("tmp2")
-                        //      )
-                        //  )
-                        // //  f.addCode(
-                        // //     c.drop(
-                        // //         c.i32_load(
-                        // //             c.getLocal("r"),
-                        // //             (i+j)*4
-                        // //         )
-                        // //     )
-                        // //  )
-                        //  f.addCode(
-                        //     c.i32_store(
-                        //         c.getLocal("r"),
-                        //            (i+j)*4,  
-                        //            c.getLocal("tmp3")
-                        //        )
-                        //  )
-                        
-                        
-                        
-                        // 012345678
-                        f.addCode(
-                            c.setLocal(
-                                "r"+(i+j+1),
-                                c.i64_add(
-                                    c.getLocal("r"+(i+j+1)),
-                                    c.i64_shr_u(
-                                        c.getLocal("tmp"),
-                                        c.i64_const(32)
-                                    )
-                                )
-                            )
-                        )
-                    }
-                }
-                else{ // we dont need to store
-                    f.addCode(
-                        c.setLocal(
-                            "r"+(i+j),
-                            c.i64_add(
-                                c.getLocal("r"+(i+j)),
-                                c.i64_and(
-                                    c.i64_const(0xFFFFFFFF),
-                                    c.teeLocal(
-                                        "tmp",
-                                        mulij(i,j)
-                                    )
+                                    "tmp",
+                                    mulij(i,j)
                                 )
                             )
                         )
                     )
-                    // 012345678
-                    f.addCode(
-                        c.setLocal(
-                            "r"+(i+j+1),
-                            c.i64_add(
-                                c.getLocal("r"+(i+j+1)),
-                                c.i64_shr_u(
-                                    c.getLocal("tmp"),
-                                    c.i64_const(32)
-                                )
-                            )
-                        )
-                    )
-                }
+                )
                 
-            }
-        }
- 
-
-        f.addCode(
-            c.i64_store32(
-                c.getLocal("r"),
-                n32*4*2-4,
-
-                c.i64_add(
-                    c.getLocal("r"+(n32*2-1)),
-                    c.i64_shr_u(
-                        c.getLocal("r"+(n32*2-2)),
-                        c.i64_const(32)
-                    )
-                )                             
-            )
-        );
-        
-        
-        // test mul and get set local
-        // without following code: 250-270
-        // 8*8         =64 : 358
-        // 7*13(n32+6)=112:  451
-        // 60*2       =120: 431
-        // 50*4       =200: 546
-        // 160*2      =320: 800   
-        // for (let j=0; j<n32; j++) {
-        //     for (let i=0; i<n32; i++) {
-
-        //         f.addCode(c.i64_store32(
-        //             c.getLocal("r"),
-        //             i*4,
-        //             //c.getLocal("tmp_i64"+i),
-        //             c.i64_mul( c.getLocal("tmp_i64"+i), c.getLocal("tmp_i64"+(i+1)) )
-        //         ));
-        //     }
-        // }
-
-        // test get set local
-        // without following code: 250-270
-        // 2*8             =16: 303,254,261, 
-        // 8*8             =64 : 339
-        // 7(n32)*13(n32+6)=112:  426(mul)
-        // 60*2            =120: 428(mul)
-        // 50*4            =200: 536,633(mul)
-        // 160*2           =320: 755(mul) 
-
-        // for (let j=0; j<2; j++) {
-        //     for (let i=0; i<n32; i++) {
-
-        //         f.addCode(c.i64_store32(
-        //             c.getLocal("r"),
-        //             i*4,
-        //             //c.getLocal("tmp_i64"+i),
-        //             c.getLocal("tmp_i64"+i)
-        //         ));
-        //     }
-        // }
-
-        
-    }
-
-
-    function buildSlideWindowMul() {
-
-        const f = module.addFunction(prefix+"_slideWindowMul");
-        f.addParam("x", "i32");
-        f.addParam("y", "i32");
-        f.addParam("r", "i32");
-        
-        
-        
-        f.addLocal("c0", "i64");
-        f.addLocal("c1", "i64");
-
-        f.addLocal("tmp", "i64");
-        
-
-
-        for (let i=0;i<n32; i++) {
-            f.addLocal("x"+i, "i64");
-            f.addLocal("y"+i, "i64");
-        }
-        
-        for (let i=0;i<=n32*2-1; i++) {
-            f.addLocal("r"+i, "i64");
-        }
-        f.addLocal("tmp2","i64")
-        f.addLocal("tmp3","i32")
-        
-
-        const c = f.getCodeBuilder();
-
-        const loadX = [];
-        const loadY = [];
-        
-        
-        function mulij(i, j) { 
-            let X,Y;
-            if (!loadX[i]) {
-                X = c.teeLocal("x"+i, c.i64_load32_u( c.getLocal("x"), i*4));
-                loadX[i] = true;
-            } else {
-                X = c.getLocal("x"+i);
-            }
-            if (!loadY[j]) {
-                Y = c.teeLocal("y"+j, c.i64_load32_u( c.getLocal("y"), j*4));
-                loadY[j] = true;
-            } else {
-                Y = c.getLocal("y"+j);
-            }
-            
-            return c.i64_mul( X, Y ); 
-            
-        }
-        
-        for (let i=0; i<n32*2-1; i++) {
-
-            f.addLocal("tmp_i64"+i,"i64");
-        }
-
-        let window_size = 2
-            
-        for(let i = 0;i < n32;i+=window_size){
-            for(let j = 0; j<n32; j+=window_size){
-                for(let ii = 0; ii<window_size;ii++){
-                    for(let jj = 0;jj<window_size;jj++){
-                        let pos_i = ii+i;
-                        let pos_j = jj+j;
-
-                        //console.log(pos_i+" "+pos_j);
-                        
-                        if(pos_j==0 || ((pos_i-ii) == n32-2 && jj==0 )){
-                            if(pos_i==0){  //(0,0)
-                                f.addCode(
-                                    c.i64_store32(
-                                        c.getLocal("r"),
-                                        0,  
-                                        c.teeLocal(
-                                            "r0",       
-                                            c.i64_and(// mulij low 32bit 
-                                                c.i64_const(0xFFFFFFFF),
-                                                c.teeLocal(
-                                                    "tmp",
-                                                    mulij(pos_i,pos_j)
-                                                )
-                                            )    
-                                        )
-                                    )
-                                )
-                                // 012345678
-                                f.addCode(
-                                    c.setLocal(
-                                        "r1",
-                                        c.i64_add(
-                                            c.getLocal("r1"),
-                                            c.i64_shr_u(
-                                                c.getLocal("tmp"),
-                                                c.i64_const(32)
-                                            )
-                                        )
-                                    )
-                                )
-                            }
-                            else if(pos_j==0 && pos_i == 1){ // store (1,0)
-                                //console.log(pos_i+" "+pos_j);
-                                f.addCode(
-                                    c.i64_store32(
-                                        c.getLocal("r"),
-                                        (pos_i+pos_j)*4,  
-                                        c.teeLocal(
-                                            "r"+(pos_i+pos_j),
-                                            c.i64_add( 
-                                                c.getLocal("r"+(pos_i+pos_j)),// accumulated r_ij
-                                                c.i64_and(// mulij low 32bit 
-                                                    c.i64_const(0xFFFFFFFF),
-                                                    c.teeLocal(
-                                                        "tmp",
-                                                        mulij(pos_i,pos_j)
-                                                    )
-                                                )
-                                            )   
-                                        )
-                                    )
-                                )
-                                // 012345678
-                                f.addCode(
-                                    c.setLocal(
-                                        "r"+(pos_i+pos_j+1),
-                                        c.i64_add(
-                                            c.getLocal("r"+(pos_i+pos_j+1)),
-                                            c.i64_shr_u(
-                                                c.getLocal("tmp"),
-                                                c.i64_const(32)
-                                            )
-                                        )
-                                    )
-                                )
-                            }
-                            
-                            else{  // store (i,0) - (0,0) - (1,0)
-                                //console.log(pos_i+" "+pos_j);
-                                f.addCode(
-                                    c.i64_store32(
-                                        c.getLocal("r"),
-                                        (pos_i+pos_j)*4,  
-                                        c.teeLocal(
-                                            "r"+(pos_i+pos_j),
-                                            c.i64_add(// merge i+j-1 to i+j
-                                                c.i64_add( 
-                                                    c.getLocal("r"+(pos_i+pos_j)),// accumulated r_ij
-                                                    c.i64_and(// mulij low 32bit 
-                                                        c.i64_const(0xFFFFFFFF),
-                                                        c.teeLocal(
-                                                            "tmp",
-                                                            mulij(pos_i,pos_j)
-                                                        )
-                                                    )
-                                                ),
-                                                c.i64_shr_u(
-                                                    c.getLocal("r"+(pos_i+pos_j-1)),
-                                                    c.i64_const(32)
-                                                )
-                                            )
-                                        )
-                                    )
-                                )
-                                
-                            
-                                
-                                
-                                
-                                // 012345678
-                                f.addCode(
-                                    c.setLocal(
-                                        "r"+(pos_i+pos_j+1),
-                                        c.i64_add(
-                                            c.getLocal("r"+(pos_i+pos_j+1)),
-                                            c.i64_shr_u(
-                                                c.getLocal("tmp"),
-                                                c.i64_const(32)
-                                            )
-                                        )
-                                    )
-                                )
-                            }
-                        }
-                        else{ // we dont need to store
-                            f.addCode(
-                                c.setLocal(
-                                    "r"+(pos_i+pos_j),
-                                    c.i64_add(
-                                        c.getLocal("r"+(pos_i+pos_j)),
-                                        c.i64_and(
-                                            c.i64_const(0xFFFFFFFF),
-                                            c.teeLocal(
-                                                "tmp",
-                                                mulij(pos_i,pos_j)
-                                            )
-                                        )
-                                    )
-                                )
+                
+                // Store pos i, since (i,1) complete, store and computation pipeline
+                if(j==0){ 
+                    if(i==0){ // (0,0)
+                        f.addCode(
+                            c.i64_store32(
+                                c.getLocal("r"),
+                                i*4,
+                                //c.getLocal("r"+k) //360ms
+                                c.getLocal("r0") //48ms
+                                //c.i64_const(0) // 44ms
                             )
-                            // 012345678
-                            f.addCode(
-                                c.setLocal(
-                                    "r"+(pos_i+pos_j+1),
+                        );
+                    } 
+                    else{//(1,0) (2,0) ...
+                        //console.log(i + " " + j);
+                        f.addCode(
+                            c.i64_store32(
+                                c.getLocal("r"),
+                                i*4,   
+                                c.teeLocal(
+                                    "r"+i,
                                     c.i64_add(
-                                        c.getLocal("r"+(pos_i+pos_j+1)),
+                                        c.getLocal("r"+i),
                                         c.i64_shr_u(
-                                            c.getLocal("tmp"),
+                                            c.getLocal("r"+(i-1)),
                                             c.i64_const(32)
                                         )
-                                    )
-                                )
-                            )
-                        }
-
-                    }//end for
-                }
-            }
-        }
-        
- 
-        f.addCode(//13ms
-            c.i64_store32(
-                c.getLocal("r"),
-                n32*4*2-8,
-
-                c.i64_add(
-                    c.getLocal("r"+(n32*2-2)),
-                    c.i64_shr_u(
-                        c.getLocal("r"+(n32*2-3)),
-                        c.i64_const(32)
-                    )
-                )                             
-            )
-        );
-
-        f.addCode(
-            c.i64_store32(
-                c.getLocal("r"),
-                n32*4*2-4,
-
-                c.i64_add(
-                    c.getLocal("r"+(n32*2-1)),
-                    c.i64_shr_u(
-                        c.getLocal("r"+(n32*2-2)),
-                        c.i64_const(32)
-                    )
-                )                             
-            )
-        );
-        
-             
-    }
-
-    function buildSlideWindowRearrangeMul() {
-
-        const f = module.addFunction(prefix+"_slideWindowRearrangeMul");
-        f.addParam("x", "i32");
-        f.addParam("y", "i32");
-        f.addParam("r", "i32");
-        
-        
-        
-        f.addLocal("c0", "i64");
-        f.addLocal("c1", "i64");
-
-        f.addLocal("tmp", "i64");
-        
-
-
-        for (let i=0;i<n32; i++) {
-            f.addLocal("x"+i, "i64");
-            f.addLocal("y"+i, "i64");
-        }
-        
-        for (let i=0;i<=n32*2-1; i++) {
-            f.addLocal("r"+i, "i64");
-        }
-        f.addLocal("tmp00","i64")
-        f.addLocal("tmp01","i64")
-        f.addLocal("tmp10","i64")
-        f.addLocal("tmp11","i64")
-        
-
-        const c = f.getCodeBuilder();
-
-        const loadX = [];
-        const loadY = [];
-        
-        
-        function mulij(i, j) { 
-            let X,Y;
-            if (!loadX[i]) {
-                X = c.teeLocal("x"+i, c.i64_load32_u( c.getLocal("x"), i*4));
-                loadX[i] = true;
-            } else {
-                X = c.getLocal("x"+i);
-            }
-            if (!loadY[j]) {
-                Y = c.teeLocal("y"+j, c.i64_load32_u( c.getLocal("y"), j*4));
-                loadY[j] = true;
-            } else {
-                Y = c.getLocal("y"+j);
-            }
-            
-            return c.i64_mul( X, Y ); 
-            
-        }
-        
-        for (let i=0; i<n32*2-1; i++) {
-
-            f.addLocal("tmp_i64"+i,"i64");
-        }
-
-        let window_size = 2
-            
-        for(let i = 0;i < n32;i+=window_size){
-            for(let j = 0; j<n32; j+=window_size){
-                for(let ii = 0; ii<window_size;ii++){
-                    for(let jj = 0;jj<window_size;jj++){
-                        let pos_i = ii+i;
-                        let pos_j = jj+j;
-
-                        
-                        //nedd to refactor
-                        if(pos_j==0 || ((pos_i-ii) == n32-2 && jj==0 )){
-                            //console.log(pos_i+" "+pos_j);
-                            if(pos_i==0){  //(0,0)
-                                f.addCode(
-                                    c.i64_store32(
-                                        c.getLocal("r"),
-                                        0,  
-                                        c.teeLocal(
-                                            "r0",       
-                                            c.i64_and(// mulij low 32bit 
-                                                c.i64_const(0xFFFFFFFF),
-                                                c.teeLocal(
-                                                    "tmp",
-                                                    mulij(pos_i,pos_j)
-                                                )
-                                            )    
-                                        )
-                                    )
-                                )
-                                // 012345678
-                                f.addCode(
-                                    c.setLocal(
-                                        "r1",
-                                        c.i64_add(
-                                            c.getLocal("r1"),
-                                            c.i64_shr_u(
-                                                c.getLocal("tmp"),
-                                                c.i64_const(32)
-                                            )
-                                        )
-                                    )
-                                )
-                            }
-                            else if(pos_j==0 && pos_i == 1){ // store (1,0)
-                                //console.log(pos_i+" "+pos_j);
-                                f.addCode(
-                                    c.i64_store32(
-                                        c.getLocal("r"),
-                                        (pos_i+pos_j)*4,  
-                                        c.teeLocal(
-                                            "r"+(pos_i+pos_j),
-                                            c.i64_add( 
-                                                c.getLocal("r"+(pos_i+pos_j)),// accumulated r_ij
-                                                c.i64_and(// mulij low 32bit 
-                                                    c.i64_const(0xFFFFFFFF),
-                                                    c.teeLocal(
-                                                        "tmp",
-                                                        mulij(pos_i,pos_j)
-                                                    )
-                                                )
-                                            )   
-                                        )
-                                    )
-                                )
-                                // 012345678
-                                f.addCode(
-                                    c.setLocal(
-                                        "r"+(pos_i+pos_j+1),
-                                        c.i64_add(
-                                            c.getLocal("r"+(pos_i+pos_j+1)),
-                                            c.i64_shr_u(
-                                                c.getLocal("tmp"),
-                                                c.i64_const(32)
-                                            )
-                                        )
-                                    )
-                                )
-                            }
-                            else{  // store (i,0) - (0,0) - (1,0)
-                                //console.log(pos_i+" "+pos_j);
-                                f.addCode(
-                                    c.i64_store32(
-                                        c.getLocal("r"),
-                                        (pos_i+pos_j)*4,  
-                                        c.teeLocal(
-                                            "r"+(pos_i+pos_j),
-                                            c.i64_add(// merge i+j-1 to i+j
-                                                c.i64_add( 
-                                                    c.getLocal("r"+(pos_i+pos_j)),// accumulated r_ij
-                                                    c.i64_and(// mulij low 32bit 
-                                                        c.i64_const(0xFFFFFFFF),
-                                                        c.teeLocal(
-                                                            "tmp",
-                                                            mulij(pos_i,pos_j)
-                                                        )
-                                                    )
-                                                ),
-                                                c.i64_shr_u(
-                                                    c.getLocal("r"+(pos_i+pos_j-1)),
-                                                    c.i64_const(32)
-                                                )
-                                            )
-                                        )
-                                    )
-                                )
-                                       
-                                // 012345678
-                                f.addCode(
-                                    c.setLocal(
-                                        "r"+(pos_i+pos_j+1),
-                                        c.i64_add(
-                                            c.getLocal("r"+(pos_i+pos_j+1)),
-                                            c.i64_shr_u(
-                                                c.getLocal("tmp"),
-                                                c.i64_const(32)
-                                            )
-                                        )
-                                    )
-                                )
-                            }
-                        }
-                        
-                        else if(pos_j==1||((pos_i-ii) == n32-2 && jj==1 )){ // we dont need to store
-                            f.addCode(
-                                      c.setLocal(
-                                        "r"+(pos_i+pos_j),
-                                        
-                                            c.i64_add( 
-                                                c.getLocal("r"+(pos_i+pos_j)),// accumulated r_ij
-                                                c.i64_and(// mulij low 32bit 
-                                                    c.i64_const(0xFFFFFFFF),
-                                                    c.teeLocal(
-                                                        "tmp",
-                                                        mulij(pos_i,pos_j)
-                                                    )
-                                                )
-                                            )   
                                     ) 
+                                )                      
                             )
-                             
-                            f.addCode(
-                                c.setLocal(
-                                    "r"+(pos_i+pos_j+1),
-                                    c.i64_add(
-                                        c.getLocal("r"+(pos_i+pos_j+1)),
-                                        c.i64_shr_u(
-                                            c.getLocal("tmp"),
-                                            c.i64_const(32)
-                                        )
-                                    )
-                                )
-                            )
-                        }
-                        /*
-                        window
-                        | tmp00 | tmp01 |
-                        | tmp10 | tmp11 |
-                        */
-                        else{ // we dont need to store
-                            
-                            if(ii==0&&jj==0){
-                                //console.log(pos_i + " " +pos_j)
-                                f.addCode(
-                                    c.setLocal(
-                                        "r"+(pos_i+pos_j+1),
-                                        c.i64_add(
-                                            c.getLocal("r"+(pos_i+pos_j+1)),
-                                            c.i64_add(
-                                                c.i64_shr_u(  //tmp00 high32
-                                                    c.teeLocal(
-                                                        "tmp00",
-                                                        mulij(pos_i,pos_j)
-                                                    ),
-                                                    c.i64_const(32)
-                                                ),
-                                                c.i64_add(
-                                                    c.i64_and(// tmp10 low32
-                                                        c.i64_const(0xFFFFFFFF),
-                                                        c.teeLocal(
-                                                            "tmp10",
-                                                            mulij(pos_i+1,pos_j)
-                                                        )
-                                                    ),
-                                                    c.i64_and(// tmp11 low32
-                                                        c.i64_const(0xFFFFFFFF),
-                                                        c.teeLocal(
-                                                            "tmp01",
-                                                            mulij(pos_i,pos_j+1)
-                                                        )
-                                                    )
-                                                )
-                                            )
-                                        )
-                                    )
-                                )
-
-                                f.addCode(//tmp00 low32
-                                    c.setLocal(
-                                        "r"+(pos_i+pos_j),
-                                        c.i64_add(
-                                            c.getLocal("r"+(pos_i+pos_j)),
-                                            c.i64_and(
-                                                c.i64_const(0xFFFFFFFF),
-                                                c.getLocal("tmp00")
-                                            )
-                                        )
-                                    )
-                                )
-
-                                f.addCode(
-                                    c.setLocal(
-                                        "r"+(pos_i+pos_j+2),
-                                        c.i64_add(
-                                            c.i64_add(
-                                                c.getLocal("r"+(pos_i+pos_j+2)),
-                                                c.i64_add(
-                                                    c.i64_shr_u(//tmp01 high32
-                                                        c.getLocal("tmp01"),
-                                                        c.i64_const(32)
-                                                    ),
-                                                    c.i64_shr_u(//tmp10 high32
-                                                        c.getLocal("tmp10"),
-                                                        c.i64_const(32)
-                                                    )
-                                                )
-                                            ),
-                                            c.i64_and(// tmp11 low32
-                                                c.i64_const(0xFFFFFFFF),
-                                                c.teeLocal(
-                                                    "tmp11",
-                                                    mulij(pos_i+1,pos_j+1)
-                                                )
-                                            )
-
-                                        )
-                                    )
-                                )
-                                //7   800000007ffffffff800000007ffffffff800000007fffffffff445441b900000000000000000000000000000000000000000010f446fff6f0d260ec0c00
-                                //7fffffffffffffffffffffffffffffffffffffffffffffffffffffffc45441b90000000000000000000000000000000000000000000000000007e51960ec0c00
-                                f.addCode(// tmp11 high32
-                                    c.setLocal(
-                                        "r"+(pos_i+pos_j+3),
-                                        c.i64_add(
-                                            c.getLocal("r"+(pos_i+pos_j+3)),
-                                            c.i64_shr_u(
-                                                c.getLocal("tmp11"),
-                                                c.i64_const(32)
-                                            )
-                                        )
-                                    )
-                                )
-
-                            }
-                        }
-
-                    }//end for
+                        );
+                    }
                 }
+
+                if(i == n32-1 && j!=0 ){ //(4,2) (4,3) ..(4,4)
+                    //console.log(i + " " + j);
+                    
+                    f.addCode(
+                        c.i64_store32(
+                            c.getLocal("r"),
+                            (i+j)*4,   
+                            c.teeLocal(
+                                "r"+(i+j),  // r+i+j is very fast
+                                c.i64_add(
+                                    c.getLocal("r"+(i+j)),
+                                    c.i64_shr_u(
+                                        c.getLocal("r"+(i+j-1)),
+                                        c.i64_const(32)
+                                    )
+                                ) 
+                            )                      
+                        )
+                    );
+                }
+                // 012345678
+                f.addCode(
+                    c.setLocal(
+                        "r"+(i+j+1),
+                        c.i64_add(
+                            c.getLocal("r"+(i+j+1)),
+                            c.i64_shr_u(
+                                c.getLocal("tmp"),
+                                c.i64_const(32)
+                            )
+                        )
+                    )
+                )
+
+
+
             }
         }
         
- 
-        f.addCode(//13ms
-            c.i64_store32(
-                c.getLocal("r"),
-                n32*4*2-8,
+        // f.addCode(
+        //     c.i64_store32(
+        //         c.getLocal("r"),
+        //         n32*4*2-8,
 
-                c.i64_add(
-                    c.getLocal("r"+(n32*2-2)),
-                    c.i64_shr_u(
-                        c.getLocal("r"+(n32*2-3)),
-                        c.i64_const(32)
-                    )
-                )                             
-            )
-        );
+        //         c.i64_add(
+        //             c.getLocal("r"+(n32*2-2)),
+        //             c.i64_shr_u(
+        //                 c.getLocal("r"+(n32*2-3)),
+        //                 c.i64_const(32)
+        //             )
+        //         )                             
+        //     )
+        // );
 
         f.addCode(
             c.i64_store32(
@@ -2192,16 +1446,14 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
                 )                             
             )
         );
-        
-             
+
+
     }
 
 
 
     buildCacheMulF1m();
     buildCacheMul();
-    buildSlideWindowMul();
-    buildSlideWindowRearrangeMul();
 
     buildAdd();
     buildSub();
@@ -2220,10 +1472,6 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
 
     module.exportFunction(prefix + "_cachemulf1m");
     module.exportFunction(prefix + "_cachemul");
-    module.exportFunction(prefix + "_slideWindowMul");
-    module.exportFunction(prefix + "_slideWindowRearrangeMul");
-    
-    
 
     module.exportFunction(prefix + "_add");
     module.exportFunction(prefix + "_sub");

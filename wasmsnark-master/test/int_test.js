@@ -51,9 +51,9 @@ describe("Basic tests for Int", () => {
         
         console.log("a: " + pbInt.get(pA).toString());
         console.log("b: " + pbInt.get(pB).toString());
-        console.log("a+b result: " + pbInt.get(pC).toString(16));
+        console.log("a*b result: " + pbInt.get(pC).toString(16));
 
-        let repeat = 10;
+        let repeat = 100;
         start = new Date().getTime();
         for (let i = 0; i < repeat; i++) {
             pbInt.test_int_mul(pA, pB, pC, 1<<22);
@@ -86,6 +86,9 @@ describe("Basic tests for Int", () => {
             buildF1m(module, q);
             buildTest2(module, "f1m_cachemul");
             buildTest2(module, "f1m_cachemulf1m");
+            buildTest2(module, "f1m_slideWindowMul");
+            buildTest2(module, "f1m_slideWindowRearrangeMul");
+            
         }, 64);
 
         const pA = pbF1m.alloc();
@@ -100,7 +103,7 @@ describe("Basic tests for Int", () => {
         console.log("a: " + pbF1m.get(pA).toString());
         console.log("b: " + pbF1m.get(pB).toString());
 
-        let repeat = 50;
+        let repeat = 100;
 
         let start2 = new Date().getTime();
         for (let i = 0; i < repeat; i++) {
@@ -108,14 +111,40 @@ describe("Basic tests for Int", () => {
         }
         let end2 = new Date().getTime();
         time = (end2 - start2) / repeat;
-        console.log("a+b result: " + pbF1m.get(pC).toString(16));
+        console.log("a*b result: " + pbF1m.get(pC).toString(16));
         console.log("F1m buildCacheMul Time (ms): " + time);
+
+
+        let repeat_slide_window = 100;
+
+        let start4 = new Date().getTime();
+        for (let i = 0; i < repeat_slide_window; i++) {
+            pbF1m.test_f1m_slideWindowMul(pA, pB, pC, 1<<22); // int mul 280-300ms
+        }
+        let end4 = new Date().getTime();
+        time = (end4 - start4) / repeat_slide_window;
+        console.log("a*b result: " + pbF1m.get(pC).toString(16));
+        console.log("F1m buildSlideWindowMul Time (ms): " + time);
+
+
+        let repeat_rearrange_window = 100;
+
+        let start5 = new Date().getTime();
+        for (let i = 0; i < repeat_rearrange_window; i++) {
+            pbF1m.test_f1m_slideWindowRearrangeMul(pA, pB, pC, 1<<22); // int mul 280-300ms
+        }
+        let end5 = new Date().getTime();
+        time = (end5 - start5) / repeat_slide_window;
+        console.log("a*b result: " + pbF1m.get(pC).toString(16));
+        console.log("F1m buildSlideWindowRearrangeMul Time (ms): " + time);
+
+
 
 
         let repeat_f1m = 0;
         let start3 = new Date().getTime();
         for (let i = 0; i < repeat_f1m; i++) {
-            pbF1m.test_f1m_cachemulf1m(pA, pB, pC, 1<<20); // f1m mul 167-200ms  remove and0xFFFFFFF 120ms
+            pbF1m.test_f1m_cachemulf1m(pA, pB, pC, 1<<22); // f1m mul 167-200ms  remove and0xFFFFFFF 120ms
         }
         let end3 = new Date().getTime();
         time = (end3 - start3) / repeat_f1m;
@@ -128,7 +157,7 @@ describe("Basic tests for Int", () => {
 
 
         
-        //console.log("a+b result: " + pbF1m.get(pC).toString());
+        //console.log("a*b result: " + pbF1m.get(pC).toString());
 
         pbF1m.f1m_fromMontgomery(pC, pC);
 
