@@ -16,7 +16,7 @@ def shorter(v, u):
 
 def generate_basis(n, l):
     """
-    Given `n` the size of the field and `l` a root of the characteristic polynomial of the endomorphism,
+    Given `n` the order of the point P and `l` a root of the characteristic polynomial of the endomorphism,
     computes the two basis vectors for representing scalars over the field.
     """
     v1 = (0, 0)
@@ -35,7 +35,7 @@ def generate_basis(n, l):
     return v1, v2
  
 def main():
-    v1, v2 = generate_basis(199, 196)
+    v1, v2 = generate_basis(211, 196)
     print(f'v1 = {v1}, v2 = {v2}')
 
 
