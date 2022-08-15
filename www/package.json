@@ -6,6 +6,7 @@
   "bin": {
     "create-wasm-app": ".bin/create-wasm-app.js"
   },
+ 
   "scripts": {
     "build": "webpack --config webpack.config.js",
     "start": "webpack-dev-server"
@@ -27,13 +28,14 @@
   },
   "homepage": "https://github.com/rustwasm/create-wasm-app#readme",
   "dependencies": {
-    "wasm-prover": "file:../pkg"
+    "big-integer": "^1.6.51",
+    "fs": "0.0.1-security"
   },
   "devDependencies": {
+    "copy-webpack-plugin": "^5.0.0",
     "hello-wasm-pack": "^0.1.0",
     "webpack": "^4.29.3",
     "webpack-cli": "^3.1.0",
-    "webpack-dev-server": "^3.1.5",
-    "copy-webpack-plugin": "^5.0.0"
+    "webpack-dev-server": "^3.1.5"
   }
 }

@@ -20,7 +20,7 @@ describe("Basic tests for Int", () => {
             buildTest2(module, "int_add");
             //buildTest2(module, "int_div");
             buildTest2(module, "int_sub");
-
+        //}, 92);
         }, 64);
     });
 
@@ -40,8 +40,12 @@ describe("Basic tests for Int", () => {
         // const B = bigInt.one.shiftLeft(256).minus(1);
         // const A = bigInt("10719222850664546238301075827032876239176124476888588364803088858357331359854", 10);
         // const B = bigInt("10719222850664546238301075827032876239176124476888588364803088858357331359854", 10);
+        
         const A = bigInt.one.shiftLeft(255).minus(1111111);
         const B = bigInt.one.shiftLeft(256).minus(2000000000);
+
+        // const A = bigInt.one.shiftLeft(381).minus(1111111);
+        // const B = bigInt.one.shiftLeft(381).minus(2000000000);
         //const B =bigInt("100000000000");
 
         pbInt.set(pA, A);
@@ -53,7 +57,7 @@ describe("Basic tests for Int", () => {
         console.log("b: " + pbInt.get(pB).toString());
         console.log("a*b result: " + pbInt.get(pC).toString(16));
 
-        let repeat = 100;
+        let repeat = 10;
         start = new Date().getTime();
         for (let i = 0; i < repeat; i++) {
             pbInt.test_int_mul(pA, pB, pC, 1<<22);
@@ -76,6 +80,8 @@ describe("Basic tests for Int", () => {
         // const A=q.minus(1);
         // const B=q.minus(1).shiftRight(1);
         
+        // const A = bigInt.one.shiftLeft(381).minus(1111111);
+        // const B = bigInt.one.shiftLeft(381).minus(2000000000);
         const A = bigInt.one.shiftLeft(255).minus(1111111);
         const B = bigInt.one.shiftLeft(256).minus(2000000000);
 
@@ -88,7 +94,7 @@ describe("Basic tests for Int", () => {
             buildTest2(module, "f1m_cachemulf1m");
             buildTest2(module, "f1m_slideWindowMul");
             buildTest2(module, "f1m_slideWindowRearrangeMul");
-            
+            buildTest2(module, "f1m_fullArrangeMul");
         }, 64);
 
         const pA = pbF1m.alloc();
@@ -103,7 +109,7 @@ describe("Basic tests for Int", () => {
         console.log("a: " + pbF1m.get(pA).toString());
         console.log("b: " + pbF1m.get(pB).toString());
 
-        let repeat = 100;
+        let repeat = 10;
 
         let start2 = new Date().getTime();
         for (let i = 0; i < repeat; i++) {
@@ -115,7 +121,7 @@ describe("Basic tests for Int", () => {
         console.log("F1m buildCacheMul Time (ms): " + time);
 
 
-        let repeat_slide_window = 100;
+        let repeat_slide_window = 10;
 
         let start4 = new Date().getTime();
         for (let i = 0; i < repeat_slide_window; i++) {
@@ -127,7 +133,7 @@ describe("Basic tests for Int", () => {
         console.log("F1m buildSlideWindowMul Time (ms): " + time);
 
 
-        let repeat_rearrange_window = 100;
+        let repeat_rearrange_window = 10;
 
         let start5 = new Date().getTime();
         for (let i = 0; i < repeat_rearrange_window; i++) {
@@ -137,6 +143,18 @@ describe("Basic tests for Int", () => {
         time = (end5 - start5) / repeat_slide_window;
         console.log("a*b result: " + pbF1m.get(pC).toString(16));
         console.log("F1m buildSlideWindowRearrangeMul Time (ms): " + time);
+
+
+        let repeat_full_arr = 10;
+
+        let start6 = new Date().getTime();
+        for (let i = 0; i < repeat_full_arr; i++) {
+            pbF1m.test_f1m_fullArrangeMul(pA, pB, pC, 1<<22); 
+        }
+        let end6 = new Date().getTime();
+        time = (end6 - start6) / repeat_full_arr;
+        console.log("a*b result: " + pbF1m.get(pC).toString(16));
+        console.log("F1m buildFullArrangeMul Time (ms): " + time);
 
 
 
@@ -159,7 +177,7 @@ describe("Basic tests for Int", () => {
         
         //console.log("a*b result: " + pbF1m.get(pC).toString());
 
-        pbF1m.f1m_fromMontgomery(pC, pC);
+        //pbF1m.f1m_fromMontgomery(pC, pC);
 
         const c1 = pbF1m.get(pC, 1, 32);
         //assert(c1.equals(A.times(B).mod(q)));
