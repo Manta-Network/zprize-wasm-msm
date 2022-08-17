@@ -1,8 +1,25 @@
 [package]
-name = "empty-new-directory"
+name = "zprize_msm_wasm"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[[bench]]
+name = "glv"
+harness = false
+
 [dependencies]
+ark-bn254 = "0.3.0"
+ark-ec = "0.3.0"
+ark-ff = "0.3.0"
+ark-std = "0.3.0"
+ark-bls12-381 = "0.3.0"
+rand = "0.8.5"
+pyo3 = "0.16.5" 
+num-bigint = "0.4.3"
+criterion = { version = "0.3.4", default-features = false }
+manta-benchmark = { git = "https://github.com/Manta-Network/manta-rs.git" }
+
+[dev-dependencies]
+criterion = { version = "0.3.4", default-features = false }

@@ -26,8 +26,8 @@
     fn main() {
         let k = 50;
         println!("Hello, world!");
-        let v = vec![3,1];
-        let u = vec![1, -66];
+        let v = vec![1, 228988810152649578064853576960394133504];
+        let u = vec![228988810152649578064853576960394133503, -1];
         let result = decompose_scalar(k, &v, &u);
 
         let decomposition = compute_k1_k2(result[0] as i128,result[1] as i128, k, v, u);

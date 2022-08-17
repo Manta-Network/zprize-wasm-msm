@@ -33,11 +33,10 @@ def generate_basis(n, l):
         y, next_y = next_y, y - q*next_y
         v2 = shorter(v2, (next_r, -next_y))
     return v1, v2
- 
-def main():
-    v1, v2 = generate_basis(211, 196)
-    print(f'v1 = {v1}, v2 = {v2}')
 
+def main():
+    v1, v2 = generate_basis(21888242871839275222246405745257275088548364400416034343698204186575808495617, 4407920970296243842393367215006156084916469457145843978461)
+    print(f'v1 = {v1}, v2 = {v2}')
 
 if __name__ == '__main__':
     main()
