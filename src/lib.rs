@@ -1,72 +1,81 @@
-use ark_ec::{AffineCurve, ProjectiveCurve};
-use ark_ff::{BigInteger, Field, PrimeField};
-use num_bigint::{BigInt, BigUint, Sign, ToBigInt};
-use ark_bn254::{Fq as F, Fr as ScalarField}; //, G1Affine as GAffine, G1Projective as G};
-use ark_bls12_381;
-use ark_std::{UniformRand, Zero};
+use ark_ec::ProjectiveCurve;
 
-
-
-
-
-
-//Given a scalar k and basis vectors v and u
-//finds integer scalars z1 and z2, so that (k,0) is close to
-//z1v + z2u
-pub fn decompose_scalar(k: BigInt, v: Vec<BigInt>, u: Vec<BigInt>) -> Vec<BigInt> {
-    //We first find rational solutions to
-    //(k,0) = q1v + q2u
-    //We can re-write this problem as a matrix A(q1,q2) = (k,0)
-    //So that (q1,q2) = A^-1(k,0)
-    let det = (v[0].clone() * u[1].clone()) - (v[1].clone() * u[0].clone());
-    let q1 = (u[1].clone() * k.clone()) / det.clone();
-    let q2 = (-v[1].clone() * k.clone()) / det.clone();
-
-    let k1 = k - q1.clone() * v[0].clone() - q2.clone() * u[0].clone();
-    let k2 : BigInt = 0 - q1 * v[1].clone() - q2 * u[1].clone();
-
-    let mut result = Vec::new();
-    result.push(k1);
-    result.push(k2);
-    result
+pub struct GLVParameters<C>
+where
+    C: ProjectiveCurve,
+{
+    pub lambda: C::ScalarField,
+    pub beta: C::BaseField,
+    pub base_v1: (C::BaseField, C::BaseField),
+    pub base_v2: (C::BaseField, C::BaseField),
 }
 
-/// 
-pub fn prepare_parameters<C>(p: C::BaseField) -> (C::BaseField, C::ScalarField) 
-where 
-    C: ProjectiveCurve
+/// TODO. Not Urgent.
+pub fn prepare_parameters<C>(p: C::BaseField) -> GLVParameters<C>
+where
+    C: ProjectiveCurve,
 {
     let _ = p;
     todo!()
 }
 
-pub fn mul_glv<C>(scalar: C::ScalarField, point: C) -> C
+pub fn mul_glv<C>(scalar: &C::ScalarField, point: &C) -> C
+//, parameters: &GLVParameters) -> C
 where
-    C: ProjectiveCurve
+    C: ProjectiveCurve,
 {
+    let _ = (scalar, point);
     todo!()
 }
 
-pub fn glv_is_correct<C>() 
-where 
-    C: ProjectiveCurve,
-{
-    let mut rng = ark_std::rand::thread_rng();
-    let scalar = C::ScalarField::rand(&mut rng);
-    let point = C::rand(&mut rng);
-    assert_eq!(
-        point.mul(&scalar.into_repr()),
-        mul_glv(scalar, point),
-        "GLV should produce the same results as Arkworks scalar multiplication."
-    );
+#[cfg(test)]
+mod test {
+    use super::*;
+    use ark_bls12_381;
+    use ark_ff::PrimeField;
+    use ark_std::UniformRand;
+
+    pub fn glv_is_correct<C>()
+    where
+        C: ProjectiveCurve,
+    {
+        let mut rng = ark_std::rand::thread_rng();
+        let scalar = C::ScalarField::rand(&mut rng);
+        let point = C::rand(&mut rng);
+        assert_eq!(
+            point.mul(&scalar.into_repr()),
+            mul_glv(&scalar, &point),
+            "GLV should produce the same results as Arkworks scalar multiplication."
+        );
+    }
+
+    #[test]
+    fn glv_matches_arkworks_scalar_mul() {
+        glv_is_correct::<ark_bn254::G1Projective>();
+        glv_is_correct::<ark_bls12_381::G1Projective>();
+    }
 }
 
-#[test]
-fn glv_matches_arkworks_scalar_mul()
-{
-    glv_is_correct::<ark_bn254::G1Projective>();
-    glv_is_correct::<ark_bls12_381::G1Projective>();
-}
+// //Given a scalar k and basis vectors v and u
+// //finds integer scalars z1 and z2, so that (k,0) is close to
+// //z1v + z2u
+// pub fn decompose_scalar(k: BigInt, v: Vec<BigInt>, u: Vec<BigInt>) -> Vec<BigInt> {
+//     //We first find rational solutions to
+//     //(k,0) = q1v + q2u
+//     //We can re-write this problem as a matrix A(q1,q2) = (k,0)
+//     //So that (q1,q2) = A^-1(k,0)
+//     let det = (v[0].clone() * u[1].clone()) - (v[1].clone() * u[0].clone());
+//     let q1 = (u[1].clone() * k.clone()) / det.clone();
+//     let q2 = (-v[1].clone() * k.clone()) / det.clone();
+
+//     let k1 = k - q1.clone() * v[0].clone() - q2.clone() * u[0].clone();
+//     let k2 : BigInt = 0 - q1 * v[1].clone() - q2 * u[1].clone();
+
+//     let mut result = Vec::new();
+//     result.push(k1);
+//     result.push(k2);
+//     result
+// }
 
 // fn main() {
 //     let beta_raw: BigUint = "2203960485148121921418603742825762020974279258880205651966".parse().unwrap();
@@ -94,7 +103,6 @@ fn glv_matches_arkworks_scalar_mul()
 //     let mut u: Vec<BigInt> = Vec::new();
 //     u.push(u1);
 //     u.push(u2);
-
 
 //     let decomposition = decompose_scalar(k, v, u);
 
