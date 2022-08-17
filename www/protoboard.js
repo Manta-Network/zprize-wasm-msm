@@ -21,6 +21,72 @@
 //import bigInt from 'big-integer'
 let bigInt = require('big-integer')
 
+
+function set(pos, nums, buffer, nBytes) {
+    if (!Array.isArray(nums)) {
+        nums = [nums];
+    }
+    if (typeof nBytes === "undefined") {
+        nBytes = 48;
+    }
+
+    const words = Math.floor((nBytes -1)/4)+1;
+    let p = pos;
+
+    const CHUNK = bigInt.one.shiftLeft(32);
+
+    for (let i=0; i<nums.length; i++) {
+        let v = bigInt(nums[i]);
+        for (let j=0; j<words; j++) {
+            const rd = v.divmod(CHUNK);
+            buffer[p>>2] = rd.remainder.toJSNumber();
+            v = rd.quotient;
+            p += 4;
+        }
+        //assert(v.isZero());
+    }
+
+    return pos;
+}
+
+
+function get(pos, buffer, nElements, nBytes ) {
+    if (typeof nBytes == "undefined") {
+        if (typeof nElements == "undefined") {
+            nElements = 1;
+            nBytes = 48;
+        } else {
+            nElements = nBytes;
+            nBytes = 48;
+        }
+    }
+
+    const words = Math.floor((nBytes -1)/4)+1;
+
+    const CHUNK = bigInt.one.shiftLeft(32);
+
+
+    const nums = [];
+    for (let i=0; i<nElements; i++) {
+        let acc = bigInt.zero;
+        for (let j=words-1; j>=0; j--) {
+            acc = acc.times(CHUNK);
+            let v = buffer[(pos>>2)+j];
+            if (32 <32) {
+                if (v&0x80000000) v = v-0x100000000;
+            }
+            acc = acc.add(v);
+        }
+        nums.push(acc);
+        pos += words*4;
+    }
+
+    if (nums.length == 1) return nums[0];
+    return nums;
+}
+
+
+
 class Protoboard {
 
     constructor() {
@@ -107,6 +173,6 @@ class Protoboard {
     }
 }
 
-module.exports = Protoboard;
+module.exports = {Protoboard, set, get};
 
 

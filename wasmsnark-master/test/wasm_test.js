@@ -24,8 +24,8 @@ describe("Basic tests for Int", () => {
             buildTest2(module,"f1m_add")
             
 
-            
-        }, 64);
+    //      64
+        }, 32);
     });
 
     it("It should profile F1m int mul", async () => {
@@ -38,6 +38,8 @@ describe("Basic tests for Int", () => {
         const pA = pbF1m.alloc();
         const pB = pbF1m.alloc();
         const pC = pbF1m.alloc();
+        
+
         pbF1m.set(pA, A);
         pbF1m.set(pB, B);
         let repeat = 1<<22;
