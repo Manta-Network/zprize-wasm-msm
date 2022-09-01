@@ -15,7 +15,7 @@ describe("Basic tests for bn128 proof generator", () => {
         const nSignals = 1;
 
         const pkey32 = new Uint32Array(provingKey);
-        const pPointsA = pkey32[5];
+        const pPointsA = pkey32[5]; 
 
         const points = provingKey.slice(pPointsA, pPointsA + nSignals*64);
         const signals = signalsAll.slice(0, nSignals*32);

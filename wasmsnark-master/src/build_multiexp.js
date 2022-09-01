@@ -5,7 +5,7 @@
 
     wasmsnark is a free software: you can redistribute it and/or modify it
     under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
+    the Free Software Foundation, either version 3 of the License, or 
     (at your option) any later version.
 
     wasmsnark is distributed in the hope that it will be useful, but WITHOUT
@@ -659,7 +659,7 @@ module.exports = function buildMultiexp(module, prefix, curvePrefix, pointFieldP
         f.addLocal("pp", "i32");
         f.addLocal("wf", "i32");
         f.addLocal("lastps", "i32");
-
+ 
         const c = f.getCodeBuilder();
 
         const accumulators = c.i32_const(module.alloc(pointN8*scalarN8*8));

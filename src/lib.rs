@@ -6,6 +6,7 @@ use wasm_bindgen::prelude::wasm_bindgen;
 pub mod check_ec_affine;
 pub mod check_ec_projective;
 pub mod check_ff;
+pub mod check_tmp;
 pub mod ff;
 pub mod ec;
 

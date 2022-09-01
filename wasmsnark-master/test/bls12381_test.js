@@ -26,7 +26,7 @@ describe("Basic tests for g1 in bls12-381", function () {
         //return n.toString()
         return "0x" + n.toString(16);
     }
-
+ 
     function printG1(s, p) {
         console.log(s + " G1(" + ns(p) + " , " + ns(p+n8) + " , " + ns(p+n8*2) + ")"   );
     }
@@ -38,6 +38,15 @@ describe("Basic tests for g1 in bls12-381", function () {
         printG1("pG2     : ",pG2);
 
         const p1 = pb.alloc(n8*3);
+        const p2 = pb.alloc(n8*3);
+        
+        console.log(pb.bls12381.test_point_1_gen)
+        console.log(pb.bls12381.test_point_2_gen)
+        console.log(p1)
+        console.log(p2)
+        
+        
+        
         
         pb.g1m_add(pG1, pG2, p1);
         pb.g1m_affine(p1,p1);
