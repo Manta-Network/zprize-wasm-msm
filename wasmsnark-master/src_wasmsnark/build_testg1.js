@@ -17,6 +17,8 @@
     along with wasmsnark. If not, see <https://www.gnu.org/licenses/>.
 */
 
+const bigInt = require("big-integer");
+
 module.exports = function buildTestAddG1(module) {
 
     function buildTestAddG1() {

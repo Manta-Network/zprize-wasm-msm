@@ -17,14 +17,18 @@
     along with wasmsnark. If not, see <https://www.gnu.org/licenses/>.
 */
 
+const utils = require("./utils.js");
+
 module.exports = function buildInt(module, n64, _prefix) {
 
     const prefix = _prefix || "int";
     if (module.modules[prefix]) return prefix;  // already builded
     module.modules[prefix] = {};
-
+ 
     const n32 = n64*2;
     const n8 = n64*8;
+
+    const one = module.alloc(n8, utils.bigInt2BytesLE(1, n8));
 
     function buildCopy() {
         const f = module.addFunction(prefix+"_copy");
@@ -61,7 +65,7 @@ module.exports = function buildInt(module, n64, _prefix) {
                     c.i64_const(0)
                 )
             );
-        }
+        } 
     }
 
     function buildOne() {
@@ -146,6 +150,7 @@ module.exports = function buildInt(module, n64, _prefix) {
 
 
     function buildGte() {
+        // Great than?
         const f = module.addFunction(prefix+"_gte");
         f.addParam("px", "i32");
         f.addParam("py", "i32");
@@ -280,12 +285,15 @@ module.exports = function buildInt(module, n64, _prefix) {
 
     function buildMul() {
 
+        //console.log("n32 in int.js int mul:"+ n32)
         const f = module.addFunction(prefix+"_mul");
         f.addParam("x", "i32");
         f.addParam("y", "i32");
         f.addParam("r", "i32");
+        
         f.addLocal("c0", "i64");
         f.addLocal("c1", "i64");
+        
 
 
         for (let i=0;i<n32; i++) {
@@ -314,10 +322,43 @@ module.exports = function buildInt(module, n64, _prefix) {
 
             return c.i64_mul( X, Y );
         }
+        //n32 8
+        //let repeat = 100;
+        //start = new Date().getTime();
+        // for(let i=0;i<1;i++){
+        //     //f.addCode(c.drop(c.getLocal("x"),4));
+        //     f.addCode(c.i64_mul( X, Y ));
+        // }
+        //end = new Date().getTime();
+        //console.log("time "+ (end-start)/repeat);
+        
+        
+        //console.log(c.getLocal("c1"));
+        // f.addCode(c.setLocal(c1, c.i64_const(1)));
+        // [c0,c1] = [c1,c0]
+        // f.addCode(c.i64_store32(
+        //     c.getLocal("r"),
+        //     0,
+        //     c.getLocal(c0)));
 
-        let c0 = "c0";
-        let c1 = "c1";
+        /*
+        x               ----
+        y               ----
+        mul(x,y)   ---- ----
+        c0_old     0000 ----
+                      ||
+                      \/
+        c0         ---- ----
+        c1_old---- ----  
+                 ||
+                 \/
+        c1    ---- ----
 
+        */ 
+
+        //mul begin
+        let c0 = "c0";//[32 ,3] opcode offset
+        let c1 = "c1";//[32,4]
         for (let k=0; k<n32*2-1; k++) {
             for (let i=Math.max(0, k-n32+1); (i<=k)&&(i<n32); i++) {
                 const j= k-i;
@@ -356,6 +397,8 @@ module.exports = function buildInt(module, n64, _prefix) {
                 )
             );
             [c0, c1] = [c1, c0];
+
+            // now c0 = c1,  c1 should be c2, so c1(new c2) = c0(new c1)>>32
             f.addCode(
                 c.setLocal(c1,
                     c.i64_shr_u(

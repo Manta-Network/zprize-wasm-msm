@@ -2,7 +2,7 @@ const assert = require("assert");
 const bigInt = require("big-integer");
 const buildBls12381 = require("../src/bls12381/build_bls12381.js");
 const buildProtoboard = require("wasmbuilder").buildProtoboard;
-
+const buildTest2 = require("../src/build_test.js").buildTest2;
 describe("Basic tests for g1 in bls12-381", function () {
 
     this.timeout(10000000);
@@ -137,6 +137,7 @@ describe("Basic tests for g1 in bls12-381", function () {
     before(async () => {
         pb = await buildProtoboard((module) => {
             buildBls12381(module);
+            buildTest2(module, "f1m_mul");
         }, n8);
     });
 

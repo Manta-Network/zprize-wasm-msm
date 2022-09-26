@@ -15,6 +15,7 @@ describe("Basic tests for g1 in bls12-381", function () {
     before(async () => {
         pb = await buildProtoboard((module) => {
             buildBls12381(module);
+            buildTest2(module, "f1m_mul");
             buildTest2(module, "g1m_add");
         }, n8);
     });

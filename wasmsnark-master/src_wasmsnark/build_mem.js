@@ -17,7 +17,7 @@
     along with wasmsnark. If not, see <https://www.gnu.org/licenses/>.
 */
 
-module.exports = function buildMem(module, prefix) {
+module.exports = function buildMem(module, prefix, prefixField) {
 
     function buildCopy() {
         const f = module.addFunction(prefix+"copy");

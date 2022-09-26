@@ -17,22 +17,24 @@
     along with wasmsnark. If not, see <https://www.gnu.org/licenses/>.
 */
 
+const bigInt = require("big-integer");
+
 exports.bigInt2BytesLE = function bigInt2BytesLE(_a, len) {
     const b = Array(len);
-    let v = BigInt(_a);
+    let v = bigInt(_a);
     for (let i=0; i<len; i++) {
-        b[i] = Number(v & 0xFFn);
-        v = v >> 8n;
+        b[i] = v.and(0xFF).toJSNumber();
+        v = v.shiftRight(8);
     }
     return b;
 };
 
 exports.bigInt2U32LE = function bigInt2BytesLE(_a, len) {
     const b = Array(len);
-    let v = BigInt(_a);
+    let v = bigInt(_a);
     for (let i=0; i<len; i++) {
-        b[i] = Number(v & 0xFFFFFFFFn);
-        v = v >> 32n;
+        b[i] = v.and(0xFFFFFFFF).toJSNumber();
+        v = v.shiftRight(32);
     }
     return b;
 };
@@ -44,6 +46,6 @@ exports.isOcamNum = function(a) {
     if (typeof a[1] !== "number") return false;
     if (!Array.isArray(a[2])) return false;
     return true;
-};
+}
 
 

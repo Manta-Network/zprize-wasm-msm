@@ -17,16 +17,12 @@
     along with wasmsnark. If not, see <https://www.gnu.org/licenses/>.
 */
 const buildExp = require("./build_timesscalar");
-const buildBatchInverse = require("./build_batchinverse");
-const utils = require("./utils.js");
 
 module.exports = function buildF2m(module, mulNonResidueFn, prefix, f1mPrefix) {
 
     if (module.modules[prefix]) return prefix;  // already builded
 
     const f1n8 = module.modules[f1mPrefix].n64*8;
-    const q = module.modules[f1mPrefix].q;
-
     module.modules[prefix] = {
         n64: module.modules[f1mPrefix].n64*2
     };
@@ -128,27 +124,6 @@ module.exports = function buildF2m(module, mulNonResidueFn, prefix, f1mPrefix) {
             c.call(f1mPrefix+"_neg", x1, r1),
         );
     }
-
-
-    function buildIsNegative() {
-        const f = module.addFunction(prefix+"_isNegative");
-        f.addParam("x", "i32");
-        f.setReturnType("i32");
-
-        const c = f.getCodeBuilder();
-
-        const x0 = c.getLocal("x");
-        const x1 = c.i32_add(c.getLocal("x"), c.i32_const(f1n8));
-
-        f.addCode(
-            c.if(
-                c.call(f1mPrefix+"_isZero", x1),
-                c.ret(c.call(f1mPrefix+"_isNegative", x0))
-            ),
-            c.ret(c.call(f1mPrefix+"_isNegative", x1))
-        );
-    }
-
     function buildMul() {
         const f = module.addFunction(prefix+"_mul");
         f.addParam("x", "i32");
@@ -407,170 +382,7 @@ module.exports = function buildF2m(module, mulNonResidueFn, prefix, f1mPrefix) {
         );
     }
 
-
-    function buildSign() {
-        const f = module.addFunction(prefix+"_sign");
-        f.addParam("x", "i32");
-        f.addLocal("s", "i32");
-        f.setReturnType("i32");
-
-        const c = f.getCodeBuilder();
-
-        const x0 = c.getLocal("x");
-        const x1 = c.i32_add(c.getLocal("x"), c.i32_const(f1n8));
-
-        f.addCode(
-            c.setLocal("s" , c.call( f1mPrefix + "_sign", x1)),
-            c.if(
-                c.getLocal("s"),
-                c.ret(c.getLocal("s"))
-            ),
-            c.ret(c.call( f1mPrefix + "_sign", x0))
-        );
-    }
-
-    function buildIsOne() {
-        const f = module.addFunction(prefix+"_isOne");
-        f.addParam("x", "i32");
-        f.setReturnType("i32");
-
-        const c = f.getCodeBuilder();
-
-        const x0 = c.getLocal("x");
-        const x1 = c.i32_add(c.getLocal("x"), c.i32_const(f1n8));
-
-        f.addCode(
-            c.ret(c.i32_and(
-                c.call(f1mPrefix + "_isOne", x0),
-                c.call(f1mPrefix + "_isZero", x1),
-            ))
-        );
-    }
-
-
-    // Check here: https://eprint.iacr.org/2012/685.pdf
-    // Alg 9adj
-    function buildSqrt() {
-
-        const f = module.addFunction(prefix+"_sqrt");
-        f.addParam("a", "i32");
-        f.addParam("pr", "i32");
-
-        const c = f.getCodeBuilder();
-
-        // BigInt can't take `undefined` so we use `|| 0`
-        const e34 = c.i32_const(module.alloc(utils.bigInt2BytesLE((BigInt(q || 0) - 3n) / 4n, f1n8 )));
-        // BigInt can't take `undefined` so we use `|| 0`
-        const e12 = c.i32_const(module.alloc(utils.bigInt2BytesLE((BigInt(q || 0) - 1n) / 2n, f1n8 )));
-
-        const a = c.getLocal("a");
-        const a1 = c.i32_const(module.alloc(f1n8*2));
-        const alpha = c.i32_const(module.alloc(f1n8*2));
-        const a0 = c.i32_const(module.alloc(f1n8*2));
-        const pn1 = module.alloc(f1n8*2);
-        const n1 = c.i32_const(pn1);
-        const n1a = c.i32_const(pn1);
-        const n1b = c.i32_const(pn1+f1n8);
-        const x0 = c.i32_const(module.alloc(f1n8*2));
-        const b = c.i32_const(module.alloc(f1n8*2));
-
-        f.addCode(
-
-            c.call(prefix + "_one", n1),
-            c.call(prefix + "_neg", n1, n1),
-
-            // const a1 = F.pow(a, F.sqrt_e34);
-            c.call(prefix + "_exp", a, e34, c.i32_const(f1n8), a1),
-
-            // const a1 = F.pow(a, F.sqrt_e34);
-            c.call(prefix + "_square", a1, alpha),
-            c.call(prefix + "_mul", a, alpha, alpha),
-
-            // const a0 = F.mul(F.frobenius(1, alfa), alfa);
-            c.call(prefix + "_conjugate", alpha, a0),
-            c.call(prefix + "_mul", a0, alpha, a0),
-
-            // if (F.eq(a0, F.negone)) return null;
-            c.if(c.call(prefix + "_eq",a0,n1), c.unreachable() ),
-
-            // const x0 = F.mul(a1, a);
-            c.call(prefix + "_mul", a1, a, x0),
-
-            // if (F.eq(alfa, F.negone)) {
-            c.if(
-                c.call(prefix + "_eq", alpha, n1),
-                [
-                    // x = F.mul(x0, [F.F.zero, F.F.one]);
-                    ...c.call(f1mPrefix + "_zero", n1a),
-                    ...c.call(f1mPrefix + "_one", n1b),
-                    ...c.call(prefix + "_mul", n1, x0, c.getLocal("pr")),
-                ],
-                [
-                    // const b = F.pow(F.add(F.one, alfa), F.sqrt_e12);
-                    ...c.call(prefix + "_one", b),
-                    ...c.call(prefix + "_add", b, alpha, b),
-                    ...c.call(prefix + "_exp", b, e12, c.i32_const(f1n8), b),
-
-                    // x = F.mul(b, x0);
-                    ...c.call(prefix + "_mul", b, x0, c.getLocal("pr")),
-                ]
-            )
-        );
-
-    }
-
-
-    function buildIsSquare() {
-
-        const f = module.addFunction(prefix+"_isSquare");
-        f.addParam("a", "i32");
-        f.setReturnType("i32");
-
-        const c = f.getCodeBuilder();
-
-        // BigInt can't take `undefined` so we use `|| 0`
-        const e34 = c.i32_const(module.alloc(utils.bigInt2BytesLE((BigInt(q || 0) - 3n) / 4n, f1n8 )));
-
-        const a = c.getLocal("a");
-        const a1 = c.i32_const(module.alloc(f1n8*2));
-        const alpha = c.i32_const(module.alloc(f1n8*2));
-        const a0 = c.i32_const(module.alloc(f1n8*2));
-        const pn1 = module.alloc(f1n8*2);
-        const n1 = c.i32_const(pn1);
-
-        f.addCode(
-
-            c.call(prefix + "_one", n1),
-            c.call(prefix + "_neg", n1, n1),
-
-            // const a1 = F.pow(a, F.sqrt_e34);
-            c.call(prefix + "_exp", a, e34, c.i32_const(f1n8), a1),
-
-            // const a1 = F.pow(a, F.sqrt_e34);
-            c.call(prefix + "_square", a1, alpha),
-            c.call(prefix + "_mul", a, alpha, alpha),
-
-            // const a0 = F.mul(F.frobenius(1, alfa), alfa);
-            c.call(prefix + "_conjugate", alpha, a0),
-            c.call(prefix + "_mul", a0, alpha, a0),
-
-            // if (F.eq(a0, F.negone)) return null;
-            c.if(
-                c.call(
-                    prefix + "_eq",
-                    a0,
-                    n1
-                ),
-                c.ret(c.i32_const(0))
-            ),
-            c.ret(c.i32_const(1))
-        );
-
-    }
-
-
     buildIsZero();
-    buildIsOne();
     buildZero();
     buildOne();
     buildCopy();
@@ -586,11 +398,8 @@ module.exports = function buildF2m(module, mulNonResidueFn, prefix, f1mPrefix) {
     buildEq();
     buildInverse();
     buildTimesScalar();
-    buildSign();
-    buildIsNegative();
 
     module.exportFunction(prefix + "_isZero");
-    module.exportFunction(prefix + "_isOne");
     module.exportFunction(prefix + "_zero");
     module.exportFunction(prefix + "_one");
     module.exportFunction(prefix + "_copy");
@@ -600,13 +409,11 @@ module.exports = function buildF2m(module, mulNonResidueFn, prefix, f1mPrefix) {
     module.exportFunction(prefix + "_add");
     module.exportFunction(prefix + "_sub");
     module.exportFunction(prefix + "_neg");
-    module.exportFunction(prefix + "_sign");
     module.exportFunction(prefix + "_conjugate");
     module.exportFunction(prefix + "_fromMontgomery");
     module.exportFunction(prefix + "_toMontgomery");
     module.exportFunction(prefix + "_eq");
     module.exportFunction(prefix + "_inverse");
-    buildBatchInverse(module, prefix);
     buildExp(
         module,
         prefix + "_exp",
@@ -616,16 +423,8 @@ module.exports = function buildF2m(module, mulNonResidueFn, prefix, f1mPrefix) {
         prefix + "_copy",
         prefix + "_one",
     );
-    buildSqrt();
-    buildIsSquare();
-
     module.exportFunction(prefix + "_exp");
     module.exportFunction(prefix + "_timesScalar");
-    module.exportFunction(prefix + "_batchInverse");
-    module.exportFunction(prefix + "_sqrt");
-    module.exportFunction(prefix + "_isSquare");
-    module.exportFunction(prefix + "_isNegative");
-
 
     return prefix;
 };

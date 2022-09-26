@@ -18,7 +18,7 @@
 */
 
 module.exports = function buildTimesScalar(module, fnName, elementLen, opAB, opAA, opCopy, opInit) {
-
+//                                                            n8*3     add double cpoy zero
     const f = module.addFunction(fnName);
     f.addParam("base", "i32");
     f.addParam("scalar", "i32");
@@ -31,22 +31,15 @@ module.exports = function buildTimesScalar(module, fnName, elementLen, opAB, opA
 
     const aux = c.i32_const(module.alloc(elementLen));
 
-    f.addCode(
-        c.if(
-            c.i32_eqz(c.getLocal("scalarLength")),
-            [
-                ...c.call(opInit, c.getLocal("r")),
-                ...c.ret([])
-            ]
-        )
-    );
     f.addCode(c.call(opCopy, c.getLocal("base"), aux));
+
     f.addCode(c.call(opInit, c.getLocal("r")));
-    f.addCode(c.setLocal("i", c.getLocal("scalarLength")));
+
+    f.addCode(c.setLocal("i", c.getLocal("scalarLength"))); // scalarLength is 32 (n8)
     f.addCode(c.block(c.loop(
         c.setLocal("i", c.i32_sub(c.getLocal("i"), c.i32_const(1))),
 
-        c.setLocal(
+        c.setLocal( // b is an 8bit scalar
             "b",
             c.i32_load8_u(
                 c.i32_add(
@@ -76,7 +69,7 @@ module.exports = function buildTimesScalar(module, fnName, elementLen, opAB, opA
                                 c.i32_const(0x80 >> i)
                             )
                         ),
-                        ...c.call(opAB, c.getLocal("r"),aux, c.getLocal("r"))
+                        ...c.call(opAB, aux, c.getLocal("r"), c.getLocal("r"))
                     ]
                 )
             );

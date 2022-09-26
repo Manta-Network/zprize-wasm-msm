@@ -17,14 +17,17 @@
     along with wasmsnark. If not, see <https://www.gnu.org/licenses/>.
 */
 
-const bigInt = require("big-integer");
 const buildInt = require("./build_int.js");
 const utils = require("./utils.js");
 const buildExp = require("./build_timesscalar");
+const buildBatchInverse = require("./build_batchinverse");
+const buildBatchConvertion = require("./build_batchconvertion");
+const buildBatchOp = require("./build_batchop");
+const { bitLength, modInv, modPow, isPrime, isOdd, square } = require("./bigint.js");
 
 module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
-    const q = bigInt(_q);
-    const n64 = Math.floor((q.minus(1).bitLength() - 1)/64) +1;
+    const q = BigInt(_q);
+    const n64 = Math.floor((bitLength(q - 1n) - 1)/64) +1;
     const n32 = n64*2;
     const n8 = n64*8;
 
@@ -34,15 +37,14 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
     const intPrefix = buildInt(module, n64, _intPrefix);
     const pq = module.alloc(n8, utils.bigInt2BytesLE(q, n8));
 
-    const pR = module.alloc(utils.bigInt2BytesLE(bigInt.one.shiftLeft(n64*64).mod(q), n8));
-    const pR2 = module.alloc(utils.bigInt2BytesLE(bigInt.one.shiftLeft(n64*64).square().mod(q), n8));
-    const pOne = module.alloc(utils.bigInt2BytesLE(bigInt.one.shiftLeft(n64*64).mod(q), n8));
-    const pZero = module.alloc(utils.bigInt2BytesLE(bigInt.zero, n8));
-    const _minusOne = q.minus(bigInt.one);
-    const _e = _minusOne.shiftRight(1); // e = (p-1)/2
+    const pR2 = module.alloc(utils.bigInt2BytesLE(square(1n << BigInt(n64*64)) % q, n8));
+    const pOne = module.alloc(utils.bigInt2BytesLE((1n << BigInt(n64*64)) % q, n8));
+    const pZero = module.alloc(utils.bigInt2BytesLE(0n, n8));
+    const _minusOne = q - 1n;
+    const _e = _minusOne >> 1n; // e = (p-1)/2
     const pe = module.alloc(n8, utils.bigInt2BytesLE(_e, n8));
 
-    const _ePlusOne = _e.add(bigInt.one); // e = (p-1)/2
+    const _ePlusOne = _e + 1n; // e = (p-1)/2
     const pePlusOne = module.alloc(n8, utils.bigInt2BytesLE(_ePlusOne, n8));
 
     module.modules[prefix] = {
@@ -71,7 +73,7 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
         f.addParam("r", "i32");
 
         const c = f.getCodeBuilder();
- 
+
         f.addCode(
             c.if(
                 c.call(intPrefix+"_add", c.getLocal("x"),  c.getLocal("y"), c.getLocal("r")),
@@ -82,7 +84,7 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
                 )
             )
         );
-    } 
+    }
 
     function buildSub() {
         const f = module.addFunction(prefix+"_sub");
@@ -112,7 +114,7 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
         );
     }
 
-/*
+
     function buildIsNegative() {
         const f = module.addFunction(prefix+"_isNegative");
         f.addParam("x", "i32");
@@ -127,11 +129,9 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
             c.call(intPrefix + "_gte", AUX, c.i32_const(pePlusOne) )
         );
     }
-*/
 
-
-    function buildIsNegative() {
-        const f = module.addFunction(prefix+"_isNegative");
+    function buildSign() {
+        const f = module.addFunction(prefix+"_sign");
         f.addParam("x", "i32");
         f.setReturnType("i32");
 
@@ -140,14 +140,18 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
         const AUX = c.i32_const(module.alloc(n8));
 
         f.addCode(
+            c.if (
+                c.call(intPrefix + "_isZero", c.getLocal("x")),
+                c.ret(c.i32_const(0))
+            ),
             c.call(prefix + "_fromMontgomery", c.getLocal("x"), AUX),
-            c.i32_and(
-                c.i32_load(AUX),
-                c.i32_const(1)
-            )
+            c.if(
+                c.call(intPrefix + "_gte", AUX, c.i32_const(pePlusOne)),
+                c.ret(c.i32_const(-1))
+            ),
+            c.ret(c.i32_const(1))
         );
     }
-
 
 
     function buildMReduct() {
@@ -162,7 +166,7 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
 
         const c = f.getCodeBuilder();
 
-        const np32 = bigInt("100000000",16).minus( q.modInv(bigInt("100000000",16))).toJSNumber();
+        const np32 = Number(0x100000000n - modInv(q, 0x100000000n));
 
         f.addCode(c.setLocal("np32", c.i64_const(np32)));
 
@@ -234,6 +238,7 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
 
     function buildMul() {
 
+        //const f = module.addFunction(prefix+"_old_mul");
         const f = module.addFunction(prefix+"_mul");
         f.addParam("x", "i32");
         f.addParam("y", "i32");
@@ -241,7 +246,6 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
         f.addLocal("c0", "i64");
         f.addLocal("c1", "i64");
         f.addLocal("np32", "i64");
-        //console.log("n32 in buildmul!!+"  +n32)
 
 
         for (let i=0;i<n32; i++) {
@@ -253,7 +257,7 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
 
         const c = f.getCodeBuilder();
 
-        const np32 = bigInt("100000000",16).minus( q.modInv(bigInt("100000000",16))).toJSNumber();
+        const np32 = Number(0x100000000n - modInv(q, 0x100000000n));
 
         f.addCode(c.setLocal("np32", c.i64_const(np32)));
 
@@ -323,6 +327,7 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
                         )
                     )
                 );
+
             }
 
 
@@ -437,6 +442,796 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
     }
 
 
+    function buildCIOSmul(){
+        const f = module.addFunction(prefix+"_CIOSmul");
+        //const f = module.addFunction(prefix+"_mul");
+        f.addParam("x", "i32");
+        f.addParam("y", "i32");
+        f.addParam("r", "i32");
+        f.addLocal("c0", "i64");
+        f.addLocal("c1", "i64");
+        f.addLocal("np32", "i64");
+
+        for (let i=0;i<n32; i++) {
+            f.addLocal("x"+i, "i64");
+            f.addLocal("y"+i, "i64");
+            //f.addLocal("m"+i, "i64");
+            f.addLocal("q"+i, "i64");
+        }
+
+        function mulqm(i, stat) {
+            let Q,M;
+            if (!loadQ[i]) {
+                Q = c.teeLocal("q"+i, c.i64_load32_u(c.i32_const(0), pq+i*4 ));
+                loadQ[i] = true;
+            } else {
+                Q = c.getLocal("q"+i);
+            }
+            
+
+            return c.i64_mul( Q, stat );
+        }
+        const c = f.getCodeBuilder();
+
+        const np32 = Number(0x100000000n - modInv(q, 0x100000000n));
+
+        f.addCode(c.setLocal("np32", c.i64_const(np32)));
+
+
+        const loadX = [];
+        const loadY = [];
+        const loadQ = [];
+        function mulij(i, j) {// 153(teelocal+getlocal加速)->136(每一次都使用teelocal)
+            let X,Y;
+            if (!loadX[i]) {
+                X = c.teeLocal("x"+i, c.i64_load32_u( c.getLocal("x"), i*4));
+                loadX[i] = true;
+            } else {
+                X = c.getLocal("x"+i);
+            }
+            if (!loadY[j]) {
+                Y = c.teeLocal("y"+j, c.i64_load32_u( c.getLocal("y"), j*4));
+                loadY[j] = true;
+            } else {
+                Y = c.getLocal("y"+j);
+            }
+            
+            return c.i64_mul( X, Y );
+        }
+
+      
+
+        f.addLocal("C", "i64");
+        f.addLocal("S", "i64");
+        f.addLocal("CS", "i64");
+        for (let i=0;i<n32+2; i++) {
+            f.addLocal("t"+i, "i64");
+        }
+        f.addLocal("m", "i64");
+
+        for(let i=0;i<n32;i++){
+            // C=0
+            f.addCode(
+                c.setLocal("C",c.i64_const(0))
+            );
+            
+            for(let j=0;j<n32;j++){
+                // (C,S) = t[j]+x[j]*y[i]+C
+                // set S,  t[j] = S
+                f.addCode(
+                    c.setLocal(
+                        "t"+j,
+                        c.teeLocal(
+                            "S",
+                            c.i64_and(
+                                c.teeLocal(
+                                    "CS",
+                                    c.i64_add(
+                                        c.i64_add(
+                                            c.getLocal("t"+j),
+                                            mulij(j,i)
+                                        ),
+                                        c.getLocal("C")
+                                    )
+                                ),
+                                c.i64_const(0xFFFFFFFF)
+                            )
+                        )
+                    )
+                );
+                // C
+                f.addCode(
+                    c.setLocal(
+                        "C",
+                        c.i64_shr_u(
+                            c.getLocal("CS"),
+                            c.i64_const(32)
+                        )
+                    )
+                );
+            }
+
+            // C,S = t[s] + C
+            // t[s] = S
+            // t[s+1] = C
+            f.addCode(   
+                c.setLocal(
+                    "t"+n32,
+                    c.teeLocal(
+                        "S",
+                        c.i64_and(
+                            c.teeLocal(
+                                "CS",
+                                c.i64_add(
+                                    c.getLocal("C"),
+                                    c.getLocal("t"+n32)
+                                )
+                            ),
+                            c.i64_const(0xFFFFFFFF)
+                        )
+                    )
+                )
+            );
+            // C
+            f.addCode(
+                c.setLocal(
+                    "t"+(n32+1),
+                    c.teeLocal(
+                        "C",
+                        c.i64_shr_u(
+                            c.getLocal("CS"),
+                            c.i64_const(32)
+                        )
+                    )
+                )
+            );
+
+            // Do we need to set C 0?
+
+            // m = t[0]*n'[0] mod W
+            // set S
+            let setm = c.teeLocal(
+                            "m",
+                            c.i64_and(
+                                c.i64_const(0xFFFFFFFF),
+                                c.i64_mul(
+                                    c.getLocal("t0"),
+                                    c.getLocal("np32")
+                                )
+                            )
+                        );
+            // C,S = t[0]+m*n[0]
+            f.addCode(
+                c.setLocal(
+                    "S",
+                    c.i64_and(
+                        c.i64_const(0xFFFFFFFF),
+                        c.teeLocal(
+                            "CS",
+                            c.i64_add(
+                                mulqm(0,setm),
+                                c.getLocal("t0")
+                            )
+                        )
+                    )
+                )    
+            );
+            f.addCode(
+                c.setLocal(
+                    "C",
+                    c.i64_shr_u(
+                        c.getLocal("CS"),
+                        c.i64_const(32)
+                    )
+                )
+            );
+            
+            //(C,S) = t[j] +m*n[j] +C
+            //t[j-1] = S
+            for(let j=1;j<n32;j++){
+                
+                let getm = c.getLocal("m");
+                f.addCode(   
+                    c.setLocal(
+                        "t"+(j-1),
+                        c.teeLocal(
+                            "S",
+                            c.i64_and(
+                                c.teeLocal(
+                                    "CS",
+                                    c.i64_add(
+                                        c.i64_add(
+                                            c.getLocal("C"),
+                                            mulqm(j,getm)
+                                        ),
+                                        c.getLocal("t"+j)
+                                    )
+                                    
+                                ),
+                                c.i64_const(0xFFFFFFFF)
+                            )
+                        )
+                    )
+                );
+                f.addCode(
+                    c.setLocal(
+                        "C",
+                        c.i64_shr_u(
+                            c.getLocal("CS"),
+                            c.i64_const(32)
+                        )
+                    )
+                );
+                
+            }
+
+            //(C,S) = t[s] +C
+            //t[s-1]=S
+            //t[s] = t[s+1] +C
+            f.addCode(   
+                c.setLocal(
+                    "t"+(n32-1),
+                    c.teeLocal(
+                        "S",
+                        c.i64_and(
+                            c.teeLocal(
+                                "CS",
+                                c.i64_add(
+                                    c.getLocal("C"),
+                                    c.getLocal("t"+n32)
+                                )
+                                
+                            ),
+                            c.i64_const(0xFFFFFFFF)
+                        )
+                    )
+                )
+            );
+            f.addCode(
+                c.setLocal(
+                    "t"+n32,
+                    c.i64_add(
+                        c.teeLocal(
+                            "C",
+                            c.i64_shr_u(
+                                c.getLocal("CS"),
+                                c.i64_const(32)
+                            )
+                        ),
+                        c.getLocal("t"+(n32+1))
+                    )
+                )      
+            )
+            
+        } 
+        
+        for(let i=0;i<n32;i++){
+            f.addCode(
+                c.i64_store32(
+                    c.getLocal("r"),
+                    i*4,
+                    c.getLocal("t"+i)
+                )
+            );
+        }
+
+        
+        f.addCode(
+            c.if(
+                c.i32_wrap_i64(c.getLocal("t"+n32)),
+                c.drop(c.call(intPrefix+"_sub", c.getLocal("r"), c.i32_const(pq), c.getLocal("r"))),
+                c.if(
+                    c.call(intPrefix+"_gte", c.getLocal("r"), c.i32_const(pq)  ),
+                    c.drop(c.call(intPrefix+"_sub", c.getLocal("r"), c.i32_const(pq), c.getLocal("r"))),
+                )
+            )
+        );
+    }
+
+    function buildCIOSmul_windows(){
+        const f = module.addFunction(prefix+"_CIOS_window_mul");
+        f.addParam("x", "i32");
+        f.addParam("y", "i32");
+        f.addParam("r", "i32");
+        f.addLocal("c0", "i64");
+        f.addLocal("c1", "i64");
+        f.addLocal("np32", "i64");
+
+        for (let i=0;i<n32; i++) {
+            f.addLocal("x"+i, "i64");
+            f.addLocal("y"+i, "i64");
+            //f.addLocal("m"+i, "i64");
+            f.addLocal("q"+i, "i64");
+        }
+
+        function mulqm(i, stat) {
+            let Q,M;
+            if (!loadQ[i]) {
+                Q = c.teeLocal("q"+i, c.i64_load32_u(c.i32_const(0), pq+i*4 ));
+                loadQ[i] = true;
+            } else {
+                Q = c.getLocal("q"+i);
+            }
+            
+
+            return c.i64_mul( Q, stat );
+        }
+        const c = f.getCodeBuilder();
+
+        const np32 = Number(0x100000000n - modInv(q, 0x100000000n));
+
+        f.addCode(c.setLocal("np32", c.i64_const(np32)));
+
+
+        const loadX = [];
+        const loadY = [];
+        const loadQ = [];
+        function mulij(i, j) {
+            let X,Y;
+            if (!loadX[i]) {
+                X = c.teeLocal("x"+i, c.i64_load32_u( c.getLocal("x"), i*4));
+                loadX[i] = true;
+            } else {
+                X = c.getLocal("x"+i);
+            }
+            if (!loadY[j]) {
+                Y = c.teeLocal("y"+j, c.i64_load32_u( c.getLocal("y"), j*4));
+                loadY[j] = true;
+            } else {
+                Y = c.getLocal("y"+j);
+            }
+
+            return c.i64_mul( X, Y );
+        }
+
+        for (let i=0;i<n32; i++) {
+            for(let j=0;j<n32;j++){
+                f.addLocal("r"+i+"_"+j, "i64");
+            }
+            
+        }
+        
+        let step = 2;
+        for(let row = 0;row<n32;row+=step){
+            for(let col = 0;col<n32;col+=step){
+                for(let i=0;i<step;i++){
+                    for(let j=0;j<step;j++){
+                        f.addCode(
+                            c.setLocal(
+                                "r"+(row+i)+"_"+(col+j),
+                                mulij((row+i),(col+j))
+                            )
+                            
+                        );
+                    }
+                }
+            }
+        }
+        
+      
+
+        f.addLocal("C", "i64");
+        f.addLocal("S", "i64");
+        f.addLocal("CS", "i64");
+        for (let i=0;i<n32+2; i++) {
+            f.addLocal("t"+i, "i64");
+        }
+        f.addLocal("m", "i64");
+
+        for(let i=0;i<n32;i++){
+            // C=0
+            f.addCode(
+                c.setLocal("C",c.i64_const(0))
+            );
+            
+            
+            for(let j=0;j<n32;j++){
+                // (C,S) = t[j]+x[j]*y[i]+C
+                // set S,  t[j] = S
+                f.addCode(
+                    c.setLocal(
+                        "t"+j,
+                        c.teeLocal(
+                            "S",
+                            c.i64_and(
+                                c.teeLocal(
+                                    "CS",
+                                    c.i64_add(
+                                        c.i64_add(
+                                            c.getLocal("t"+j),
+                                            //mulij(j,i)
+                                            c.getLocal("r"+j+"_"+i)
+                                        ),
+                                        c.getLocal("C")
+                                    )
+                                ),
+                                c.i64_const(0xFFFFFFFF)
+                            )
+                        )
+                    )
+                );
+                // C
+                f.addCode(
+                    c.setLocal(
+                        "C",
+                        c.i64_shr_u(
+                            c.getLocal("CS"),
+                            c.i64_const(32)
+                        )
+                    )
+                );
+            }
+
+            // C,S = t[s] + C
+            // t[s] = S
+            // t[s+1] = C
+            f.addCode(   
+                c.setLocal(
+                    "t"+n32,
+                    c.teeLocal(
+                        "S",
+                        c.i64_and(
+                            c.teeLocal(
+                                "CS",
+                                c.i64_add(
+                                    c.getLocal("C"),
+                                    c.getLocal("t"+n32)
+                                )
+                            ),
+                            c.i64_const(0xFFFFFFFF)
+                        )
+                    )
+                )
+            );
+            // C
+            f.addCode(
+                c.setLocal(
+                    "t"+(n32+1),
+                    c.teeLocal(
+                        "C",
+                        c.i64_shr_u(
+                            c.getLocal("CS"),
+                            c.i64_const(32)
+                        )
+                    )
+                )
+            );
+
+            // Do we need to set C 0?
+
+            // m = t[0]*n'[0] mod W
+            // set S
+            let setm = c.teeLocal(
+                            "m",
+                            c.i64_and(
+                                c.i64_const(0xFFFFFFFF),
+                                c.i64_mul(
+                                    c.getLocal("t0"),
+                                    c.getLocal("np32")
+                                )
+                            )
+                        );
+            // C,S = t[0]+m*n[0]
+            f.addCode(
+                c.setLocal(
+                    "S",
+                    c.i64_and(
+                        c.i64_const(0xFFFFFFFF),
+                        c.teeLocal(
+                            "CS",
+                            c.i64_add(
+                                mulqm(0,setm),
+                                c.getLocal("t0")
+                            )
+                        )
+                    )
+                )    
+            );
+            f.addCode(
+                c.setLocal(
+                    "C",
+                    c.i64_shr_u(
+                        c.getLocal("CS"),
+                        c.i64_const(32)
+                    )
+                )
+            );
+            
+            // second for loop
+            //(C,S) = t[j] +m*n[j] +C
+            //t[j-1] = S
+            for(let j=1;j<n32;j++){
+                
+                let getm = c.getLocal("m");
+                f.addCode(   
+                    c.setLocal(
+                        "t"+(j-1),
+                        c.teeLocal(
+                            "S",
+                            c.i64_and(
+                                c.teeLocal(
+                                    "CS",
+                                    c.i64_add(
+                                        c.i64_add(
+                                            c.getLocal("C"),
+                                            mulqm(j,getm)
+                                        ),
+                                        c.getLocal("t"+j)
+                                    )
+                                    
+                                ),
+                                c.i64_const(0xFFFFFFFF)
+                            )
+                        )
+                    )
+                );
+                f.addCode(
+                    c.setLocal(
+                        "C",
+                        c.i64_shr_u(
+                            c.getLocal("CS"),
+                            c.i64_const(32)
+                        )
+                    )
+                );
+                
+            }
+
+            //(C,S) = t[s] +C
+            //t[s-1]=S
+            //t[s] = t[s+1] +C
+            f.addCode(   
+                c.setLocal(
+                    "t"+(n32-1),
+                    c.teeLocal(
+                        "S",
+                        c.i64_and(
+                            c.teeLocal(
+                                "CS",
+                                c.i64_add(
+                                    c.getLocal("C"),
+                                    c.getLocal("t"+n32)
+                                )
+                                
+                            ),
+                            c.i64_const(0xFFFFFFFF)
+                        )
+                    )
+                )
+            );
+            f.addCode(
+                c.setLocal(
+                    "t"+n32,
+                    c.i64_add(
+                        c.teeLocal(
+                            "C",
+                            c.i64_shr_u(
+                                c.getLocal("CS"),
+                                c.i64_const(32)
+                            )
+                        ),
+                        c.getLocal("t"+(n32+1))
+                    )
+                )      
+            )
+
+         
+            
+        }
+        for(let i=0;i<n32;i++){
+            f.addCode(
+                c.i64_store32(
+                    c.getLocal("r"),
+                    i*4,
+                    c.getLocal("t"+i)
+                )
+            );
+        }
+
+        
+
+        f.addCode(
+            c.if(
+                c.i32_wrap_i64(c.getLocal("t"+n32)),
+                c.drop(c.call(intPrefix+"_sub", c.getLocal("r"), c.i32_const(pq), c.getLocal("r"))),
+                c.if(
+                    c.call(intPrefix+"_gte", c.getLocal("r"), c.i32_const(pq)  ),
+                    c.drop(c.call(intPrefix+"_sub", c.getLocal("r"), c.i32_const(pq), c.getLocal("r"))),
+                )
+            )
+        );
+        
+    }
+
+    function buildMergeMul() {
+
+        const f = module.addFunction(prefix+"_MergeMul");
+        f.addParam("x", "i32");
+        f.addParam("y", "i32");
+        f.addParam("r", "i32");
+        f.addLocal("c0", "i64");
+        f.addLocal("c1", "i64");
+        f.addLocal("np32", "i64");
+
+
+        for (let i=0;i<n32; i++) {
+            f.addLocal("x"+i, "i64");
+            f.addLocal("y"+i, "i64");
+            f.addLocal("m"+i, "i64");
+            f.addLocal("q"+i, "i64");
+        }
+
+        const c = f.getCodeBuilder();
+
+        const np32 = Number(0x100000000n - modInv(q, 0x100000000n));
+
+        f.addCode(c.setLocal("np32", c.i64_const(np32)));
+
+
+        const loadX = [];
+        const loadY = [];
+        const loadQ = [];
+        function mulij(i, j) {
+            let X,Y;
+            if (!loadX[i]) {
+                X = c.teeLocal("x"+i, c.i64_load32_u( c.getLocal("x"), i*4));
+                loadX[i] = true;
+            } else {
+                X = c.getLocal("x"+i);
+            }
+            if (!loadY[j]) {
+                Y = c.teeLocal("y"+j, c.i64_load32_u( c.getLocal("y"), j*4));
+                loadY[j] = true;
+            } else {
+                Y = c.getLocal("y"+j);
+            }
+
+            return c.i64_mul( X, Y );
+        }
+
+        function mulqm(i, j) {
+            let Q,M;
+            if (!loadQ[i]) {
+                Q = c.teeLocal("q"+i, c.i64_load32_u(c.i32_const(0), pq+i*4 ));
+                loadQ[i] = true;
+            } else {
+                Q = c.getLocal("q"+i);
+            }
+            M = c.getLocal("m"+j);
+
+            return c.i64_mul( Q, M );
+        }
+
+
+        let c0 = "c0";
+        let c1 = "c1";
+
+        for (let k=0; k<n32*2-1; k++) {
+            for (let i=Math.max(0, k-n32+1); (i<=k)&&(i<n32); i++) {
+                const j= k-i;
+
+                f.addCode(
+                    c.setLocal(c1,
+                        c.i64_add(
+                            c.getLocal(c1),
+                            c.i64_shr_u(
+                                c.teeLocal(c0,
+                                    c.i64_add(
+                                        c.i64_and(
+                                            c.getLocal(c0),
+                                            c.i64_const(0xFFFFFFFF)
+                                        ),
+                                        mulij(i,j)
+                                    )
+                                ),
+                                c.i64_const(32)
+                            )
+                        )
+                    )
+                );
+            }
+
+
+            for (let i=Math.max(1, k-n32+1); (i<=k)&&(i<n32); i++) {
+                const j= k-i;
+                f.addCode(
+                    c.setLocal(c1,
+                        c.i64_add(
+                            c.getLocal(c1),
+                            c.i64_shr_u(
+                                c.teeLocal(c0,
+                                    c.i64_add(
+                                        c.i64_and(
+                                            c.getLocal(c0),
+                                            c.i64_const(0xFFFFFFFF)
+                                        ),
+                                        mulqm(i,j)
+                                    )
+                                ),
+                                c.i64_const(32)
+                            )
+                        )
+                    )
+                );
+            }
+            if (k<n32) {
+                f.addCode(
+                    c.setLocal(
+                        "m"+k,
+                        c.i64_and(
+                            c.i64_mul(
+                                c.i64_and(
+                                    c.getLocal(c0),
+                                    c.i64_const(0xFFFFFFFF)
+                                ),
+                                c.getLocal("np32")
+                            ),
+                            c.i64_const("0xFFFFFFFF")
+                        )
+                    )
+                );
+
+                f.addCode(
+                    c.setLocal(c1,
+                        c.i64_add(
+                            c.getLocal(c1),
+                            c.i64_shr_u(
+                                c.teeLocal(c0,
+                                    c.i64_add(
+                                        c.i64_and(
+                                            c.getLocal(c0),
+                                            c.i64_const(0xFFFFFFFF)
+                                        ),
+                                        mulqm(0,k)
+                                    )
+                                ),
+                                c.i64_const(32)
+                            )
+                        )
+                    )
+                );
+            }
+
+
+            if (k>=n32) {
+                f.addCode(
+                    c.i64_store32(
+                        c.getLocal("r"),
+                        (k-n32)*4,
+                        c.getLocal(c0)
+                    )
+                );
+            }
+            [c0, c1] = [c1, c0];
+            f.addCode(
+                c.setLocal(c1,
+                    c.i64_shr_u(
+                        c.getLocal(c0),
+                        c.i64_const(32)
+                    )
+                )
+            );
+        }
+        f.addCode(
+            c.i64_store32(
+                c.getLocal("r"),
+                n32*4-4,
+                c.getLocal(c0)
+            )
+        );
+
+        f.addCode(
+            c.if(
+                c.i32_wrap_i64(c.getLocal(c1)),
+                c.drop(c.call(intPrefix+"_sub", c.getLocal("r"), c.i32_const(pq), c.getLocal("r"))),
+                c.if(
+                    c.call(intPrefix+"_gte", c.getLocal("r"), c.i32_const(pq)  ),
+                    c.drop(c.call(intPrefix+"_sub", c.getLocal("r"), c.i32_const(pq), c.getLocal("r"))),
+                )
+            )
+        );
+    }
+
     function buildSquare() {
 
         const f = module.addFunction(prefix+"_square");
@@ -457,7 +1252,7 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
 
         const c = f.getCodeBuilder();
 
-        const np32 = bigInt("100000000",16).minus( q.modInv(bigInt("100000000",16))).toJSNumber();
+        const np32 = Number(0x100000000n - modInv(q, 0x100000000n));
 
         f.addCode(c.setLocal("np32", c.i64_const(np32)));
 
@@ -785,26 +1580,24 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
     // Calculate various valuse needed for sqrt
 
 
-    let _nqr = bigInt(2);
-    if (q.isPrime()) {
-        while (!_nqr.modPow(_e, q).equals(_minusOne)) _nqr = _nqr.add(bigInt.one);
+    let _nqr = 2n;
+    if (isPrime(q)) {
+        while (modPow(_nqr, _e, q) !== _minusOne) _nqr = _nqr + 1n;
     }
-
-    const pnqr = module.alloc(utils.bigInt2BytesLE(_nqr.shiftLeft(n64*64).mod(q), n8));
 
     let s2 = 0;
     let _t = _minusOne;
 
-    while ((!_t.isOdd())&&(!_t.isZero())) {
+    while ((!isOdd(_t))&&(_t !== 0n)) {
         s2++;
-        _t = _t.shiftRight(1);
+        _t = _t >> 1n;
     }
     const pt = module.alloc(n8, utils.bigInt2BytesLE(_t, n8));
 
-    const _nqrToT = _nqr.modPow(_t, q);
-    const pNqrToT = module.alloc(utils.bigInt2BytesLE(_nqrToT.shiftLeft(n64*64).mod(q), n8));
+    const _nqrToT = modPow(_nqr, _t, q);
+    const pNqrToT = module.alloc(utils.bigInt2BytesLE((_nqrToT << BigInt(n64*64)) % q, n8));
 
-    const _tPlusOneOver2 = _t.add(1).shiftRight(1);
+    const _tPlusOneOver2 = (_t + 1n) >> 1n;
     const ptPlusOneOver2 = module.alloc(n8, utils.bigInt2BytesLE(_tPlusOneOver2, n8));
 
     function buildSqrt() {
@@ -978,9 +1771,27 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
         );
     }
 
+    function buildIsOne() {
+        const f = module.addFunction(prefix+"_isOne");
+        f.addParam("x", "i32");
+        f.setReturnType("i32");
+
+        const c = f.getCodeBuilder();
+        f.addCode(
+            c.ret(c.call(intPrefix + "_eq", c.getLocal("x"), c.i32_const(pOne)))
+        );
+    }
 
 
+    module.exportFunction(intPrefix + "_copy", prefix+"_copy");
+    module.exportFunction(intPrefix + "_zero", prefix+"_zero");
+    module.exportFunction(intPrefix + "_isZero", prefix+"_isZero");
+    module.exportFunction(intPrefix + "_eq", prefix+"_eq");
 
+    buildCIOSmul();
+    buildCIOSmul_windows();
+    
+    buildIsOne();
     buildAdd();
     buildSub();
     buildNeg();
@@ -991,25 +1802,41 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
     buildToMontgomery();
     buildFromMontgomery();
     buildIsNegative();
+    buildSign();
     buildInverse();
     buildOne();
     buildLoad();
     buildTimesScalar();
+    buildBatchInverse(module, prefix);
+    buildBatchConvertion(module, prefix + "_batchToMontgomery", prefix + "_toMontgomery", n8, n8);
+    buildBatchConvertion(module, prefix + "_batchFromMontgomery", prefix + "_fromMontgomery", n8, n8);
+    buildBatchConvertion(module, prefix + "_batchNeg", prefix + "_neg", n8, n8);
+    buildBatchOp(module, prefix + "_batchAdd", prefix + "_add", n8, n8);
+    buildBatchOp(module, prefix + "_batchSub", prefix + "_sub", n8, n8);
+    buildBatchOp(module, prefix + "_batchMul", prefix + "_mul", n8, n8);
+
+    module.exportFunction(prefix+"_CIOS_window_mul");
+    module.exportFunction(prefix+"_CIOSmul");
+
+    buildMergeMul();
+    module.exportFunction(prefix+"_MergeMul");
+    
+    module.exportFunction(prefix + "_mul");
+    //module.exportFunction(prefix + "_old_mul");
+
     module.exportFunction(prefix + "_add");
     module.exportFunction(prefix + "_sub");
     module.exportFunction(prefix + "_neg");
     module.exportFunction(prefix + "_isNegative");
+    module.exportFunction(prefix + "_isOne");
+    module.exportFunction(prefix + "_sign");
     module.exportFunction(prefix + "_mReduct");
-    module.exportFunction(prefix + "_mul");
+    
     module.exportFunction(prefix + "_square");
     module.exportFunction(prefix + "_squareOld");
     module.exportFunction(prefix + "_fromMontgomery");
     module.exportFunction(prefix + "_toMontgomery");
     module.exportFunction(prefix + "_inverse");
-    module.exportFunction(intPrefix + "_copy", prefix+"_copy");
-    module.exportFunction(intPrefix + "_zero", prefix+"_zero");
-    module.exportFunction(intPrefix + "_isZero", prefix+"_isZero");
-    module.exportFunction(intPrefix + "_eq", prefix+"_eq");
     module.exportFunction(prefix + "_one");
     module.exportFunction(prefix + "_load");
     module.exportFunction(prefix + "_timesScalar");
@@ -1023,11 +1850,16 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
         prefix + "_one",
     );
     module.exportFunction(prefix + "_exp");
-    if (q.isPrime()) {
+    module.exportFunction(prefix + "_batchInverse");
+    if (isPrime(q)) {
         buildSqrt();
         buildIsSquare();
         module.exportFunction(prefix + "_sqrt");
         module.exportFunction(prefix + "_isSquare");
     }
+    module.exportFunction(prefix + "_batchToMontgomery");
+    module.exportFunction(prefix + "_batchFromMontgomery");
+    // console.log(module.functionIdxByName);
+
     return prefix;
 };

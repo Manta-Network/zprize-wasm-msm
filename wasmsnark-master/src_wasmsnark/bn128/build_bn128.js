@@ -1,3 +1,4 @@
+const bigInt = require("big-integer");
 const utils = require("../utils");
 
 const buildF1m =require("../build_f1m.js");
@@ -6,10 +7,8 @@ const buildF2m =require("../build_f2m.js");
 const buildF3m =require("../build_f3m.js");
 const buildCurve =require("../build_curve_jacobian_a0.js");
 const buildFFT = require("../build_fft");
+const buildMultiexp = require("../build_multiexp");
 const buildPol = require("../build_pol");
-const buildQAP = require("../build_qap");
-const buildApplyKey = require("../build_applykey");
-const { bitLength, modInv, isOdd, isNegative } = require("../bigint.js");
 
 module.exports = function buildBN128(module, _prefix) {
 
@@ -17,84 +16,42 @@ module.exports = function buildBN128(module, _prefix) {
 
     if (module.modules[prefix]) return prefix;  // already builded
 
-    const q = 21888242871839275222246405745257275088696311157297823662689037894645226208583n;
-    const r = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
+    const q = bigInt("21888242871839275222246405745257275088696311157297823662689037894645226208583");
+    const r = bigInt("21888242871839275222246405745257275088548364400416034343698204186575808495617");
 
 
-    const n64 = Math.floor((bitLength(q - 1n) - 1)/64) +1;
+    const n64 = Math.floor((q.minus(1).bitLength() - 1)/64) +1;
     const n8 = n64*8;
     const frsize = n8;
     const f1size = n8;
     const f2size = f1size * 2;
+    const f6size = f1size * 6;
     const ftsize = f1size * 12;
 
     const pr = module.alloc(utils.bigInt2BytesLE( r, frsize ));
 
     const f1mPrefix = buildF1m(module, q, "f1m");
     buildF1(module, r, "fr", "frm");
-
-    const pG1b = module.alloc(utils.bigInt2BytesLE( toMontgomery(3n), f1size ));
-    const g1mPrefix = buildCurve(module, "g1m", "f1m", pG1b);
-
-    buildFFT(module, "frm", "frm", "frm", "frm_mul");
-
+    const g1mPrefix = buildCurve(module, "g1m", "f1m");
+    buildMultiexp(module, "g1m", "g1m", "f1m", "fr");
+    buildFFT(module, "fft", "frm");
     buildPol(module, "pol", "frm");
-    buildQAP(module, "qap", "frm");
 
     const f2mPrefix = buildF2m(module, "f1m_neg", "f2m", "f1m");
-    const pG2b = module.alloc([
-        ...utils.bigInt2BytesLE( toMontgomery(19485874751759354771024239261021720505790618469301721065564631296452457478373n), f1size ),
-        ...utils.bigInt2BytesLE( toMontgomery(266929791119991161246907387137283842545076965332900288569378510910307636690n), f1size )
-    ]);
-    const g2mPrefix = buildCurve(module, "g2m", "f2m", pG2b);
+    const g2mPrefix = buildCurve(module, "g2m", "f2m");
+    buildMultiexp(module, "g2m", "g2m", "f2m", "fr");
 
 
-    function buildGTimesFr(fnName, opMul) {
-        const f = module.addFunction(fnName);
-        f.addParam("pG", "i32");
-        f.addParam("pFr", "i32");
-        f.addParam("pr", "i32");
 
-        const c = f.getCodeBuilder();
-
-        const AUX = c.i32_const(module.alloc(n8));
-
-        f.addCode(
-            c.call("frm_fromMontgomery", c.getLocal("pFr"), AUX),
-            c.call(
-                opMul,
-                c.getLocal("pG"),
-                AUX,
-                c.i32_const(n8),
-                c.getLocal("pr")
-            )
-        );
-
-        module.exportFunction(fnName);
-    }
-    buildGTimesFr("g1m_timesFr", "g1m_timesScalar");
-    buildFFT(module, "g1m", "g1m", "frm", "g1m_timesFr");
-
-    buildGTimesFr("g2m_timesFr", "g2m_timesScalar");
-    buildFFT(module, "g2m", "g2m", "frm", "g2m_timesFr");
-
-    buildGTimesFr("g1m_timesFrAffine", "g1m_timesScalarAffine");
-    buildGTimesFr("g2m_timesFrAffine", "g2m_timesScalarAffine");
-
-    buildApplyKey(module, "frm_batchApplyKey", "fmr", "frm", n8, n8, n8, "frm_mul");
-    buildApplyKey(module, "g1m_batchApplyKey", "g1m", "frm", n8*3, n8*3, n8, "g1m_timesFr");
-    buildApplyKey(module, "g1m_batchApplyKeyMixed", "g1m", "frm", n8*2, n8*3, n8, "g1m_timesFrAffine");
-    buildApplyKey(module, "g2m_batchApplyKey", "g2m", "frm", n8*2*3, n8*3*2, n8, "g2m_timesFr");
-    buildApplyKey(module, "g2m_batchApplyKeyMixed", "g2m", "frm", n8*2*2, n8*3*2, n8, "g2m_timesFrAffine");
 
     function toMontgomery(a) {
-        return BigInt(a) * ( 1n << BigInt(f1size*8)) % q;
+        return bigInt(a).times( bigInt.one.shiftLeft(f1size*8)).mod(q);
     }
 
     const G1gen = [
-        1n,
-        2n,
-        1n
+        bigInt("1"),
+        bigInt("2"),
+        bigInt.one
     ];
 
     const pG1gen = module.alloc(
@@ -106,9 +63,9 @@ module.exports = function buildBN128(module, _prefix) {
     );
 
     const G1zero = [
-        0n,
-        1n,
-        0n
+        bigInt.zero,
+        bigInt.one,
+        bigInt.zero
     ];
 
     const pG1zero = module.alloc(
@@ -121,14 +78,14 @@ module.exports = function buildBN128(module, _prefix) {
 
     const G2gen = [
         [
-            10857046999023057135944570762232829481370756359578518086990519993285655852781n,
-            11559732032986387107991004021392285783925812861821192530917403151452391805634n,
+            bigInt("10857046999023057135944570762232829481370756359578518086990519993285655852781"),
+            bigInt("11559732032986387107991004021392285783925812861821192530917403151452391805634"),
         ],[
-            8495653923123431417604973247489272438418190587263600148770280649306958101930n,
-            4082367875863433681332203403145435568316851327593401208105741076214120093531n,
+            bigInt("8495653923123431417604973247489272438418190587263600148770280649306958101930"),
+            bigInt("4082367875863433681332203403145435568316851327593401208105741076214120093531"),
         ],[
-            1n,
-            0n,
+            bigInt.one,
+            bigInt.zero,
         ]
     ];
 
@@ -145,14 +102,14 @@ module.exports = function buildBN128(module, _prefix) {
 
     const G2zero = [
         [
-            0n,
-            0n,
+            bigInt.zero,
+            bigInt.zero,
         ],[
-            1n,
-            0n,
+            bigInt.one,
+            bigInt.zero,
         ],[
-            0n,
-            0n,
+            bigInt.zero,
+            bigInt.zero,
         ]
     ];
 
@@ -188,15 +145,15 @@ module.exports = function buildBN128(module, _prefix) {
     ]);
 
     const pTwoInv = module.alloc([
-        ...utils.bigInt2BytesLE( toMontgomery(  modInv(2n, q)), f1size ),
-        ...utils.bigInt2BytesLE( 0n, f1size )
+        ...utils.bigInt2BytesLE( toMontgomery(  bigInt(2).modInv(q)), f1size ),
+        ...utils.bigInt2BytesLE( bigInt(0), f1size )
     ]);
 
     const pAltBn128Twist = pNonResidueF6;
 
     const pTwistCoefB = module.alloc([
-        ...utils.bigInt2BytesLE( toMontgomery(19485874751759354771024239261021720505790618469301721065564631296452457478373n), f1size ),
-        ...utils.bigInt2BytesLE( toMontgomery(266929791119991161246907387137283842545076965332900288569378510910307636690n), f1size ),
+        ...utils.bigInt2BytesLE( toMontgomery("19485874751759354771024239261021720505790618469301721065564631296452457478373"), f1size ),
+        ...utils.bigInt2BytesLE( toMontgomery("266929791119991161246907387137283842545076965332900288569378510910307636690"), f1size ),
     ]);
 
     function build_mulNR6() {
@@ -249,8 +206,18 @@ module.exports = function buildBN128(module, _prefix) {
 
     const ftmPrefix = buildF2m(module, prefix+"_mulNR12", "ftm", f6mPrefix);
 
+    module.modules[prefix] = {
+        n64: n64,
+        pG1gen: pG1gen,
+        pG1zero: pG1zero,
+        pG2gen: pG2gen,
+        pG2zero: pG2zero,
+        pq: module.modules["f1m"].pq,
+        pr: pr,
+        pOneT: pOneT
+    };
 
-    const ateLoopCount = 29793968203157093288n;
+    const ateLoopCount = bigInt("29793968203157093288");
     const ateLoopBitBytes = bits(ateLoopCount);
     const pAteLoopBitBytes = module.alloc(ateLoopBitBytes);
     const isLoopNegative = false;
@@ -263,41 +230,20 @@ module.exports = function buildBN128(module, _prefix) {
     const preQSize = 3*n8*2 + ateNCoefs*ateCoefSize;
     const finalExpIsNegative = false;
 
-
-    module.modules[prefix] = {
-        n64: n64,
-        pG1gen: pG1gen,
-        pG1zero: pG1zero,
-        pG1b: pG1b,
-        pG2gen: pG2gen,
-        pG2zero: pG2zero,
-        pG2b: pG2b,
-        pq: module.modules["f1m"].pq,
-        pr: pr,
-        pOneT: pOneT,
-        prePSize: prePSize,
-        preQSize: preQSize,
-        r: r.toString(),
-        q: q.toString()
-    };
-
-    // console.log("PrePSize: " +prePSize);
-    // console.log("PreQSize: " +preQSize);
-
-    const finalExpZ = 4965661367192848881n;
+    const finalExpZ = bigInt("4965661367192848881");
 
     function naf(n) {
         let E = n;
         const res = [];
-        while (E > 0n) {
-            if (isOdd(E)) {
-                const z = 2 - Number(E % 4n);
+        while (E.gt(bigInt.zero)) {
+            if (E.isOdd()) {
+                const z = 2 - E.mod(4).toJSNumber();
                 res.push( z );
-                E = E - BigInt(z);
+                E = E.minus(z);
             } else {
                 res.push( 0 );
             }
-            E = E >> 1n;
+            E = E.shiftRight(1);
         }
         return res;
     }
@@ -305,13 +251,13 @@ module.exports = function buildBN128(module, _prefix) {
     function bits(n) {
         let E = n;
         const res = [];
-        while (E > 0n) {
-            if (isOdd(E)) {
+        while (E.gt(bigInt.zero)) {
+            if (E.isOdd()) {
                 res.push( 1 );
             } else {
                 res.push( 0 );
             }
-            E = E >> 1n;
+            E = E.shiftRight(1);
         }
         return res;
     }
@@ -324,7 +270,7 @@ module.exports = function buildBN128(module, _prefix) {
         const c = f.getCodeBuilder();
 
         f.addCode(
-            c.call(g1mPrefix + "_normalize", c.getLocal("pP"), c.getLocal("ppreP")),  // TODO Remove if already in affine
+            c.call(g1mPrefix + "_affine", c.getLocal("pP"), c.getLocal("ppreP")),  // TODO Remove if already in affine
         );
     }
 
@@ -556,6 +502,8 @@ module.exports = function buildBN128(module, _prefix) {
         const c = f.getCodeBuilder();
 
         const QX = c.getLocal("pQ");
+        const QY = c.i32_add( c.getLocal("pQ"), c.i32_const(f2size));
+        const QZ = c.i32_add( c.getLocal("pQ"), c.i32_const(f2size*2));
 
         const pR = module.alloc(f2size*3);
         const R = c.i32_const(pR);
@@ -565,16 +513,19 @@ module.exports = function buildBN128(module, _prefix) {
 
         const cQX = c.i32_add( c.getLocal("ppreQ"), c.i32_const(0));
         const cQY = c.i32_add( c.getLocal("ppreQ"), c.i32_const(f2size));
+        const cQZ = c.i32_add( c.getLocal("ppreQ"), c.i32_const(f2size*2));
 
         const pQ1 = module.alloc(f2size*3);
         const Q1 = c.i32_const(pQ1);
 
         const pQ2 = module.alloc(f2size*3);
         const Q2 = c.i32_const(pQ2);
+        const Q2X = c.i32_const(pQ2);
         const Q2Y = c.i32_const(pQ2 + f2size);
+        const Q2Z = c.i32_const(pQ2 + f2size*2);
 
         f.addCode(
-            c.call(g2mPrefix + "_normalize", QX, cQX),  // TODO Remove if already in affine
+            c.call(g2mPrefix + "_affine", QX, cQX),  // TODO Remove if already in affine
             c.call(f2mPrefix + "_copy", cQX, RX),
             c.call(f2mPrefix + "_copy", cQY, RY),
             c.call(f2mPrefix + "_one", RZ),
@@ -887,59 +838,59 @@ module.exports = function buildBN128(module, _prefix) {
     function buildFrobeniusMap(n) {
         const F12 = [
             [
-                [1n, 0n],
-                [1n, 0n],
-                [1n, 0n],
-                [1n, 0n],
-                [1n, 0n],
-                [1n, 0n],
-                [1n, 0n],
-                [1n, 0n],
-                [1n, 0n],
-                [1n, 0n],
-                [1n, 0n],
-                [1n, 0n],
+                [bigInt("1"), bigInt("0")],
+                [bigInt("1"), bigInt("0")],
+                [bigInt("1"), bigInt("0")],
+                [bigInt("1"), bigInt("0")],
+                [bigInt("1"), bigInt("0")],
+                [bigInt("1"), bigInt("0")],
+                [bigInt("1"), bigInt("0")],
+                [bigInt("1"), bigInt("0")],
+                [bigInt("1"), bigInt("0")],
+                [bigInt("1"), bigInt("0")],
+                [bigInt("1"), bigInt("0")],
+                [bigInt("1"), bigInt("0")],
             ],
             [
-                [1n, 0n],
-                [8376118865763821496583973867626364092589906065868298776909617916018768340080n, 16469823323077808223889137241176536799009286646108169935659301613961712198316n],
-                [21888242871839275220042445260109153167277707414472061641714758635765020556617n, 0n],
-                [11697423496358154304825782922584725312912383441159505038794027105778954184319n, 303847389135065887422783454877609941456349188919719272345083954437860409601n],
-                [21888242871839275220042445260109153167277707414472061641714758635765020556616n, 0n],
-                [3321304630594332808241809054958361220322477375291206261884409189760185844239n, 5722266937896532885780051958958348231143373700109372999374820235121374419868n],
-                [21888242871839275222246405745257275088696311157297823662689037894645226208582n, 0n],
-                [13512124006075453725662431877630910996106405091429524885779419978626457868503n, 5418419548761466998357268504080738289687024511189653727029736280683514010267n],
-                [2203960485148121921418603742825762020974279258880205651966n, 0n],
-                [10190819375481120917420622822672549775783927716138318623895010788866272024264n, 21584395482704209334823622290379665147239961968378104390343953940207365798982n],
-                [2203960485148121921418603742825762020974279258880205651967n, 0n],
-                [18566938241244942414004596690298913868373833782006617400804628704885040364344n, 16165975933942742336466353786298926857552937457188450663314217659523851788715n],
+                [bigInt("1"), bigInt("0")],
+                [bigInt("8376118865763821496583973867626364092589906065868298776909617916018768340080"), bigInt("16469823323077808223889137241176536799009286646108169935659301613961712198316")],
+                [bigInt("21888242871839275220042445260109153167277707414472061641714758635765020556617"), bigInt("0")],
+                [bigInt("11697423496358154304825782922584725312912383441159505038794027105778954184319"), bigInt("303847389135065887422783454877609941456349188919719272345083954437860409601")],
+                [bigInt("21888242871839275220042445260109153167277707414472061641714758635765020556616"), bigInt("0")],
+                [bigInt("3321304630594332808241809054958361220322477375291206261884409189760185844239"), bigInt("5722266937896532885780051958958348231143373700109372999374820235121374419868")],
+                [bigInt("21888242871839275222246405745257275088696311157297823662689037894645226208582"), bigInt("0")],
+                [bigInt("13512124006075453725662431877630910996106405091429524885779419978626457868503"), bigInt("5418419548761466998357268504080738289687024511189653727029736280683514010267")],
+                [bigInt("2203960485148121921418603742825762020974279258880205651966"), bigInt("0")],
+                [bigInt("10190819375481120917420622822672549775783927716138318623895010788866272024264"), bigInt("21584395482704209334823622290379665147239961968378104390343953940207365798982")],
+                [bigInt("2203960485148121921418603742825762020974279258880205651967"), bigInt("0")],
+                [bigInt("18566938241244942414004596690298913868373833782006617400804628704885040364344"), bigInt("16165975933942742336466353786298926857552937457188450663314217659523851788715")],
             ]
         ];
 
         const F6 = [
             [
-                [1n, 0n],
-                [1n, 0n],
-                [1n, 0n],
-                [1n, 0n],
-                [1n, 0n],
-                [1n, 0n],
+                [bigInt("1"), bigInt("0")],
+                [bigInt("1"), bigInt("0")],
+                [bigInt("1"), bigInt("0")],
+                [bigInt("1"), bigInt("0")],
+                [bigInt("1"), bigInt("0")],
+                [bigInt("1"), bigInt("0")],
             ],
             [
-                [1n, 0n],
-                [21575463638280843010398324269430826099269044274347216827212613867836435027261n, 10307601595873709700152284273816112264069230130616436755625194854815875713954n],
-                [21888242871839275220042445260109153167277707414472061641714758635765020556616n, 0n],
-                [3772000881919853776433695186713858239009073593817195771773381919316419345261n, 2236595495967245188281701248203181795121068902605861227855261137820944008926n],
-                [2203960485148121921418603742825762020974279258880205651966n, 0n],
-                [18429021223477853657660792034369865839114504446431234726392080002137598044644n, 9344045779998320333812420223237981029506012124075525679208581902008406485703n],
+                [bigInt("1"), bigInt("0")],
+                [bigInt("21575463638280843010398324269430826099269044274347216827212613867836435027261"), bigInt("10307601595873709700152284273816112264069230130616436755625194854815875713954")],
+                [bigInt("21888242871839275220042445260109153167277707414472061641714758635765020556616"), bigInt("0")],
+                [bigInt("3772000881919853776433695186713858239009073593817195771773381919316419345261"), bigInt("2236595495967245188281701248203181795121068902605861227855261137820944008926")],
+                [bigInt("2203960485148121921418603742825762020974279258880205651966"), bigInt("0")],
+                [bigInt("18429021223477853657660792034369865839114504446431234726392080002137598044644"), bigInt("9344045779998320333812420223237981029506012124075525679208581902008406485703")],
             ],
             [
-                [1n, 0n],
-                [2581911344467009335267311115468803099551665605076196740867805258568234346338n, 19937756971775647987995932169929341994314640652964949448313374472400716661030n],
-                [2203960485148121921418603742825762020974279258880205651966n, 0n],
-                [5324479202449903542726783395506214481928257762400643279780343368557297135718n, 16208900380737693084919495127334387981393726419856888799917914180988844123039n],
-                [21888242871839275220042445260109153167277707414472061641714758635765020556616n, 0n],
-                [13981852324922362344252311234282257507216387789820983642040889267519694726527n, 7629828391165209371577384193250820201684255241773809077146787135900891633097n],
+                [bigInt("1"), bigInt("0")],
+                [bigInt("2581911344467009335267311115468803099551665605076196740867805258568234346338"), bigInt("19937756971775647987995932169929341994314640652964949448313374472400716661030")],
+                [bigInt("2203960485148121921418603742825762020974279258880205651966"), bigInt("0")],
+                [bigInt("5324479202449903542726783395506214481928257762400643279780343368557297135718"), bigInt("16208900380737693084919495127334387981393726419856888799917914180988844123039")],
+                [bigInt("21888242871839275220042445260109153167277707414472061641714758635765020556616"), bigInt("0")],
+                [bigInt("13981852324922362344252311234282257507216387789820983642040889267519694726527"), bigInt("7629828391165209371577384193250820201684255241773809077146787135900891633097")],
             ]
         ];
 
@@ -973,15 +924,15 @@ module.exports = function buildBN128(module, _prefix) {
         }
 
         function mul2(a, b) {
-            const ac0 = BigInt(a[0]);
-            const ac1 = BigInt(a[1]);
-            const bc0 = BigInt(b[0]);
-            const bc1 = BigInt(b[1]);
+            const ac0 = bigInt(a[0]);
+            const ac1 = bigInt(a[1]);
+            const bc0 = bigInt(b[0]);
+            const bc1 = bigInt(b[1]);
             const res = [
-                (ac0 * bc0 - (  ac1 * bc1)  ) % q,
-                (ac0 * bc1 + (  ac1 * bc0)  ) % q,
+                ac0.times(bc0).minus(  ac1.times(bc1)  ).mod(q),
+                ac0.times(bc1).add(  ac1.times(bc0)  ).mod(q),
             ];
-            if (isNegative(res[0])) res[0] = res[0] + q;
+            if (res[0].isNegative()) res[0] = res[0].add(q);
             return res;
         }
 
@@ -1058,6 +1009,9 @@ module.exports = function buildBN128(module, _prefix) {
 
 
         f.addCode(
+
+//            c.call(ftmPrefix + "_square", x0, r0),
+
             //    // t0 + t1*y = (z0 + z1*y)^2 = a^2
             //    tmp = z0 * z1;
             //    t0 = (z0 + z1) * (z0 + my_Fp6::non_residue * z1) - tmp - my_Fp6::non_residue * tmp;
@@ -1138,6 +1092,7 @@ module.exports = function buildBN128(module, _prefix) {
     function buildCyclotomicExp(exponent, fnName) {
         const exponentNafBytes = naf(exponent).map( (b) => (b==-1 ? 0xFF: b) );
         const pExponentNafBytes = module.alloc(exponentNafBytes);
+        const pExponent = module.alloc(utils.bigInt2BytesLE(exponent, 32));
 
         const f = module.addFunction(prefix+ "__cyclotomicExp_"+fnName);
         f.addParam("x", "i32");
@@ -1155,6 +1110,8 @@ module.exports = function buildBN128(module, _prefix) {
 
 
         f.addCode(
+//            c.call(ftmPrefix + "_exp", x, c.i32_const(pExponent), c.i32_const(32), res),
+
             c.call(ftmPrefix + "_conjugate", x, inverse),
             c.call(ftmPrefix + "_one", res),
 
@@ -1172,6 +1129,7 @@ module.exports = function buildBN128(module, _prefix) {
 
             c.setLocal("i", c.i32_const(exponentNafBytes.length-2)),
             c.block(c.loop(
+//                c.call(ftmPrefix + "_square", res, res),
                 c.call(prefix + "__cyclotomicSquare", res, res),
                 c.if(
                     c.teeLocal("bit", c.i32_load8_s(c.getLocal("i"), pExponentNafBytes)),
@@ -1309,7 +1267,7 @@ module.exports = function buildBN128(module, _prefix) {
         f.addParam("x", "i32");
         f.addParam("r", "i32");
 
-        const exponent = 552484233613224096312617126783173147097382103762957654188882734314196910839907541213974502761540629817009608548654680343627701153829446747810907373256841551006201639677726139946029199968412598804882391702273019083653272047566316584365559776493027495458238373902875937659943504873220554161550525926302303331747463515644711876653177129578303191095900909191624817826566688241804408081892785725967931714097716709526092261278071952560171111444072049229123565057483750161460024353346284167282452756217662335528813519139808291170539072125381230815729071544861602750936964829313608137325426383735122175229541155376346436093930287402089517426973178917569713384748081827255472576937471496195752727188261435633271238710131736096299798168852925540549342330775279877006784354801422249722573783561685179618816480037695005515426162362431072245638324744480n;
+        const exponent = bigInt("552484233613224096312617126783173147097382103762957654188882734314196910839907541213974502761540629817009608548654680343627701153829446747810907373256841551006201639677726139946029199968412598804882391702273019083653272047566316584365559776493027495458238373902875937659943504873220554161550525926302303331747463515644711876653177129578303191095900909191624817826566688241804408081892785725967931714097716709526092261278071952560171111444072049229123565057483750161460024353346284167282452756217662335528813519139808291170539072125381230815729071544861602750936964829313608137325426383735122175229541155376346436093930287402089517426973178917569713384748081827255472576937471496195752727188261435633271238710131736096299798168852925540549342330775279877006784354801422249722573783561685179618816480037695005515426162362431072245638324744480");
 
         const pExponent = module.alloc(utils.bigInt2BytesLE( exponent, 352 ));
 
@@ -1415,7 +1373,6 @@ module.exports = function buildBN128(module, _prefix) {
     module.exportFunction(prefix + "__cyclotomicSquare");
     module.exportFunction(prefix + "__cyclotomicExp_w0");
 
-    // console.log(module.functionIdxByName);
 
 };
 
