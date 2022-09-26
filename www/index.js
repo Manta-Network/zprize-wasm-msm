@@ -1,7 +1,6 @@
 import { compute_msm, prints, printpx, printpy, PointVectorInput, ScalarVectorInput } from "wasm-prover";
 import bigInt from 'big-integer'
 import * as w from "./tmp_ec_wasmsnark.wasm"
-//import * as w from "./tmp_ec_wasmcurve.wasm"
 
 function set(pos, nums, buffer, nBytes) {
   if (!Array.isArray(nums)) {

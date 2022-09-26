@@ -1,8 +1,0 @@
-1. On FF operations.
-Add & Sub: compiled WASM, WASMSNARK, Native Rust have similar performance.
-Mul: compiled WASM & WASMSNARK have similar performance. Both are 5～6x slower than Native Rust.
-
-2. On EC operations
-Add & Scalar Mul: WASMSNARK is 2x faster than compiled WASM. WASMSNARK is still 3.5x slower than Native Rust.
-
-3. We have hardcoded tests for the correctness of both FF and EC operations.

@@ -1,4 +1,14 @@
+# How to Run
+
+```sh
+wasm-pack build --release
+cd ./www
+npm install
+npm run start
+```
+
 # MSM benchmark
+
  |Loop | Z-prize MSM  (ms) | wasmsnark (ms)  | wasmcurve (ms) | 
 | --- | --- |  ---| --- | 
 | 2^8 | 135 | 75 | 45 | 
