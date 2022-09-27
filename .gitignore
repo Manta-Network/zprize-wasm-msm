@@ -2,4 +2,4 @@ Cargo.lock
 target
 www/node_modules
 www/package-lock.json
-wasmsnark-master/node_modules
+wasmcurve/node_modules

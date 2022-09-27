@@ -241,6 +241,463 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         );
     }
 
+
+    // This function ruterns the meta data array sorted by bucket.
+    // For example:
+    //      Input(N*8 bytes):  [meta_11, meta_12, …, meta_1n], meta_ij should be i64
+    //      Output(N*8 bytes): [(3, 0), (1, 0), (0, 0), 
+    //              (0, 1), (1, 1), (3, 1), (2, 1), (4, 1),
+    //              (0, 2), (3, 2)]
+    function buildOrganizeBuckets(){
+        const f = module.addFunction(fnName + "_OrganizeBuckets");
+        f.addParam("pPointSchedule", "i32");
+        f.addParam("pMetadata", "i32"); //result
+        f.addParam("n", "i32");
+
+        f.addLocal("itPointSchedule", "i32");
+        f.addCode("pointIdx","i32");
+        f.addCode("bucketIdx","i32");
+        f.addCode("pIdxTable","i32");
+        f.addCode("pIdxBucketOffset","i32");
+        f.addCode("tmp","i32");
+        
+        // array
+        f.addCode("pTableSize","i32");
+        f.addCode("pBucketOffset","i32");
+        f.addCode("pMetadata","i32");
+        f.addCode("pIndex","i32");
+
+        // TODO: alloc memory
+
+        // array iterator
+        f.addCode("itTableSize","i32");
+        f.addCode("itBucketOffset","i32");
+        f.addCode("itIndex","i32");
+        f.addCode("itMetadata","i32");
+
+        f.addCode(
+
+            c.setLocal("j", c.i32_const(1)),
+            c.setLocal("itIndex", c.getLocal("pIndex")),
+            // 遍历所有的点，计算出每一个bucket的数量
+            c.block(c.loop(
+                c.br_if(
+                    1,
+                    c.i32_eq(
+                        c.getLocal("j"),
+                        c.getLocal("nTable")
+                    )
+                ),
+                c.setLocal( // low 32 bit
+                    "bucketIdx",
+                    c.i32_wrap_i64(
+                        c.i64_and(
+                            c.getLocal("itPointSchedule"),
+                            c.i64_const(0xFFFFFFFF)
+                        )
+                    )  
+                ),
+
+                c.i32_store( // store idx
+                    c.i32_add(c.getLocal("itIndex")),
+                    0,
+                    c.getLocal("bucketIdx")
+                ),
+                // c.setLocal( //high 32 bit
+                //     "pointIdx",
+                //     c.i32_wrap_i64(
+                //         c.i64_shr_u(
+                //             c.getLocal("itPointSchedule"),
+                //             c.i64_const(32)
+                //         )
+                //     ) 
+                // ),
+                
+                c.setLocal(
+                    "pIdxTable",
+                    c.i32_add(
+                        c.getLocal("pTableSize"),
+                        c.i32_mul(
+                            //c.i32_sub(
+                                c.getLocal("bucketIdx"),
+                            //    c.i32_const(1)
+                            //),
+                            c.i32_const(4)
+                        )
+                    )
+                ),
+                // 把当前点对应的bucket数量+1
+                c.i32_store(
+                    c.getLocal("pIdxTable"),
+                    0,
+                    c.i32_add(
+                        c.i32_const(4),  // 数量是1，占了4个byte，pTableSize实际上存的是多少字节
+                        c.i32_load(
+                            c.getLocal("pIdxTable"),
+                            0
+                        )
+                    )
+                ),
+                c.setLocal("itPointSchedule", c.i32_add(c.getLocal("itPointSchedule"), c.i32_const(8))),
+                c.setLocal("itIndex", c.i32_add(c.getLocal("itIndex"), c.i32_const(4))),
+                c.setLocal("j", c.i32_add(c.getLocal("j"), c.i32_const(1))),
+                c.br(0)
+            )),
+
+
+            // 对bucket数量scan，就可以得到每一个bucket的偏移
+            // pBucketOffset[0] =  pMetadata
+            c.i32_store(
+                c.getLocal("pBucketOffset"),
+                c.getLocal("pMetadata")
+            ),
+            // pBucketOffset[j] = pBucketOffset[j-1] + pTableSize[j-1]  j>0
+            // 从pBucketOffset[1]开始
+            c.setLocal("itTableSize", c.getLocal("pTableSize")),
+            c.setLocal("itBucketOffset", c.i32_add(c.getLocal("pBucketOffset"), c.i32_const(4))),
+            c.setLocal("j", c.i32_const(1)),
+            c.block(c.loop(
+                c.br_if(
+                    1,
+                    c.i32_eq(
+                        c.getLocal("j"),
+                        c.getLocal("n")
+                    )
+                ),
+                // should implement pBucketOffset[j] = pBucketOffset[j-1] + pTableSize[j] 
+                c.i32_store(
+                    c.getLocal("itBucketOffset"),
+                    c.i32_load(
+                        c.i32_add(
+                            c.i32_load(c.getLocal("itTableSize")),
+                            c.i32_load(c.i32_sub(c.getLocal("itBucketOffset"), c.i32_const(4))),
+                        )
+                    )
+                ),
+                c.setLocal("itTableSize", c.i32_add(c.getLocal("itTableSize"), c.i32_const(4))),
+                c.setLocal("itBucketOffset", c.i32_add(c.getLocal("itBucketOffset"), c.i32_const(4))),
+                c.setLocal("j", c.i32_add(c.getLocal("j"), c.i32_const(1))),
+                c.br(0)
+            )),
+
+            // 再便利一遍所有的点，构建meta data ，同时对meta data进行排序（根据itBucketOffset放入相应位置）
+            c.setLocal("itIndex", c.getLocal("pIndex")),
+            c.setLocal(c.getLocal("itMetadata"), c.getLocal("pMetadata")),
+            c.setLocal("j_i64", c.i64_const(0)),
+            c.block(c.loop(
+                c.br_if(
+                    1,
+                    c.i64_eq(
+                        c.getLocal("j"),
+                        c.getLocal("n")
+                    )
+                ),
+
+                // mem[itIndex] i32 --> i64
+                c.setLocal("bucketIdx", i64_extend_i32_u(c.i32_load(
+                    c.getLocal("itIndex")
+                ))),
+
+                // j 和 mem[itIndex]拼接得到64位meta data
+                c.setLocal(
+                    "metadata",
+                    c.i64_or(
+                        // j: point index
+                        c.i64_shl(
+                            c.getLocal("j_i64"),
+                            c.i64_const(32)
+                        ),
+                        // mem[itIndex]: bucketIdx
+                        c.getLocal("bucketIdx")
+                    )
+                ),
+                // 从BucketOffset中获得存储meta data的位置,并把BucketOffset[bucketIdx]加8 bytes
+                c.setLocal(
+                    "pIdxBucketOffset",//point to BucketOffset i-th element
+                    c.i32_add(
+                        c.getLocal("pBucketOffset"),
+                        c.i32_mul(
+
+                            c.getLocal("bucketIdx"),
+                            c.i32_const(4)
+                        )
+                    )
+                ),
+
+                // 设置metadata[bucketIdx]的值
+                c.setLocal("tmp",
+                    c.i32_load(
+                        c.getLocal("pIdxBucketOffset")
+                    )),
+                c.i64_store(
+                    c.getLocal("tmp"),
+                    0,
+                    c.getLocal("metadata")
+                ),
+                // BucketOffset[bucketIdx]往后加8 bytes
+                c.i32_store(
+                    c.getLocal("pIdxBucketOffset"),
+                    0,
+                    c.i32_add(
+                        c.i32_const(8),
+                        c.setLocal("tmp")
+                    )
+                ),
+
+                c.setLocal("itIndex", c.i32_add(c.getLocal("itIndex"), c.i32_const(4))),
+                c.setLocal("itMetadata", c.i32_add(c.getLocal("itMetadata"), c.i32_const(8))),//Metadata是64位
+                c.setLocal("j_i64", c.i64_add(c.getLocal("j_i64"), c.i64_const(1))),
+                c.br(0)
+            )),
+
+            // TODO: free memory
+        );
+    }
+
+    function buildConstructAdditionChains(){
+        const f = module.addFunction(fnName + "_ConstructAdditionChains");
+        f.addParam("pPointSchedule", "i32"); // point sorted by bucket index
+        f.addParam("maxCount", "i32"); // max point number in a bucket
+        f.addParam("pTableSize", "i32"); //bucket_counts,每个bucket有几个点
+        f.addParam("pBitoffset", "i32");
+        f.addParam("n", "i32"); // number of points
+        f.addParam("nBucket", "i32"); // number of buckets
+        f.addParam("pRes", "i32"); // result array start point. size: N*8 byte
+
+        f.addLocal("maxBucketBits", "i32");// 32 - leading zeros
+        f.addLocal("i", "i32");
+        f.addLocal("j", "i32");
+        f.addLocal("k", "i32");
+        f.addLocal("count", "i32");
+        f.addLocal("num_bits", "i32");
+        f.addLocal("current_offset", "i32");
+        f.addLocal("k_end", "i32");
+        f.addLocal("schedule", "i64"); // meta data
+        f.addLocal("pResPointOffset", "i64");// pBitoffsetCopy中的值，也就是对应于pRes在哪
+        f.addLocal("address", "i64");
+        
+        
+        
+
+        // Array
+        f.addLocal("pBitoffsetCopy", "i32");
+
+        // Array iterator
+        f.addLocal("itBitoffetCopy", "i32");
+        f.addLocal("itBitoffet", "i32");
+        f.addLocal("itTableSize", "i32");
+        f.addLocal("itPointSchedule", "i32");
+        
+
+
+        f.addCode(
+            // alloc memery
+            // pBitoffsetCopy可以被释放
+            c.setLocal("pBitoffsetCopy", c.i32_load(c.i32_const(0))),
+            c.i32_store(
+                c.i32_const(0),
+                c.i32_add(
+                    c.getLocal("pBitoffsetCopy"),
+                    c.i32_mul(
+                        c.i32_add(
+                            c.getLocal("nBucket"),
+                            c.i32_const(1)
+                        ),
+                        c.i32_const(4)  //32bits, 4bytes
+                    )
+                )
+            ),
+
+            // if maxCount ==  00000001 00000001 00000001 00000001
+            //    maxBucketBits = 32 - 7
+            c.setLocal(
+                "maxBucketBits",
+                c.i32_sub(
+                    c.i32_const(32),
+                    c.i32_clz(
+                        c.getLocal("maxCount")
+                    )
+                )
+            ),
+
+            // Equivalent in C:
+            //      bit_offsets_copy[i] = state.bit_offsets[i];
+            // also add bitoffset+pRes here
+            c.setLocal("i", c.i32_const(0)),
+            c.setLocal("itBitoffet", c.getLocal("pBitoffset")),
+            c.setLocal("itBitoffetCopy", c.getLocal("pBitoffsetCopy")),
+            c.block(c.loop(
+                c.br_if(
+                    1,
+                    c.i32_eq(
+                        c.getLocal("i"),
+                        c.getLocal("nBucket")
+                    )
+                ),
+                c.i32_store(
+                    c.getLocal("itBitoffetCopy"),
+                    c.i32_add(
+                        c.i32_mul(
+                            c.i32_load(c.getLocal("itBitoffet")),
+                            c.i32_const(8) // 8 byte per element in pRes
+                        ),
+                        c.getLocal("pRes")
+                    )
+                ),
+                c.setLocal("itBitoffetCopy", c.i32_add(c.getLocal("itBitoffetCopy"), c.i32_const(4))),
+                c.setLocal("itBitoffet", c.i32_add(c.getLocal("itBitoffet"), c.i32_const(4))),
+                c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
+                c.br(0)
+            )),
+
+
+            // Loop over all bucket
+            c.setLocal("i", c.i32_const(0)),
+            c.setLocal("itTableSize", c.getLocal("pTableSize")),
+            c.setLocal("itPointSchedule", c.getLocal("pPointSchedule")),
+            
+            c.block(c.loop(
+                c.br_if(
+                    1,
+                    c.i32_eq(
+                        c.getLocal("i"),
+                        c.getLocal("nBucket")
+                    )
+                ),
+
+                // process j-th bucket
+                c.setLocal(// 当前的桶有多少point
+                    "count",
+                    c.i32_load(
+                        c.getLocal("itTableSize")
+                    )
+                ),
+                c.setLocal(// count占了几位
+                    "num_bits",
+                    c.i32_sub(
+                        c.i32_const(32),
+                        c.i32_clz(
+                            c.getLocal("count")
+                        )
+                    )
+                ),
+                c.setLocal("j", c.i32_const(0)),
+                c.block(c.loop(
+                    c.br_if(
+                        1,
+                        c.i32_eq(
+                            c.getLocal("j"),
+                            c.getLocal("num_bits")
+                        )
+                    ),
+
+                    // Loop over num_bits of one bucket
+                    // C: current_offset = bit_offsets_copy[j];
+                    c.setLocal(
+                        "current_offset",
+                        c.i32_load(
+                            c.i32_add(
+                                c.getLocal("pBitoffsetCopy"),
+                                c.i32_mul(
+                                    c.i32_const(4),
+                                    c.getLocal("j")
+                                )
+                            )
+                        )
+                    ),
+                    // C: k_end = count & (1UL << j)
+                    c.setLocal(
+                        "k_end",
+                        i.i32_and(
+                            c.getLocal("count"),
+                            c.i32_shl(
+                                c.i32_const(1),
+                                c.getLocal("j")
+                            )
+                        )
+                    ),
+
+                    // k loop, default case
+                    c.setLocal(
+                        "k",
+                        c.i32_const(0)
+                    ),
+                    c.block(c.loop(
+                        c.br_if(
+                            1,
+                            c.i32_eq(
+                                c.getLocal("k"),
+                                c.getLocal("k_end")
+                            )
+                        ),
+
+                        //schedule = state.point_schedule[schedule_it]
+                        c.setLocal(
+                            "schedule",//meta data
+                            c.i64_load(
+                                c.getLocal("itPointSchedule")
+                            )
+                        ),
+                        
+                        // bitOffsetCopy[bucket index]
+                        c.setLocal(
+                            "pResPointOffset",//pBitoffsetCopy中的值，也就是对应于pRes在哪
+                            c.i32_load(// bitOffsetCopy[bucket index]
+                                c.teeLocal(
+                                    "address",
+                                    c.i32_add(
+                                        c.i32_mul(
+                                            c.i32_wrap_i64(
+                                                c.i64_and( // bucket index
+                                                    c.getLocal("schedule"),
+                                                    c.i64_const(0xFFFFFFFF)
+                                                )
+                                            ),
+                                            c.i32_const(4)
+                                        ),
+                                        c.getLocal("pBitoffsetCopy")
+                                    ) 
+                                )  
+                            )
+                        ),
+                        // bitOffsetCopy[bucket index]++
+                        c.i32_store(
+                            "address",
+                            c.i32_add(
+                                c.getLocal("pResPointOffset"),
+                                c.i32_const(8) //一个元素8 byte
+                            )
+                        ),
+
+                        // pRes[xxx] = meta data
+                        c.i64_store(
+                            c.getLocal("pResPointOffset"),
+                            c.getLocal("schedule")
+                        ),
+
+                        c.setLocal("itPointSchedule", c.i32_add(c.getLocal("itPointSchedule"), c.i32_const(8))),
+                        c.br(0)
+                    )),
+
+                    c.setLocal("j", c.i32_add(c.getLocal("j"), c.i32_const(1))),
+                    c.br(0)
+                )),
+
+                c.setLocal("itTableSize", c.i32_add(c.getLocal("itTableSize"), c.i32_const(4))),
+                c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
+                c.br(0)
+            )),
+
+            // free memory
+            c.i32_store(
+                c.i32_const(0),
+                c.getLocal("pBitoffsetCopy")
+            )
+        );
+        
+    }
+
+    
     function buildGetChunk() {
         const f = module.addFunction(fnName + "_getChunk");
         f.addParam("pScalar", "i32");
