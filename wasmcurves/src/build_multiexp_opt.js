@@ -196,12 +196,48 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                                 c.i32_const(1),
                             ),
                         ),
-                    )
-
+                    ),
                 ),
                 c.setLocal("j", c.i32_add(c.getLocal("j"), c.i32_const(1))),
                 c.br(0)
             )),
+        );
+    }
+
+    // Given `pScalars` as a pointer to the input scalar vector and `num_initial_point` as the number of 
+    // points in the input point/scalar vector, this function computes a schedule of msm. This function is
+    // called once at the beginning of msm. More specifically, this function computes two things:
+    // `point_schedule`:
+    //    A 2-d array
+    //       [
+    //        [meta_11, meta_12, …, meta_1n], // Round 1. n is the number of points.
+    //        [meta_21, meta_22, …, meta_2n], // Round 2
+    //        …
+    //        [meta_m1, meta_m2, …, meta_mn], // Round m
+    //       ]
+    //    Each meta_ij is a 64-bit integer. Its encoding is:
+    //       [bit63, bit62, …, bit32,    bit31,    bit30, …, bit1, bit0]
+    //    High 32 bits (i.e., bit32~bit63): The point index we are working on.
+    //    Low 31 bits (i.e., bit0~bit30): The bucket index that we’re adding the point into
+    //    32nd bit (i.e., bit31): The sign of the point we’re adding (i.e., do we actually need to subtract)
+    //    Intuition: We pack this information into a 64bit unsigned integer, so that we can more efficiently sort 
+    //      these entries. For a given round, we want to sort our entries in increasing bucket index order.
+    // `round_counts`:
+    //    a pointer to an array of the number of points in each round. Note that scalar corresponding to a specific
+    //    round may be zero, so this number of points is not the same for all rounds.
+    function buildComputeSchedule() {
+        const f = module.addFunction(fnName + "_computeSchedule");
+        // a pointer to the input scalar vector
+        f.addParam("pScalars", "i32");
+        // Length of the input scalar vector.
+        f.addParam("numInitialPoints", "i32");
+        // a pointer to a 2-d array of point schedules
+        f.addParam("pPointSchedule", "i32");
+        // a pointer to an array of the number of points in each round
+        f.addParam("pRoundCounts", "i32");
+        const c = f.getCodeBuilder();
+        f.addCode(
+            // TODO
         );
     }
 
@@ -1316,6 +1352,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
 
     buildArrangePoint();
     buildCountBits();
+    buildComputeSchedule();
     buildGetBitOffset();
     buildGetChunk();
     buildGetNumBuckets();
