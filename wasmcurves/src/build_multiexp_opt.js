@@ -58,6 +58,40 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         );
     }
 
+    // Computes `pArr[i] += v` given a pointer `pArr` to an array of `i32`, index `i`, and an i32 value `v`.
+    //
+    // Note
+    // This function does not check if `i` is out-of-bound for `pArr`.
+    function buildAddAssignI32InMemoryUncheck() {
+        const f = module.addFunction(fnName + "_addAssignI32InMemoryUncheck");
+        // A pointer to an array of `i32`.
+        f.addParam("pArr", "i32");
+        // Index
+        f.addParam("i", "i32");
+        // Value
+        f.addParam("v", "i32");
+        // pointer to `pArr[i]`
+        f.addLocal("pArrI", "i32");
+        const c = f.getCodeBuilder();
+        f.addCode(
+            c.setLocal(
+                "pArrI",
+                c.i32_add(
+                    c.getLocal("pArr"),
+                    c.getLocal("i"),
+                ),
+            ),
+            c.i32_store(
+                c.getLocal("pArrI"),
+                c.i32_add(
+                    c.i32_load(c.getLocal("pArrI")),
+                    c.getLocal("v"),
+                ),
+            ),
+        );
+    }
+
+
     // Computes the bit offsets when splitting points in each bucket into pairs,
     // pair of pairs, pair of pairs of pairs, etc.
     // Example:
@@ -80,7 +114,6 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addLocal("j", "i32");
         f.addLocal("bucketCountsI", "i32");
         f.addLocal("pBitOffsetsJ", "i32");
-        f.addLocal("pBitOffsetsJPlusOne", "i32");
         const c = f.getCodeBuilder();
         f.addCode(
             // Initializes pBitOffsets[i] = 0 for 0 <= i <= numBits
@@ -136,27 +169,18 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                             c.get_local("numBits"),
                         )
                     ),
-                    c.setLocal(
-                        "pBitOffsetsJPlusOne",
+                    c.call(
+                        prefix + "_addAssignI32InMemoryUncheck",
+                        c.getLocal("pBitOffsets"),
                         c.i32_add(
-                            c.getLocal("pBitOffsets"),
-                            c.i32_add(
-                                c.getLocal("j"),
-                                c.i32_const(1),
-                            ),
+                            c.getLocal("j"),
+                            c.i32_const(1),
                         ),
-                    ),
-                    // bit_offsets[j + 1] += (bucket_counts[i] & (1U << j));
-                    c.i32_store(
-                        c.getLocal("pBitOffsetsJPlusOne"),
-                        c.i32_add(
-                            c.i32_load(c.getLocal("pBitOffsetsJPlusOne")),
-                            c.i32_and(
-                                c.getLocal("bucketCountsI"),
-                                c.i32_shl(
-                                    c.i32_const(1),
-                                    c.getLocal("j"),
-                                ),
+                        c.i32_and(
+                            c.getLocal("bucketCountsI"),
+                            c.i32_shl(
+                                c.i32_const(1),
+                                c.getLocal("j"),
                             ),
                         ),
                     ),
@@ -248,32 +272,32 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     //      Output(N*8 bytes): [(3, 0), (1, 0), (0, 0), 
     //              (0, 1), (1, 1), (3, 1), (2, 1), (4, 1),
     //              (0, 2), (3, 2)]
-    function buildOrganizeBuckets(){
+    function buildOrganizeBuckets() {
         const f = module.addFunction(fnName + "_OrganizeBuckets");
         f.addParam("pPointSchedule", "i32");
         f.addParam("pMetadata", "i32"); //result
         f.addParam("n", "i32");
 
         f.addLocal("itPointSchedule", "i32");
-        f.addCode("pointIdx","i32");
-        f.addCode("bucketIdx","i32");
-        f.addCode("pIdxTable","i32");
-        f.addCode("pIdxBucketOffset","i32");
-        f.addCode("tmp","i32");
-        
+        f.addCode("pointIdx", "i32");
+        f.addCode("bucketIdx", "i32");
+        f.addCode("pIdxTable", "i32");
+        f.addCode("pIdxBucketOffset", "i32");
+        f.addCode("tmp", "i32");
+
         // array
-        f.addCode("pTableSize","i32");
-        f.addCode("pBucketOffset","i32");
-        f.addCode("pMetadata","i32");
-        f.addCode("pIndex","i32");
+        f.addCode("pTableSize", "i32");
+        f.addCode("pBucketOffset", "i32");
+        f.addCode("pMetadata", "i32");
+        f.addCode("pIndex", "i32");
 
         // TODO: alloc memory
 
         // array iterator
-        f.addCode("itTableSize","i32");
-        f.addCode("itBucketOffset","i32");
-        f.addCode("itIndex","i32");
-        f.addCode("itMetadata","i32");
+        f.addCode("itTableSize", "i32");
+        f.addCode("itBucketOffset", "i32");
+        f.addCode("itIndex", "i32");
+        f.addCode("itMetadata", "i32");
 
         f.addCode(
 
@@ -295,7 +319,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                             c.getLocal("itPointSchedule"),
                             c.i64_const(0xFFFFFFFF)
                         )
-                    )  
+                    )
                 ),
 
                 c.i32_store( // store idx
@@ -312,14 +336,14 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                 //         )
                 //     ) 
                 // ),
-                
+
                 c.setLocal(
                     "pIdxTable",
                     c.i32_add(
                         c.getLocal("pTableSize"),
                         c.i32_mul(
                             //c.i32_sub(
-                                c.getLocal("bucketIdx"),
+                            c.getLocal("bucketIdx"),
                             //    c.i32_const(1)
                             //),
                             c.i32_const(4)
@@ -454,7 +478,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         );
     }
 
-    function buildConstructAdditionChains(){
+    function buildConstructAdditionChains() {
         const f = module.addFunction(fnName + "_ConstructAdditionChains");
         f.addParam("pPointSchedule", "i32"); // point sorted by bucket index
         f.addParam("maxCount", "i32"); // max point number in a bucket
@@ -475,9 +499,9 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addLocal("schedule", "i64"); // meta data
         f.addLocal("pResPointOffset", "i64");// pBitoffsetCopy中的值，也就是对应于pRes在哪
         f.addLocal("address", "i64");
-        
-        
-        
+
+
+
 
         // Array
         f.addLocal("pBitoffsetCopy", "i32");
@@ -487,7 +511,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addLocal("itBitoffet", "i32");
         f.addLocal("itTableSize", "i32");
         f.addLocal("itPointSchedule", "i32");
-        
+
 
 
         f.addCode(
@@ -555,7 +579,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
             c.setLocal("i", c.i32_const(0)),
             c.setLocal("itTableSize", c.getLocal("pTableSize")),
             c.setLocal("itPointSchedule", c.getLocal("pPointSchedule")),
-            
+
             c.block(c.loop(
                 c.br_if(
                     1,
@@ -638,7 +662,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                                 c.getLocal("itPointSchedule")
                             )
                         ),
-                        
+
                         // bitOffsetCopy[bucket index]
                         c.setLocal(
                             "pResPointOffset",//pBitoffsetCopy中的值，也就是对应于pRes在哪
@@ -656,8 +680,8 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                                             c.i32_const(4)
                                         ),
                                         c.getLocal("pBitoffsetCopy")
-                                    ) 
-                                )  
+                                    )
+                                )
                             )
                         ),
                         // bitOffsetCopy[bucket index]++
@@ -694,10 +718,10 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                 c.getLocal("pBitoffsetCopy")
             )
         );
-        
+
     }
 
-    
+
     function buildGetChunk() {
         const f = module.addFunction(fnName + "_getChunk");
         f.addParam("pScalar", "i32");
@@ -1807,9 +1831,11 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         );
     }
 
+    buildAddAssignI32InMemoryUncheck();
     buildArrangePoint();
-    buildCountBits();
     buildComputeSchedule();
+    buildConstructAdditionChains();
+    buildCountBits();
     buildGetBitOffset();
     buildGetChunk();
     buildGetNumBuckets();
@@ -1818,6 +1844,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     buildMultiexp();
     buildMutiexpChunk();
     buildMyBatchAffineMergeBLS12381();
+    buildOrganizeBuckets();
     buildReduceTable();
 
     module.exportFunction(fnName);
