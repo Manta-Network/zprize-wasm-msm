@@ -252,30 +252,33 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         const f = module.addFunction(fnName + "_OrganizeBuckets");
         f.addParam("pPointSchedule", "i32");
         f.addParam("pMetadata", "i32"); //result
-        f.addParam("n", "i32");
+        f.addParam("n", "i32");// number of points
+        f.addParam("bucketNum","i32"); // number of bucket
+
+        // Auxiliary array, should be initailize to 0.
+        f.addParam("pTableSize","i32");// size:2^c. The number of points in each buckert
+        f.addParam("pBucketOffset","i32");// size 2^c. 
+        //f.addParam("pMetadata","i32");// size:N.
+        f.addParam("pIndex","i32");// size:N. Store the number of the bucket to which the i-th point belongs
+
 
         f.addLocal("itPointSchedule", "i32");
-        f.addCode("pointIdx","i32");
-        f.addCode("bucketIdx","i32");
-        f.addCode("pIdxTable","i32");
-        f.addCode("pIdxBucketOffset","i32");
-        f.addCode("tmp","i32");
+        f.addLocal("pointIdx","i32");
+        f.addLocal("bucketIdx","i32");
+        f.addLocal("pIdxTable","i32");
+        f.addLocal("pIdxBucketOffset","i32");
+        f.addLocal("tmp","i32");
         
-        // array
-        f.addCode("pTableSize","i32");
-        f.addCode("pBucketOffset","i32");
-        f.addCode("pMetadata","i32");
-        f.addCode("pIndex","i32");
-
-        // TODO: alloc memory
+       
 
         // array iterator
-        f.addCode("itTableSize","i32");
-        f.addCode("itBucketOffset","i32");
-        f.addCode("itIndex","i32");
-        f.addCode("itMetadata","i32");
+        f.addLocal("itTableSize","i32");
+        f.addLocal("itBucketOffset","i32");
+        f.addLocal("itIndex","i32");
+        f.addLocal("itMetadata","i32");
 
         f.addCode(
+            // TODO: alloc memory
 
             c.setLocal("j", c.i32_const(1)),
             c.setLocal("itIndex", c.getLocal("pIndex")),
@@ -462,7 +465,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addParam("pBitoffset", "i32");
         f.addParam("n", "i32"); // number of points
         f.addParam("nBucket", "i32"); // number of buckets
-        f.addParam("pRes", "i32"); // result array start point. size: N*8 byte
+        f.addParam("pRes", "i32"); // result array start point. N*8 byte, (PointIdx_bucketIdx)
 
         f.addLocal("maxBucketBits", "i32");// 32 - leading zeros
         f.addLocal("i", "i32");
@@ -697,7 +700,417 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         
     }
 
-    
+    function buildEvaluateAdditionChains(){
+        const f = module.addFunction(fnName + "_EvaluateAdditionChains");
+        //f.addParam("pPointSchedule", "i32"); // point sorted by bucket index
+        //f.addParam("maxCount", "i32"); // max point number in a bucket
+        //f.addParam("pTableSize", "i32"); //bucket_counts, number of points in a bucket
+        f.addParam("pBitoffset", "i32");
+        f.addParam("n", "i32"); // number of points
+        f.addParam("handle_edge_cases", "i32"); // bool type
+        f.addParam("max_bucket_bits", "i32");
+        f.addParam("pPoint", "i32");// original point vectors
+        // Schedule is an array like this:(pointIdx,bucketIdx)
+        // sorted by bit index
+        // [(3, 1, 0), (0, 1, 1),
+        //  (1, 1, 0), (0, 0, 0), (0, 1, 2), (3, 1, 2),
+        //  (1, 1, 1), (3, 0, 1), (2, 1, 1), (4, 0, 1)]
+        f.addParam("pSchedule", "i32");
+        f.addParam("pRes", "i32"); // result array start point. size: N*8 byte
+
+        f.addLocal("end", "i32");
+        f.addLocal("points_in_round", "i32");
+        f.addLocal("start", "i32");
+
+        f.addLocal("i", "i32");
+        f.addLocal("j", "i32");
+        f.addLocal("k", "i32");
+
+        f.addCode(
+            // end = state.num_points
+            c.setLocal(
+                "end",
+                c.getLocal("n")
+            ),
+            c.setLocal("i", c.i32_const(0)),
+            c.block(c.loop(
+                c.br_if(
+                    1,
+                    c.i32_eq(
+                        c.getLocal("i"),
+                        c.getLocal("max_bucket_bits")
+                    )
+                ),
+                
+                //points_in_round = (state.num_points - state.bit_offsets[i + 1]) >> (i)
+                c.setLocal(
+                    "points_in_round",
+                    c.i32_shr_u(
+                        c.i32_sub(
+                            c.getLocal("n"),
+                            c.i32_load(
+                                c.i32_add(
+                                    c.i32_mul(
+                                        c.i32_add(
+                                            c.i32_const(1),
+                                            c.getLocal(i)
+                                        ),                      
+                                        c.i32_const(4)
+                                    ),
+                                    c.getLocal("pBitoffset")
+                                )  
+                            )
+                        ),
+                        c.getLocal("i")
+                    )
+                ),
+
+                // TODO: 应该把_AddAffinePointspres和pPaire合并？
+                c.call(fnName + "_RearrangePoints", c.getLocal("n"), c.getLocal("pPoint"), c.getLocal("pSchedule"),c.getLocal("pRes")),                
+                c.call(fnName + "_AddAffinePoints", c.getLocal("n"), c.getLocal("points_in_round"), c.getLocal("pRes")),
+
+                // c.if(
+                //     c.getLocal("handle_edge_cases"),
+                //     [
+                        
+                //         ...c.call(
+                //             xxxx
+                //         )
+                //     ],
+                //     [
+                //         ...c.call(
+                //             xxxx
+                //         )
+                //     ]
+                // ),
+
+                c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
+                c.br(0)
+            )),
+        );
+    }
+
+    // one round
+    function buildAddAffinePoints(){
+        const f = module.addFunction(fnName + "_AddAffinePoints");
+        f.addParam("n", "i32"); //number of points
+        f.addParam("pointsInRound", "i32")
+        //f.addParam("pPoints", "i32");
+        f.addParam("pPairs", "i32");// store in paires. memory layout: x1y1(384*2bits) x2y2 x3y3 ...
+        f.addParam("pRes", "i32")
+
+        
+        // Array
+        f.addLocal("pInverse", "i32"); // pointer to inverse array, n*n8g bytes 
+        f.addLocal("pScratchSpace", "i32");// store x2-x1, x4-x3, ... n*n8g
+
+        // Array ierator
+        f.addLocal("itPairs", "i32");
+        f.addLocal("itScratchSpace", "i32");
+        f.addLocal("itInverse", "i32");
+        f.addParam("itRes", "i32")
+
+
+        f.addLocal("i", "i32");
+        f.addLocal("start", "i32");// n - (number in a round)
+        f.addLocal("step", "i32"); // step between two point, 384/8 * 2 * 2, (sizeof(x)) * (x,y) *(2 point)
+        f.addLocal("x1", "i32"); //address
+        f.addLocal("y1", "i32");
+        f.addLocal("x2", "i32");
+        f.addLocal("y2", "i32");
+
+        const m = c.i32_const(module.alloc(n8));
+        const X3 = c.i32_const(module.alloc(n8));
+
+        f.addCode(
+            // alloc memory
+            c.setLocal("pScratchSpace", c.i32_load(c.i32_const(0))),
+            c.i32_store(
+                c.i32_const(0),
+                c.i32_add(
+                    c.getLocal("pScratchSpace"),
+                    c.i32_mul(
+                        c.getLocal("n"),
+                        c.i32_const(n8g)  // should be 384/8
+                    )
+                )
+            ),
+
+            c.setLocal("pInverse", c.i32_load(c.i32_const(0))),
+            c.i32_store(
+                c.i32_const(0),
+                c.i32_add(
+                    c.getLocal("pInverse"),
+                    c.i32_mul(
+                        c.getLocal("n"),
+                        c.i32_const(n8g)  // should be 384/8
+                    )
+                )
+            ),
+
+            // start= n-pointsInRound
+            c.setLocal("start",c.i32_sub(c.getLocal("n"),c.getLocal("pointsInRound"))),
+            // i= n-2
+            c.setLocal("i",c.i32_sub(c.getLocal("n"),c.i32_const("i"))),
+            c.setLocal(
+                "itPairs",
+                c.i32_add(
+                    c.getLocal("pPairs"),
+                    c.i32_mul(
+                        c.getLocal("i"),
+                        c.i32_const(n8g*2)
+                    )
+                )
+            ),
+
+            // while(i>start){
+            //  calculate res
+            //}
+            c.block(c.loop(
+                c.br_if(1, c.i32_lt_u ( c.getLocal("i"), c.getLocal("start") )),
+                // find two points Idx to add
+                // c.setLocal(
+                //     "pointIdx1",
+                //     c.i32_wrap_i64(
+                //         c.i64_shr_u(
+                //             c.i64_load(c.getLocal("itPairs")),
+                //             c.i64_const(32)
+                //         )
+                //     )   
+                // ),
+                // c.setLocal("itPairs", c.i32_add(c.getLocal("itPairs"), c.i32_const(8))),// fetch second point 
+                // c.setLocal(
+                //     "pointIdx2",
+                //     c.i32_wrap_i64(
+                //         c.i64_shr_u(
+                //             c.i64_load(c.getLocal("itPairs")),
+                //             c.i64_const(32)
+                //         )
+                //     )   
+                // ),
+                c.setLocal("x1", c.getLocal("itPairs")),
+                c.setLocal("y1", c.i32_add(c.getLocal("itPairs"),c.i32_const(n8g))),
+                c.setLocal("x2",c.i32_add(c.getLocal("itPairs"),c.i32_const(n8g*2))),
+                c.setLocal("y2",c.i32_add(c.getLocal("itPairs"),c.i32_const(n8g*3))),
+
+                // x2-x1
+                c.setLocal(
+                    "itScratchSpace", 
+                    c.i32_add(
+                        c.getLocal("pScratchSpace"),
+                        c.i32_mul(
+                            c.i32_shl(
+                                c.getLocal("i"),
+                                c.i32_const(1)
+                            ),
+                            c.i32_const(n8g)
+                        )
+                    )
+                ),
+                // Store x2-x1/2y1 in pScratchSpace for batch inverse, y2-y1 in y2, x1+x2 in x1
+                c.call(prefix + "_sub", c.getLocal("x2"), c.getLocal("x1"), c.getLocal("itScratchSpace")),
+                c.if(
+                    c.call(prefix + "_isZero", c.getLocal("itScratchSpace")), 
+                    [
+                        c.call(prefix + "_sub", c.getLocal("y1"), c.getLocal("y1"), c.getLocal("itScratchSpace")),
+                        c.call(prefix + "_zero", c.getLocal("y2")),// if x2-x1=0, store 0 in y2
+                    ],
+                ),
+                c.call(prefix + "_add", c.getLocal("x2"), c.getLocal("x1"), c.getLocal("x2")),
+                c.call(prefix + "_sub", c.getLocal("y2"), c.getLocal("y1"), c.getLocal("y1")),
+
+                c.setLocal("itPairs", c.i32_sub(c.getLocal("itPairs"), c.i32_const(n8g*2*2))),
+                c.setLocal("i", c.i32_sub(c.getLocal("i"), c.i32_const(2))),
+                c.br(0)
+            )),
+
+            c.setLocal( // inverse start address
+                "itInverse",
+                c.i32_add(
+                    c.getLocal("pPairs"),
+                    c.i32_mul(
+                        c.getLocal("start"),
+                        c.i32_const(n8g*2)
+                    )
+                )
+            ),
+
+            // get 1/(x2-x1), 1/(x4-x3), ...
+            c.call(
+                prefix + "_batchInverse",
+                c.getLocal("itInverse"),
+                c.i32_const(n8g),
+                c.i32_shl(c.getLocal("pointsInRound"),c.i32_const(1)),
+                c.getLocal("pInverse"),
+                c.i32_const(n8g)
+            ),
+
+            
+
+            // i= n-2
+            c.setLocal("i",c.i32_sub(c.getLocal("n"),c.i32_const(2))),
+            c.setLocal("itPairs",c.i32_add(c.getLocal("pPairs"),c.i32_mul(c.getLocal("i"),c.i32_const(n8g*2)))),
+            c.setLocal("itRes",c.i32_add(c.getLocal("pPairs"),c.i32_mul(c.i32_sub(c.getLocal("n"),c.i32_const(1)),c.i32_const(n8g*2)))), // point to last element
+            c.setLocal(
+                "itInverse", 
+                c.i32_add(
+                    c.getLocal("pInverse"),
+                    c.i32_mul(
+                        c.i32_shl(
+                            c.getLocal("i"),
+                            c.i32_const(1)
+                        ),
+                        c.i32_const(n8g)
+                    )
+                )
+            ),
+
+            // while(i>start){
+            //  store res
+            //}
+            c.block(c.loop(
+                c.br_if(1, c.i32_lt_u ( c.getLocal("i"), c.getLocal("start") )),
+                c.setLocal("x1", c.getLocal("itPairs")),//x1
+                c.setLocal("y1", c.i32_add(c.getLocal("itPairs"),c.i32_const(n8g))),//y1
+                c.setLocal("x2",c.i32_add(c.getLocal("itPairs"),c.i32_const(n8g*2))),//x1+x2
+                c.setLocal("y2",c.i32_add(c.getLocal("itPairs"),c.i32_const(n8g*3))),//y2-y1
+
+
+                c.if(
+                    c.call(prefix + "_isZero", c.getLocal("y2")), 
+                    // m = 3x^2+a / 2y1.  
+                    // a==0 in BLS12381
+                    [
+                        ...c.call(
+                            prefix + "_square",
+                            c.getLocal("x1"),
+                            X1_square
+                        ),
+                        ...c.call(
+                            prefixField + "_add",
+                            X1_square,
+                            X1_square,
+                            X1_squareX1_square,
+                        ),
+                        ...c.call(
+                            prefixField + "_add",
+                            X1_square,
+                            X1_squareX1_square,
+                            X1_squareX1_squareX1_square,
+                        ),
+                        ...c.call(
+                            prefixField + "_mul",
+                            X1_squareX1_squareX1_square,
+                            c.getLocal("itInverse"),
+                            M,
+                        ),
+
+                    ],
+                    // m = y2-y1 / (x2-x1)
+                    [
+                        ...c.call(
+                            prefix + "_mul",
+                            c.getLocal("y2"),
+                            c.getLocal("itInverse"),
+                            M
+                        ),
+
+                    ]
+                ),
+                // store x3  
+                // x3 = m^2 - x1 - x2
+
+                c.call(prefix + "_square", M, M_square),
+                c.call(prefix + "_sub", M_square, c.getLocal("x2"), "itRes"),
+                // store y3
+                // y3 = m * (x1 - x3) - y1
+                c.call(prefix + "_sub", c.getLocal("x1"), c.getLocal("itRes"), X1_MINUS_X3),
+                c.call(prefix + "_mul", M, X1_MINUS_X3, X1_MINUS_X3_MUL_M),
+                c.call(prefix + "_sub", X1_MINUS_X3_MUL_M, c.getLocal("y1"), c.i32_add(c.getLocal("itRes"),c.i32_const(n8g))),
+
+                c.setLocal("itPairs", c.i32_sub(c.getLocal("itPairs"), c.i32_const(n8g*2*2))),
+                c.setLocal("itRes", c.i32_sub(c.getLocal("itRes"), c.i32_const(n8g*2))),// store one element each time
+                c.setLocal("itScratchSpace", c.i32_sub(c.getLocal("itScratchSpace"), c.i32_const(n8g))),
+                c.setLocal("i", c.i32_sub(c.getLocal("i"), c.i32_const(2))),
+                c.br(0)
+            )),
+
+            // free memory
+            c.i32_store(
+                c.i32_const(0),
+                c.getLocal("pScratchSpace")
+            )
+        );
+
+    }
+
+    function RearrangePoints(){
+        const f = module.addFunction(fnName + "_RearrangePoints");
+        f.addParam("n", "i32");// number of points
+        f.addParam("pPoint", "i32");// original point vectors
+        // Schedule is an array like this:(pointIdx,bucketIdx)
+        // sorted by bit index
+        // [(3, 1, 0), (0, 1, 1),
+        //  (1, 1, 0), (0, 0, 0), (0, 1, 2), (3, 1, 2),
+        //  (1, 1, 1), (3, 0, 1), (2, 1, 1), (4, 0, 1)]
+        f.addParam("pSchedule", "i32");
+        // reschedule the points based on Schedule, copy results in the new memory.
+        f.addParam("pRes", "i32");
+
+        f.addLocal("itSchedule", "i32");
+        f.addLocal("itRes", "i32");
+        f.addLocal("i", "i32");
+        f.addLocal("pointIdx", "i32");
+        f.addLocal("pointSrc", "i32"); 
+        f.addCode(
+            c.setLocal("i", c.i32_const(0)),
+            c.setLocal("itSchedule", c.getLocal("pSchedule")),
+            c.setLocal("itRes", c.getLocal("pRes")),
+            c.block(c.loop(
+                c.br_if(
+                    1,
+                    c.i32_eq(
+                        c.getLocal("i"),
+                        c.getLocal("n")
+                    )
+                ),
+
+                // get src point address based on itSchedule
+                c.setLocal(
+                    "pointIdx",
+                    c.i32_wrap_i64(
+                        c.i64_shr_u(
+                            c.i64_load(c.getLocal("itSchedule")),
+                            c.i64_const(32)
+                        )
+                    )   
+                ),
+                c.setLocal(
+                    "pointSrc",
+                    c.i32_add(
+                        c.getLocal("pPoint"),
+                        c.i32_mul(
+                            c.getLocal("pointIdx"),
+                            c.i32_const(n8g*2)
+                        )
+                    )
+                ),
+                // copy to the new momory
+                // copy x
+                c.call(prefix + "_copy", c.getLocal("pointSrc"), c.getLocal("itRes")),
+                // copy y
+                c.call(prefix + "_copy", c.getLocal("pointSrc"), c.i32_add(c.getLocal("itRes"),c.i32_const(n8g))),
+            
+                c.setLocal("itSchedule", c.i32_add(c.getLocal("itSchedule"), c.i32_const(8))),
+                c.setLocal("itRes", c.i32_add(c.getLocal("itRes"), c.i32_const(n8g*2))),// one point
+                c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
+                c.br(0)
+            )),
+            
+        );
+
+    }
+
     function buildGetChunk() {
         const f = module.addFunction(fnName + "_getChunk");
         f.addParam("pScalar", "i32");
@@ -1127,6 +1540,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     }
 
     function buildMyBatchAffineMergeBLS12381() {
+        // some bugs in batch inverse.
         const f = module.addFunction(prefix + "_MyBatchAffineMergeBLS12381");
         //console.log(prefixField); f1m
         //console.log(prefix); g1m
