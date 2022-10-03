@@ -299,39 +299,114 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addParam("pScalars", "i32");
         // Number of bytes of the scalar
         f.addParam("scalarSize", "i32");
-        // Bit to start extract
-        f.addParam("startBit", "i32");
         // Chunk size in bits
         f.addParam("chunkSize", "i32");
         // Index of `scalar` in the input scalar vector
-        f.addParam("pointIndex", "i32");
+        f.addParam("pointIdx", "i32");
+        // Pointer to a 2-d array of point schedules
+        f.addParam("pPointSchedule", "i32");
+        // Number of points
+        f.addParam("numPoint", "i32");
         // Extracted chunk from the scalar
         f.addLocal("chunk", "i32");
-        // Returns a 64-bit compute schedule
-        f.setReturnType("i64");
+        // Bit to start extract
+        f.addLocal("startBit", "i32");
+        // Store pointIdx as i64
+        f.addLocal("pointIdxI64", "i64");
+        // Chunk Index
+        f.addLocal("chunkIdx", "i32");
+        // Number of bits of the scalar
+        f.addLocal("scalarSizeInBit", "i32");
         const c = f.getCodeBuilder();
         f.addCode(
             c.setLocal(
-                "chunk",
-                c.call(fnName + "_getChunk",
-                    c.getLocal("pScalars"),
-                    c.getLocal("scalarSize"),
-                    c.getLocal("startBit"),
-                    c.getLocal("chunkSize")
-                )
-            ),
-            // (pointIndex as i64) << 32 || chunkIdx as i64
-            c.i64_or(
+                "pointIdxI64",
                 c.i64_shl(
                     c.i64_extend_i32_u(
-                        c.getLocal("pointIndex")
+                        c.getLocal("pointIdx")
                     ),
                     c.i64_const(32),
                 ),
-                c.i64_extend_i32_u(
-                    c.getLocal("chunkIdx")
-                )
-            )
+            ),
+            c.setLocal(
+                "scalarSizeInBit",
+                c.i32_shl(
+                    c.getLocal("scalarSize"),
+                    c.i32_const(3),
+                ),
+            ),
+            // for(chunkIdx = 0; ; chunkIdx += 1) {
+            //     startBit = chunkIdx*chunkSize;
+            //     if (startBit >= scalarSizeInBit) {
+            //         break;
+            //     }
+            //     i32 chunk = getChunk(pScalars, scalarSize, startBit, chunkSize);
+            //     i32 idx = chunkIdx*numPoint + pointIdx;
+            //     if chunk == 0 {
+            //         pPointSchedule[idx] = 0xffffffffffffffffULL;
+            //     } else {
+            //         pPointSchedule[idx] = (pointIdxI64 << 32 || chunk as i64);
+            //     }
+            // }
+            c.setLocal("chunkIdx", c.i32_const(0)),
+            c.block(c.loop(
+                c.setLocal(
+                    "startBit",
+                    c.i32_mul(
+                        c.getLocal("chunkIdx"),
+                        c.getLocal("chunkSize"),
+                    ),
+                ),
+                c.br_if(
+                    1,
+                    c.i32_ge_u(
+                        c.getLocal("startBit"),
+                        c.getLocal("scalarSizeInBit"),
+                    )
+                ),
+                c.setLocal(
+                    "chunk",
+                    c.call(fnName + "_getChunk",
+                        c.getLocal("pScalars"),
+                        c.getLocal("scalarSize"),
+                        c.getLocal("startBit"),
+                        c.getLocal("chunkSize")
+                    )
+                ),
+                c.setLocal(
+                    "idx",
+                    c.i32_add(
+                        c.i32_mul(
+                            c.getLocal("chunkIdx"),
+                            c.getLocal("numPoint"),
+                        ),
+                        c.getLocal("pointIdx"),
+                    ),
+                ),
+                c.if(
+                    c.i32_eq(
+                        c.getLocal("chunk"),
+                        c.i32_const(0),
+                    ),
+                    c.i64_store(
+                        c.getLocal("pPointSchedule"),
+                        c.getLocal("idx"),
+                        c.i64_const(-1), // -1 = 0xffffffffffffffff
+                    ),
+                    c.i64_store(
+                        c.getLocal("pPointSchedule"),
+                        c.getLocal("idx"),
+                        c.i64_or(
+                            c.getLocal("pointIdxI64"),
+                            c.i64_extend_i32_u(
+                                c.getLocal("chunk")
+                            )
+                        ),
+                    ),
+                ),
+                c.setLocal("chunkIdx", c.i32_add(c.getLocal("chunkIdx"), c.getLocal(1))),
+                c.br(0)
+            )),
         );
     }
 
@@ -1199,7 +1274,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
 
     }
 
-    function RearrangePoints() {
+    function buildRearrangePoints() {
         const f = module.addFunction(fnName + "_RearrangePoints");
         f.addParam("n", "i32");// number of points
         f.addParam("pPoint", "i32");// original point vectors
@@ -2374,6 +2449,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         );
     }
 
+    buildAddAffinePoints();
     buildAddAssignI32InMemoryUncheck();
     buildArrangePoint();
     buildComputeSchedule();
@@ -2381,13 +2457,17 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     buildCountBits();
     buildGetBitOffset();
     buildGetChunk();
+    buildEvaluateAdditionChains();
     buildGetNumBuckets();
     buildGetOptimalChunkWidth();
     buildGetRoundNum();
+    buildInitializeI32();
+    buildInitializeI64();
     buildMultiexp();
     buildMutiexpChunk();
     buildMyBatchAffineMergeBLS12381();
     buildOrganizeBuckets();
+    buildRearrangePoints();
     buildReduceTable();
     buildSinglePointComputeSchedule();
 
