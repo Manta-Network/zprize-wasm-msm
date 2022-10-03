@@ -290,11 +290,13 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     }
 
     // Given a pointer `pScalar` to a specific scalar, a `scalarSize` indicating the number
-    // of bytes of the scalar, `startBit` indicating the bit to start extract, `chunkSize`
-    // of the chunk size in bits, a `pointIndex` indicating the index of `scalar` in the input 
-    // scalar vector, this function returns a 64-bit point compute schedule.
+    // of bytes of the scalar, `chunkSize` of the chunk size in bits, a `pointIdx` indicating
+    // the index of `scalar` in the input scalar vector, a pointer `pPointSchedule` to a 2-d
+    // array of point schedules, a pointer `pRoundCounts` to an array of the number of points
+    // in each round, and `numPoint` indicating the number of points in the input vector,
+    // this function initializes `pPointSchedule` and `pRoundCounts` for this point.
     function buildSinglePointComputeSchedule() {
-        const f = module.addFunction(fnName + "_computeSchedule");
+        const f = module.addFunction(fnName + "_singlePointComputeSchedule");
         // Pointer to a specific scalar
         f.addParam("pScalars", "i32");
         // Number of bytes of the scalar
@@ -305,6 +307,8 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addParam("pointIdx", "i32");
         // Pointer to a 2-d array of point schedules
         f.addParam("pPointSchedule", "i32");
+        // Pointer to an array of the number of points in each round
+        f.addParam("pRoundCounts", "i32");
         // Number of points
         f.addParam("numPoint", "i32");
         // Extracted chunk from the scalar
@@ -346,6 +350,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
             //         pPointSchedule[idx] = 0xffffffffffffffffULL;
             //     } else {
             //         pPointSchedule[idx] = (pointIdxI64 << 32 || chunk as i64);
+            //         pRoundCounts[chunkIdx] += 1;
             //     }
             // }
             c.setLocal("chunkIdx", c.i32_const(0)),
@@ -404,16 +409,28 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                         ),
                     ),
                 ),
+                c.if(
+                    c.i32_ne(
+                        c.getLocal("chunk"),
+                        c.i32_const(0),
+                    ),
+                    c.call(fnName + "_addAssignI32InMemoryUncheck",
+                        c.getLocal("pRoundCounts"),
+                        c.getLocal("chunkIdx"),
+                        c.i32_const(1),
+                    ),
+                ),
                 c.setLocal("chunkIdx", c.i32_add(c.getLocal("chunkIdx"), c.getLocal(1))),
                 c.br(0)
             )),
         );
     }
 
-    // Given `pScalars` as a pointer to the input scalar vector and `num_initial_point` as the number of 
-    // points in the input point/scalar vector, this function computes a schedule of msm. This function is
-    // called once at the beginning of msm. More specifically, this function computes two things:
-    // `point_schedule`:
+    // Given `pScalars` as a pointer to the input scalar vector, `numInitialPoints` as the number of 
+    // points in the input point/scalar vector, and `scalarSize` as the number of bytes of the scalar,
+    // this function computes a schedule of msm. This function is called once at the beginning of msm.
+    // More specifically, this function computes two things:
+    // `pPointSchedule`:
     //    A 2-d array
     //       [
     //        [meta_11, meta_12, …, meta_1n], // Round 1. n is the number of points.
@@ -428,27 +445,67 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     //    32nd bit (i.e., bit31): The sign of the point we’re adding (i.e., do we actually need to subtract)
     //    Intuition: We pack this information into a 64bit unsigned integer, so that we can more efficiently sort 
     //      these entries. For a given round, we want to sort our entries in increasing bucket index order.
-    // `round_counts`:
+    // `pRoundCounts`:
     //    a pointer to an array of the number of points in each round. Note that scalar corresponding to a specific
     //    round may be zero, so this number of points is not the same for all rounds.
     function buildComputeSchedule() {
         const f = module.addFunction(fnName + "_computeSchedule");
         // Pointer to the input scalar vector
         f.addParam("pScalars", "i32");
-        // Length of the input scalar vector.
+        // Length of the input scalar vector
         f.addParam("numInitialPoints", "i32");
         // Pointer to a 2-d array of point schedules
         f.addParam("pPointSchedule", "i32");
         // Pointer to an array of the number of points in each round
         f.addParam("pRoundCounts", "i32");
+        // Number of bytes of the scalar
+        f.addParam("scalarSize", "i32");
+        // Chunk size in bits
+        f.addParam("chunkSize", "i32");
+        // Point Index
+        f.addLocal("pointIdx", "i32");
         const c = f.getCodeBuilder();
         f.addCode(
-
-
-
+            c.call(fnName + "_initializeI32",
+                c.getLocal("pRoundCounts"),
+                c.getLocal("numInitialPoints"),
+                c.i32_const(0),
+            ),
+            // for (int pointIdx = 0; ; pointIdx++) {
+            //     if(pointIdx == numInitialPoints) break;
+            //     computeSchedule(
+            //         pScalars,
+            //         scalarSize,
+            //         chunkSize,
+            //         pointIdx,
+            //         pPointSchedule,
+            //         pRoundCounts,
+            //         numInitialPoints,
+            //     );
+            // }
+            c.setLocal("pointIdx", c.i32_const(0)),
+            c.block(c.loop(
+                c.br_if(
+                    1,
+                    c.i32_eq(
+                        c.getLocal("pointIdx"),
+                        c.getLocal("numInitialPoints"),
+                    )
+                ),
+                c.call(fnName + "_singlePointComputeSchedule",
+                    f.getLocal("pScalars"),
+                    f.getLocal("scalarSize"),
+                    f.getLocal("chunkSize"),
+                    f.getLocal("pointIdx"),
+                    f.getLocal("pPointSchedule"),
+                    f.getLocal("pRoundCounts"),
+                    f.getLocal("numInitialPoints"),
+                ),
+                c.setLocal("pointIdx", c.i32_add(c.getLocal("pointIdx"), c.getLocal(1))),
+                c.br(0)
+            )),
         );
     }
-
 
     // This function ruterns the meta data array sorted by bucket.
     // For example:
