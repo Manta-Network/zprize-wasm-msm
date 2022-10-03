@@ -91,7 +91,6 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         );
     }
 
-
     // Computes the bit offsets when splitting points in each bucket into pairs,
     // pair of pairs, pair of pairs of pairs, etc.
     // Example:
@@ -228,6 +227,33 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         );
     }
 
+    // Given a `scalar` in the input scalar vector, a `point_index` indicating the index of `scalar` in the 
+    // input scalar vector, a pointer `pPointSchedule` to a 2-d array of point schedules where each point 
+    // schedule is an i64 scalar, a pointer `pRoundCounts` to a 1-d array of number of points in each round,
+    // this function initializes point schedules across rounds in the `pPointSchedule` array and updates 
+    // `pRoundCounts`.
+    // Note
+    // Scalar is a 
+    function buildSinglePointComputeSchedule() {
+        const f = module.addFunction(fnName + "_computeSchedule");
+        // a scalar in the input scalar vector
+        f.addParam("scalars", "i32");
+        // index of `scalar` in the input scalar vector
+        f.addParam("point_index", "i32");
+        // a pointer to a 2-d array of point schedules
+        f.addParam("pPointSchedule", "i32");
+        // a pointer to a 1-d array of point counts for each round
+        f.addParam("pRoundCounts", "i32");
+        const c = f.getCodeBuilder();
+        f.addCode(
+            // TODO
+            
+
+
+        );
+
+    }
+
     // Given `pScalars` as a pointer to the input scalar vector and `num_initial_point` as the number of 
     // points in the input point/scalar vector, this function computes a schedule of msm. This function is
     // called once at the beginning of msm. More specifically, this function computes two things:
@@ -287,21 +313,21 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
 
 
         f.addLocal("itPointSchedule", "i32");
-<<<<<<< HEAD
-        f.addLocal("pointIdx","i32");
-        f.addLocal("bucketIdx","i32");
-        f.addLocal("pIdxTable","i32");
-        f.addLocal("pIdxBucketOffset","i32");
-        f.addLocal("tmp","i32");
+// <<<<<<< HEAD
+//         f.addLocal("pointIdx","i32");
+//         f.addLocal("bucketIdx","i32");
+//         f.addLocal("pIdxTable","i32");
+//         f.addLocal("pIdxBucketOffset","i32");
+//         f.addLocal("tmp","i32");
         
        
 
-        // array iterator
-        f.addLocal("itTableSize","i32");
-        f.addLocal("itBucketOffset","i32");
-        f.addLocal("itIndex","i32");
-        f.addLocal("itMetadata","i32");
-=======
+//         // array iterator
+//         f.addLocal("itTableSize","i32");
+//         f.addLocal("itBucketOffset","i32");
+//         f.addLocal("itIndex","i32");
+//         f.addLocal("itMetadata","i32");
+// =======
         f.addCode("pointIdx", "i32");
         f.addCode("bucketIdx", "i32");
         f.addCode("pIdxTable", "i32");
@@ -321,7 +347,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addCode("itBucketOffset", "i32");
         f.addCode("itIndex", "i32");
         f.addCode("itMetadata", "i32");
->>>>>>> f1048f87f1a04e27974fd6a07053a67e325aa88b
+// >>>>>>> f1048f87f1a04e27974fd6a07053a67e325aa88b
 
         f.addCode(
             // TODO: alloc memory
@@ -746,7 +772,6 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
 
     }
 
-<<<<<<< HEAD
     function buildEvaluateAdditionChains(){
         const f = module.addFunction(fnName + "_EvaluateAdditionChains");
         //f.addParam("pPointSchedule", "i32"); // point sorted by bucket index
@@ -1157,8 +1182,6 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         );
 
     }
-=======
->>>>>>> f1048f87f1a04e27974fd6a07053a67e325aa88b
 
     function buildGetChunk() {
         const f = module.addFunction(fnName + "_getChunk");
@@ -2285,6 +2308,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     buildMyBatchAffineMergeBLS12381();
     buildOrganizeBuckets();
     buildReduceTable();
+    buildSinglePointComputeSchedule();
 
     module.exportFunction(fnName);
     module.exportFunction(fnName + "_chunk");
