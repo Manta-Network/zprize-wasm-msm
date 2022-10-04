@@ -513,6 +513,13 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         );
     }
 
+    // Expected input:
+    //      pPointSchedule: 2d array of shape num_round * num_point
+    //      numPoint:  length of the input point vector
+    //      
+    // Expected Output:
+    //      pMetadata: 2d array. Each row contains sorted metadata for a round
+    //
     // This function ruterns the meta data array sorted by bucket.
     // For example:
     //      Input(N*8 bytes):  [meta_11, meta_12, …, meta_1n], meta_ij should be i64
@@ -526,17 +533,19 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addParam("pPointSchedule", "i32");
         f.addParam("n", "i32");// number of points
         f.addParam("bucketNum", "i32"); // number of bucket
-
         // results
         f.addParam("pMetadata", "i32"); //output
-        // Auxiliary array, should be initailize to 0.
-        f.addParam("pTableSize", "i32");// size:2^c * 32bit. The number of points in each buckert
-        f.addParam("pBucketOffset", "i32");// size: 2^c * 32 bit. The offset of the i-th bucket in pMetadata
-        f.addParam("pIndex", "i32");// size:  N * 32bit. Store the number of the bucket to which the i-th point belongs
 
-        // for debug
-        f.addParam("debug_32", "i32");
-        f.addParam("debug_64", "i32");
+
+
+        // // Auxiliary array, should be initailize to 0.
+        // f.addParam("pTableSize", "i32");// size:2^c * 32bit. The number of points in each bucket
+        // f.addParam("pBucketOffset", "i32");// size: 2^c * 32 bit. The offset of the i-th bucket in pMetadata
+        // f.addParam("pIndex", "i32");// size:  N * 32bit. Store the number of the bucket to which the i-th point belongs
+
+        // // for debug
+        // f.addParam("debug_32", "i32");
+        // f.addParam("debug_64", "i32");
 
 
         f.addLocal("pointIdx", "i32");
@@ -770,16 +779,23 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     // TODO: Add Documents
     function buildConstructAdditionChains() {
         const f = module.addFunction(fnName + "_ConstructAdditionChains");
-        // point sorted by bucket index. TODO
+        // Pointer to 1d array of point schedules of a specific round
+        // Assuming that point schedules have been sorted by the bucket index
         f.addParam("pPointSchedule", "i32");
-        // max point number in a bucket. TODO
+        // Max number of points in a bucket
         f.addParam("maxCount", "i32");
-        //bucket_counts, 每个bucket有几个点. TODO
+        // Pointer to a 1d array of number of points in each bucket for a specific
+        // round
         f.addParam("pTableSize", "i32");
+        // Pointer to a 1d array of the starting index of the i^th bucket
         f.addParam("pBitoffset", "i32");
-        f.addParam("n", "i32"); // number of points
-        f.addParam("nBucket", "i32"); // number of buckets
-        f.addParam("pRes", "i32"); // result array start point. N*8 byte, (PointIdx_bucketIdx)
+        // Length of the input point vector
+        f.addParam("numPoints", "i32");
+        // Number of buckets
+        f.addParam("numBucket", "i32");
+        // A 1d array of point schedules as the addition chains. Shape:
+        f.addParam("pRes", "i32");
+
         f.addLocal("maxBucketBits", "i32");// 32 - leading zeros
         f.addLocal("i", "i32");
         f.addLocal("j", "i32");
@@ -990,13 +1006,14 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         );
     }
 
+    // TODO: Add Documents
     function buildEvaluateAdditionChains() {
         const f = module.addFunction(fnName + "_EvaluateAdditionChains");
         //f.addParam("pPointSchedule", "i32"); // point sorted by bucket index
         //f.addParam("maxCount", "i32"); // max point number in a bucket
         //f.addParam("pTableSize", "i32"); //bucket_counts, number of points in a bucket
         f.addParam("pBitoffset", "i32");
-        f.addParam("n", "i32"); // number of points
+        f.addParam("numPoint", "i32"); // number of points
         f.addParam("handle_edge_cases", "i32"); // bool type
         f.addParam("max_bucket_bits", "i32");
         f.addParam("pPoint", "i32");// original point vectors
@@ -1006,6 +1023,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         //  (1, 1, 0), (0, 0, 0), (0, 1, 2), (3, 1, 2),
         //  (1, 1, 1), (3, 0, 1), (2, 1, 1), (4, 0, 1)]
         f.addParam("pSchedule", "i32");
+        // 1d array of `numPoint` points as the result.
         f.addParam("pRes", "i32"); // result array start point. size: N*8 byte
 
         f.addLocal("end", "i32");
@@ -1472,517 +1490,6 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         );
     }
 
-    function buildGetRoundNum() {
-        const f = module.addFunction(fnName + "_roundNum");
-        f.addParam("pTabelSize", "i32"); // point to  bucketSize
-        f.addParam("n", "i32"); // number of bucket, nTable 
-        f.addLocal("itTableSize", "i32");
-        f.addLocal("i", "i32");
-        f.addLocal("currentSize", "i32");
-        f.addLocal("maxSize", "i32");
-        f.setReturnType("i32");
-        f.addCode(
-            c.block(c.loop(
-                c.br_if(
-                    1,
-                    c.i32_eq(
-                        c.getLocal("i"),
-                        c.getLocal("n")
-                    )
-                ),
-                // should implement pBucketOffset[j] = pBucketOffset[j-1] + pTableSize[j] 
-
-                // currentSize - leading zero numbers
-                // clz(00000000_10000000_00000000_00000000) == 8
-                c.setLocal("currentSize",
-                    c.i32_sub(
-                        c.i32_const(32),
-                        c.i32_clz(
-                            c.i32_load(c.getLocal("itTableSize"))
-                        )
-                    )
-                ),
-                c.if(
-                    c.i32_gt_u(
-                        c.getLocal("currentSize"),
-                        c.getLocal("maxSize")
-                    ),
-                    c.setLocal("maxSize", c.getLocal("currentSize"))
-                ),
-                c.setLocal("itTableSize", c.i32_add(c.getLocal("itTableSize"), c.i32_const(4))),
-                c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
-                c.br(0)
-            )),
-            c.getLocal("maxSize")
-        );
-    }
-
-    function buildGetBitOffset() {
-        // 遍历pTabelSize中每一个数roundNum轮，每一轮将对应的bitOffset+1
-        // bitoffset 的长度为 1+roundNum
-        // 返回类似于[0, 2, 6, 10]这样的数组
-        const f = module.addFunction(fnName + "_bitOffset");
-        f.addParam("pTabelSize", "i32"); // point to  bucketSize
-        f.addParam("n", "i32"); // number of bucket, nTable
-        f.addParam("pOut", "i32");// 结果的开始地址，结尾是pBitOffset+n*4
-        f.addParam("roundNum", "i32");
-        f.addLocal("itTableSize", "i32");
-        f.addLocal("i", "i32");
-        f.addLocal("j", "i32");
-        f.addLocal("currentSize", "i32");
-        f.addLocal("maxSize", "i32");
-        f.addLocal("pResIdx", "i32");//累加bitoffset哪一个位置
-
-        f.addCode(
-            c.block(c.loop(
-                c.br_if( //遍历所有的bucket
-                    1,
-                    c.i32_eq(
-                        c.getLocal("i"),
-                        c.getLocal("n")
-                    )
-                ),
-
-                //获得当前bucket中点的数目
-                c.setLocal("currentSize",  //例如，currentSize==7,   111
-                    c.i32_load(c.getLocal("itTableSize"))
-                ),
-
-                c.setLocal("j", c.i32_sub(c.getLocal("roundNum"), c.i32_const(1))),
-                c.block(c.loop(//遍历这个数目所有的bit，bitoffset相应位置加1
-                    c.br_if(1, c.i32_eqz(c.getLocal("j"))),
-
-                    c.if(
-                        c.i32_ne(
-                            c.i32_const(0),
-                            c.i32_and(
-                                c.i32_shl(i32_const(1), c.getLocal("j")),
-                                c.getLocal("currentSize")
-                            )
-                        ),
-                        // 为1，需要累加
-                        [
-                            ...c.setLocal(//获得对应的位置
-                                "pResIdx",
-                                c.i32_add(
-                                    c.getLocal("pOut"),
-                                    c.i32_mul(
-                                        c.i32_const(4),//i32
-                                        c.getLocal("j")
-                                    )
-                                )
-                            ),
-                            // BitOffset[pResIdx]++
-                            ...c.i32_store(
-                                c.getLocal("pResIdx"),
-                                0,
-                                c.i32_add(
-                                    c.i32_const(1),  // 数量加1，暂时不考虑加上i32的byte数量，可能需要修改为4，更加方便后续使用？
-                                    c.i32_load(
-                                        c.getLocal("pResIdx"),
-                                        0
-                                    )
-                                )
-                            )
-                            ///...c.getLocal(xx)
-                        ],
-                        //为0，什么也不做     
-                    ),
-                    c.setLocal("j", c.i32_sub(c.getLocal("j"), c.i32_const(1))),
-                    c.br(0)
-                )),
-
-                c.setLocal("itTableSize", c.i32_add(c.getLocal("itTableSize"), c.i32_const(4))),
-                c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
-                c.br(0)
-            ))
-        );
-    }
-
-    function buildArrangePoint() {
-        const f = module.addFunction(fnName + "_chunk");
-        f.addParam("pBases", "i32");
-        f.addParam("pScalars", "i32");
-        f.addParam("scalarSize", "i32");  // Number of points
-        f.addParam("n", "i32");  // Number of points
-        f.addParam("startBit", "i32");  // bit where it starts the chunk
-        f.addParam("chunkSize", "i32");  // bit where it starts the chunk
-        f.addParam("pr", "i32");
-        f.addLocal("nChunks", "i32");
-        f.addLocal("itScalar", "i32");
-        f.addLocal("endScalar", "i32");
-        f.addLocal("itBase", "i32");
-        f.addLocal("i", "i32");
-        f.addLocal("j", "i32");
-        f.addLocal("j_i64", "i64");
-        f.addLocal("nTable", "i32");
-        f.addLocal("pTable", "i32");
-        f.addLocal("idx", "i32");
-        f.addLocal("pIdxTable", "i32");
-        f.addLocal("pIdxBucketOffset", "i32");// 临时变量，存储第i个bucket的offset
-        f.addLocal("tmp", "i32");
-
-        f.addLocal("bucketIdx", "i64");// 临时变量，存储一个点的bucket idex
-        f.addLocal("metadata", "i64");// 临时变量，存储一个点的meta data
-
-        f.addLocal("pTableSize", "i32"); // accumulate each tabel size, and then call batchaffine add function
-        f.addLocal("itTableSize", "i32")
-        //f.addLocal("pTableSizeOffset", "i32"); // accumulate each tabel size, and then call batchaffine add function
-
-        f.addLocal("pMetadata", "i32");// N points for batch add
-        f.addLocal("itMetadata", "i32");
-
-        f.addLocal("pBucketOffset", "i32");
-        f.addLocal("itBucketOffset", "i32");
-
-        f.addLocal("pIndex", "i32");// store each point index
-        f.addLocal("itIndex", "i32");// 遍历pIndex用的
-
-        const c = f.getCodeBuilder();
-
-        f.addCode(
-            c.if(
-                c.i32_eqz(c.getLocal("n")),
-                [
-                    ...c.call(prefix + "_zero", c.getLocal("pr")),
-                    ...c.ret([])
-                ]
-            ),
-
-            // Allocate memory
-
-            c.setLocal(
-                "nTable",
-                c.i32_shl(
-                    c.i32_const(1),
-                    c.getLocal("chunkSize")
-                )
-            ),
-
-            c.setLocal("pTable", c.i32_load(c.i32_const(0))),
-            c.i32_store(
-                c.i32_const(0),
-                c.i32_add(
-                    c.getLocal("pTable"),
-                    c.i32_mul(
-                        c.getLocal("nTable"),
-                        c.i32_const(n8g)
-                    )
-                )
-            ),
-
-            c.setLocal("pTableSize", c.i32_load(c.i32_const(0))),
-            c.i32_store(
-                c.i32_const(0),
-                c.i32_add(
-                    c.getLocal("pTableSize"),
-                    c.i32_mul(
-                        c.getLocal("nTable"),
-                        c.i32_const(4)  //32bit? 4byte
-                    )
-                )
-            ),
-
-            c.setLocal("pBucketOffset", c.i32_load(c.i32_const(0))),
-            c.i32_store(
-                c.i32_const(0),
-                c.i32_add(
-                    c.getLocal("pBucketOffset"),
-                    c.i32_mul(
-                        c.getLocal("nTable"),
-                        c.i32_const(4)  //32bit? 4byte
-                    )
-                )
-            ),
-
-            c.setLocal("pMetadata", c.i32_load(c.i32_const(0))),
-            c.i32_store(
-                c.i32_const(0),
-                c.i32_add(
-                    c.getLocal("pMetadata"),
-                    c.i32_mul(
-                        c.getLocal("n"),
-                        c.i32_const(8)  //64bit? 8byte
-                    )
-                )
-            ),
-
-            c.setLocal("pIndex", c.i32_load(c.i32_const(0))),//记录了某一个点属于第几个bucket，copy的时候使用
-            c.i32_store(
-                c.i32_const(0),
-                c.i32_add(
-                    c.getLocal("pIndex"),
-                    c.i32_mul(
-                        c.getLocal("n"),
-                        c.i32_const(4)  //32bit? 4byte
-                    )
-                )
-            ),
-
-
-            // Reset Table
-            c.setLocal("j", c.i32_const(0)),
-            c.block(c.loop(
-                c.br_if(
-                    1,
-                    c.i32_eq(
-                        c.getLocal("j"),
-                        c.getLocal("nTable")
-                    )
-                ),
-
-                c.call(
-                    prefix + "_zero",
-                    c.i32_add(
-                        c.getLocal("pTable"),
-                        c.i32_mul(
-                            c.getLocal("j"),
-                            c.i32_const(n8g)
-                        )
-                    )
-                ),
-
-                c.setLocal("j", c.i32_add(c.getLocal("j"), c.i32_const(1))),
-                c.br(0)
-            )),
-
-            // Reset TableSize
-            c.setLocal("j", c.i32_const(0)),
-            c.block(c.loop(
-                c.br_if(
-                    1,
-                    c.i32_eq(
-                        c.getLocal("j"),
-                        c.getLocal("nTable")
-                    )
-                ),
-
-                f.addCode(
-                    c.i32_store(
-                        c.getLocal("pTableSize"),
-                        j * 4,
-                        c.i32_const(0)
-                    )
-                ),
-                c.setLocal("j", c.i32_add(c.getLocal("j"), c.i32_const(1))),
-                c.br(0)
-            )),
-
-
-            // Distribute elements
-            c.setLocal("itBase", c.getLocal("pBases")),
-            c.setLocal("itScalar", c.getLocal("pScalars")),
-            c.setLocal("itIndex", c.getLocal("pIndex")),
-            c.setLocal("endScalar",
-                c.i32_add(
-                    c.getLocal("pScalars"),
-                    c.i32_mul(
-                        c.getLocal("n"),
-                        c.getLocal("scalarSize")
-                    )
-                )
-            ),
-
-            // 遍历所有的点，计算出每一个bucket的数量
-            c.block(c.loop(
-                c.br_if(
-                    1,
-                    c.i32_eq(
-                        c.getLocal("itScalar"),
-                        c.getLocal("endScalar")
-                    )
-                ),
-
-                // get idx
-                c.setLocal(
-                    "idx",
-                    c.call(prefix + "_getChunk",
-                        c.getLocal("itScalar"),
-                        c.getLocal("scalarSize"),
-                        c.getLocal("startBit"),
-                        c.getLocal("chunkSize")
-                    )
-                ),
-
-                // 按照顺序存储每一个点属于的bucket的index，在copy的时候使用
-                c.i32_store( // store idx
-                    c.i32_add(c.getLocal("itIndex")),
-                    0,
-                    c.getLocal("idx")
-                ),
-
-                c.if(
-                    c.getLocal("idx"),
-                    [
-                        // 获得当前点在size table中的偏移
-                        ...c.setLocal(
-                            "pIdxTable",
-                            c.i32_add(
-                                c.getLocal("pTableSize"),
-                                c.i32_mul(
-                                    c.i32_sub(
-                                        c.getLocal("idx"),
-                                        c.i32_const(1)
-                                    ),
-                                    c.i32_const(4)
-                                )
-                            )
-                        ),
-                        // 把当前点对应的bucket数量+1
-                        ...c.i32_store(
-                            c.getLocal("pIdxTable"),
-                            0,
-                            c.i32_add(
-                                c.i32_const(4),  // 数量是1，占了4个byte，pTableSize实际上存的是多少字节
-                                c.i32_load(
-                                    c.getLocal("pIdxTable"),
-                                    0
-                                )
-                            )
-                        ),
-                        // ...c.call(
-                        //     opAdd,
-                        //     c.getLocal("pIdxTable"),
-                        //     c.getLocal("itBase"),
-                        //     c.getLocal("pIdxTable"),
-                        // )
-                    ]
-                ),
-                c.setLocal("itScalar", c.i32_add(c.getLocal("itScalar"), c.getLocal("scalarSize"))),
-                c.setLocal("itBase", c.i32_add(c.getLocal("itBase"), c.i32_const(n8b))),
-                c.setLocal("itIndex", c.i32_add(c.getLocal("itIndex"), c.i32_const(4))),
-                c.br(0)
-            )),
-
-            // 对bucket数量scan，就可以得到每一个bucket的偏移
-            // pBucketOffset[0] =  pMetadata
-            c.i32_store(
-                c.getLocal("pBucketOffset"),
-                //c.i32_load(
-                c.getLocal("pMetadata")
-                //)
-            ),
-            // pBucketOffset[j] = pBucketOffset[j-1] + pTableSize[j-1]  j>0
-            c.setLocal(c.getLocal("itTableSize"), c.getLocal("pTableSize")),
-            //从pBucketOffset[1]开始
-            c.setLocal(c.getLocal("itBucketOffset"), c.i32_add(c.getLocal("pBucketOffset"), c.i32_const(4))),
-            c.setLocal("j", c.i32_const(1)),
-            c.block(c.loop(
-                c.br_if(
-                    1,
-                    c.i32_eq(
-                        c.getLocal("j"),
-                        c.getLocal("nTable")
-                    )
-                ),
-                // should implement pBucketOffset[j] = pBucketOffset[j-1] + pTableSize[j] 
-                c.i32_store(
-                    c.getLocal("itBucketOffset"),
-                    c.i32_load(
-                        c.i32_add(
-                            c.i32_load(c.getLocal("itTableSize")),
-                            c.i32_load(c.i32_sub(c.getLocal("itBucketOffset"), c.i32_const(4))),
-                        )
-                    )
-                ),
-                c.setLocal("itTableSize", c.i32_add(c.getLocal("itTableSize"), c.i32_const(4))),
-                c.setLocal("itBucketOffset", c.i32_add(c.getLocal("itBucketOffset"), c.i32_const(4))),
-                c.setLocal("j", c.i32_add(c.getLocal("j"), c.i32_const(1))),
-                c.br(0)
-            )),
-
-            // 再便利一遍所有的点，构建meta data ，同时对meta data进行排序（根据itBucketOffset放入相应位置）
-            c.setLocal("itIndex", c.getLocal("pIndex")),
-            c.setLocal(c.getLocal("itMetadata"), c.getLocal("pMetadata")),
-            c.setLocal("j_i64", c.i64_const(0)),
-            c.block(c.loop(
-                c.br_if(
-                    1,
-                    c.i64_eq(
-                        c.getLocal("j"),
-                        c.getLocal("n")
-                    )
-                ),
-
-                // mem[itIndex] i32 --> i64
-                c.setLocal("bucketIdx", i64_extend_i32_u(c.i32_load(
-                    c.getLocal("itIndex")
-                ))),
-
-                // j 和 mem[itIndex]拼接得到64位meta data
-                c.setLocal(
-                    "metadata",
-                    c.i64_add(
-                        // j: point index
-                        c.i64_shl(
-                            c.getLocal("j"),
-                            c.i64_const(32)
-                        ),
-                        // mem[itIndex]: bucketIdx
-                        c.getLocal("bucketIdx")
-                    )
-                ),
-                // 从BucketOffset中获得存储meta data的位置,并把BucketOffset[bucketIdx]加8 bytes
-                c.setLocal(
-                    "pIdxBucketOffset",
-                    c.i32_add(
-                        c.getLocal("pBucketOffset"),
-                        c.i32_mul(
-
-                            c.getLocal("bucketIdx"),
-                            c.i32_const(4)
-                        )
-                    )
-                ),
-
-                // 设置metadata[bucketIdx]的值
-                c.setLocal("tmp",
-                    c.i32_load(
-                        c.getLocal("pIdxBucketOffset")
-                    )),
-                c.i64_store(
-                    c.getLocal("tmp"),
-                    0,
-                    c.getLocal("metadata")
-                ),
-                // BucketOffset[bucketIdx]往后加8 bytes
-                c.i32_store(
-                    c.getLocal("pIdxBucketOffset"),
-                    0,
-                    c.i32_add(
-                        c.i32_const(8),
-                        c.setLocal("tmp")
-                    )
-                ),
-
-                c.setLocal("itIndex", c.i32_add(c.getLocal("itIndex"), c.i32_const(4))),
-                c.setLocal("itMetadata", c.i32_add(c.getLocal("itMetadata"), c.i32_const(8))),//Metadata是64位
-                c.setLocal("j_i64", c.i64_add(c.getLocal("j_i64"), c.i64_const(1))),
-                c.br(0)
-            )),
-
-            // 到目前为止完成了第一次metadata的设置
-
-            // 按照顺序copy N个点
-
-            // 调用batchadd函数，将结果存储到pTable地址中
-
-            // c.call(prefix + "_reduceTable", c.getLocal("pTable"), c.getLocal("chunkSize")),
-            // c.call(
-            //     prefix + "_copy",
-            //     c.getLocal("pTable"),
-            //     c.getLocal("pr")
-            // ),
-
-
-            // c.i32_store(
-            //     c.i32_const(0),
-            //     c.getLocal("pTable")
-            // )
-
-        );
-    }
-
     // TODO
     function buildReduceBuckets() {
         const f = module.addFunction(fnName + "_reduceBuckets");
@@ -2260,6 +1767,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                     c.getLocal("numPoints"),
                 ),
             ),
+            // TODO: 
             // Allocates a 2-d array for point schedule.
             c.setLocal("pPointSchedule", c.i32_load(c.i32_const(0))),
             c.i32_store(
@@ -2692,22 +2200,18 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     buildAddAffinePoints();
     buildAddAssignI32InMemoryUncheck();
     buildAllocateMemory();
-    buildArrangePoint();
     buildComputeSchedule();
     buildConstructAdditionChains();
     buildCountBits();
     buildEvaluateAdditionChains();
-    buildGetBitOffset();
     buildGetChunk();
     buildGetNumBuckets();
     buildGetNumChunks();
     buildGetOptimalChunkWidth();
-    buildGetRoundNum();
     buildInitializeI32();
     buildInitializeI64();
     buildMultiexp();
     buildMutiexpChunks();
-    buildMyBatchAffineMergeBLS12381();
     buildOrganizeBuckets();
     buildRearrangePoints();
     buildReduceTable();
