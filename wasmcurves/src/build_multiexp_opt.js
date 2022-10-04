@@ -516,99 +516,79 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     // This function ruterns the meta data array sorted by bucket.
     // For example:
     //      Input(N*8 bytes):  [meta_11, meta_12, …, meta_1n], meta_ij should be i64
-    //      Output(N*8 bytes): [(3, 0), (1, 0), (0, 0), 
+    //      Output(N*8 bytes): sort by bucket index
+    //              [(3, 0), (1, 0), (0, 0), 
     //              (0, 1), (1, 1), (3, 1), (2, 1), (4, 1),
-    //              (0, 2), (3, 2)]
+    //              (0, 2), (3, 2)] 
     function buildOrganizeBuckets() {
         const f = module.addFunction(fnName + "_OrganizeBuckets");
+        const c = f.getCodeBuilder();
         f.addParam("pPointSchedule", "i32");
-        f.addParam("pMetadata", "i32"); //result
         f.addParam("n", "i32");// number of points
         f.addParam("bucketNum", "i32"); // number of bucket
 
+        // results
+        f.addParam("pMetadata", "i32"); //output
         // Auxiliary array, should be initailize to 0.
-        f.addParam("pTableSize", "i32");// size:2^c. The number of points in each buckert
-        f.addParam("pBucketOffset", "i32");// size 2^c. 
-        //f.addParam("pMetadata","i32");// size:N.
-        f.addParam("pIndex", "i32");// size:N. Store the number of the bucket to which the i-th point belongs
+        f.addParam("pTableSize", "i32");// size:2^c * 32bit. The number of points in each buckert
+        f.addParam("pBucketOffset", "i32");// size: 2^c * 32 bit. The offset of the i-th bucket in pMetadata
+        f.addParam("pIndex", "i32");// size:  N * 32bit. Store the number of the bucket to which the i-th point belongs
+
+        // for debug
+        f.addParam("debug_32", "i32");
+        f.addParam("debug_64", "i32");
 
 
-        f.addLocal("itPointSchedule", "i32");
-        // <<<<<<< HEAD
-        //         f.addLocal("pointIdx","i32");
-        //         f.addLocal("bucketIdx","i32");
-        //         f.addLocal("pIdxTable","i32");
-        //         f.addLocal("pIdxBucketOffset","i32");
-        //         f.addLocal("tmp","i32");
+        f.addLocal("pointIdx", "i32");
+        f.addLocal("bucketIdx", "i32");
+        f.addLocal("pIdxTable", "i32");
+        f.addLocal("pIdxBucketOffset", "i32");
+        f.addLocal("tmp", "i32");
+        f.addLocal("j", "i32");
+        f.addLocal("n_i64", "i64");
+        f.addLocal("j_i64", "i64");
+        f.addLocal("metadata", "i64");
 
-
-
-        //         // array iterator
-        //         f.addLocal("itTableSize","i32");
-        //         f.addLocal("itBucketOffset","i32");
-        //         f.addLocal("itIndex","i32");
-        //         f.addLocal("itMetadata","i32");
-        // =======
-        f.addCode("pointIdx", "i32");
-        f.addCode("bucketIdx", "i32");
-        f.addCode("pIdxTable", "i32");
-        f.addCode("pIdxBucketOffset", "i32");
-        f.addCode("tmp", "i32");
-
-        // array
-        f.addCode("pTableSize", "i32");
-        f.addCode("pBucketOffset", "i32");
-        f.addCode("pMetadata", "i32");
-        f.addCode("pIndex", "i32");
-
-        // TODO: alloc memory
+        f.addLocal("tmp1", "i32");
+        f.addLocal("tmp2", "i32");
+        f.addLocal("tmp3", "i32");
 
         // array iterator
-        f.addCode("itTableSize", "i32");
-        f.addCode("itBucketOffset", "i32");
-        f.addCode("itIndex", "i32");
-        f.addCode("itMetadata", "i32");
-        // >>>>>>> f1048f87f1a04e27974fd6a07053a67e325aa88b
+        f.addLocal("itTableSize", "i32");
+        f.addLocal("itBucketOffset", "i32");
+        f.addLocal("itIndex", "i32");
+        f.addLocal("itMetadata", "i32");
+        f.addLocal("itPointSchedule", "i32");
 
         f.addCode(
-            // TODO: alloc memory
-
-            c.setLocal("j", c.i32_const(1)),
+            c.setLocal("j", c.i32_const(0)),
             c.setLocal("itIndex", c.getLocal("pIndex")),
-            // 遍历所有的点，计算出每一个bucket的数量
+            c.setLocal("itPointSchedule", c.getLocal("pPointSchedule")),
+            // Traverse all the points and calculate the number of point in each bucket
             c.block(c.loop(
                 c.br_if(
                     1,
                     c.i32_eq(
                         c.getLocal("j"),
-                        c.getLocal("nTable")
+                        c.getLocal("n")
                     )
                 ),
                 c.setLocal( // low 32 bit
                     "bucketIdx",
                     c.i32_wrap_i64(
                         c.i64_and(
-                            c.getLocal("itPointSchedule"),
+                            c.i64_load(c.getLocal("itPointSchedule")),
                             c.i64_const(0xFFFFFFFF)
                         )
                     )
                 ),
 
                 c.i32_store( // store idx
-                    c.i32_add(c.getLocal("itIndex")),
-                    0,
+                    c.getLocal("itIndex"),
                     c.getLocal("bucketIdx")
                 ),
-                // c.setLocal( //high 32 bit
-                //     "pointIdx",
-                //     c.i32_wrap_i64(
-                //         c.i64_shr_u(
-                //             c.getLocal("itPointSchedule"),
-                //             c.i64_const(32)
-                //         )
-                //     ) 
-                // ),
 
+                // Find the corresponding bucket
                 c.setLocal(
                     "pIdxTable",
                     c.i32_add(
@@ -625,9 +605,10 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                 // 把当前点对应的bucket数量+1
                 c.i32_store(
                     c.getLocal("pIdxTable"),
-                    0,
+                    //0,
                     c.i32_add(
-                        c.i32_const(4),  // 数量是1，占了4个byte，pTableSize实际上存的是多少字节
+                        //c.i32_const(4),  // 数量是1，占了4个byte，pTableSize实际上存的是多少字节
+                        c.i32_const(1),  // 数量是1，占了4个byte，pTableSize实际上存的是多少字节
                         c.i32_load(
                             c.getLocal("pIdxTable"),
                             0
@@ -641,6 +622,8 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
             )),
 
 
+            // Now, we have point number in each bucket. (pTablesize)
+            // The following code computes BuckerOffset.
             // 对bucket数量scan，就可以得到每一个bucket的偏移
             // pBucketOffset[0] =  pMetadata
             c.i32_store(
@@ -657,94 +640,128 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                     1,
                     c.i32_eq(
                         c.getLocal("j"),
-                        c.getLocal("n")
+                        c.getLocal("bucketNum")
                     )
                 ),
                 // should implement pBucketOffset[j] = pBucketOffset[j-1] + pTableSize[j] 
-                c.i32_store(
-                    c.getLocal("itBucketOffset"),
-                    c.i32_load(
-                        c.i32_add(
-                            c.i32_load(c.getLocal("itTableSize")),
-                            c.i32_load(c.i32_sub(c.getLocal("itBucketOffset"), c.i32_const(4))),
-                        )
+                c.setLocal(
+                    "tmp3",
+                    c.i32_mul(
+                        c.i32_load(c.getLocal("itTableSize")),
+                        c.i32_const(8)// 8byte per elemnt in metadata
                     )
                 ),
+                c.setLocal(
+                    "tmp2",
+                    c.i32_add(
+                        c.getLocal("tmp3"),
+                        //c.i32_const(1),
+                        c.i32_load(c.i32_sub(c.getLocal("itBucketOffset"), c.i32_const(4)))// error
+                    )
+                ),
+                c.setLocal(
+                    "tmp1",
+                    c.i32_load(
+                        c.getLocal("tmp2")
+                    )
+                ),
+                c.i32_store(
+                    c.getLocal("itBucketOffset"),
+                    c.getLocal("tmp1"),
+                ),
+
+                // c.i32_store(
+                //     c.getLocal("itBucketOffset"),
+                //     c.i32_load(
+                //         c.i32_add(
+                //             c.i32_mul(
+                //                 c.i32_load(c.getLocal("itTableSize")),
+                //                 c.i32_const(8)// 8byte per elemnt in metadata
+                //             ),
+                //             c.i32_load(c.i32_sub(c.getLocal("itBucketOffset"), c.i32_const(4))),
+                //         )
+                //     )
+                // ),
                 c.setLocal("itTableSize", c.i32_add(c.getLocal("itTableSize"), c.i32_const(4))),
                 c.setLocal("itBucketOffset", c.i32_add(c.getLocal("itBucketOffset"), c.i32_const(4))),
                 c.setLocal("j", c.i32_add(c.getLocal("j"), c.i32_const(1))),
                 c.br(0)
             )),
 
+            // The following code computes pMetadata.
             // 再便利一遍所有的点，构建meta data ，同时对meta data进行排序（根据itBucketOffset放入相应位置）
-            c.setLocal("itIndex", c.getLocal("pIndex")),
-            c.setLocal(c.getLocal("itMetadata"), c.getLocal("pMetadata")),
-            c.setLocal("j_i64", c.i64_const(0)),
-            c.block(c.loop(
-                c.br_if(
-                    1,
-                    c.i64_eq(
-                        c.getLocal("j"),
-                        c.getLocal("n")
-                    )
-                ),
+            // c.setLocal("itIndex", c.getLocal("pIndex")),
+            // c.setLocal("itMetadata", c.getLocal("pMetadata")),
+            // c.setLocal("j_i64", c.i64_const(0)),
+            // c.setLocal("n_i64", c.i64_extend_i32_u(c.getLocal("n"))),
+            // c.block(c.loop(
+            //     c.br_if(
+            //         1,
+            //         c.i64_eq(
+            //             c.getLocal("j_i64"),
+            //             c.getLocal("n_i64")
+            //         )
+            //     ),
 
-                // mem[itIndex] i32 --> i64
-                c.setLocal("bucketIdx", i64_extend_i32_u(c.i32_load(
-                    c.getLocal("itIndex")
-                ))),
+            //     // get mem[itIndex], i32 --> i64
+            //     // c.setLocal("bucketIdx", c.i64_extend_i32_u(c.i32_load(
+            //     //     c.getLocal("itIndex")
+            //     // ))),
+            //     c.setLocal("bucketIdx", c.i32_load(
+            //         c.getLocal("itIndex")
+            //     )),
 
-                // j 和 mem[itIndex]拼接得到64位meta data
-                c.setLocal(
-                    "metadata",
-                    c.i64_or(
-                        // j: point index
-                        c.i64_shl(
-                            c.getLocal("j_i64"),
-                            c.i64_const(32)
-                        ),
-                        // mem[itIndex]: bucketIdx
-                        c.getLocal("bucketIdx")
-                    )
-                ),
-                // 从BucketOffset中获得存储meta data的位置,并把BucketOffset[bucketIdx]加8 bytes
-                c.setLocal(
-                    "pIdxBucketOffset",//point to BucketOffset i-th element
-                    c.i32_add(
-                        c.getLocal("pBucketOffset"),
-                        c.i32_mul(
+            //     // j 和 mem[itIndex]拼接得到64位meta data
+            //     c.setLocal(
+            //         "metadata",
+            //         c.i64_or(
+            //             // j: point index
+            //             c.i64_shl(
+            //                 c.getLocal("j_i64"),
+            //                 c.i64_const(32)
+            //             ),
+            //             c.i64_extend_i32_u(c.getLocal("bucketIdx"))
 
-                            c.getLocal("bucketIdx"),
-                            c.i32_const(4)
-                        )
-                    )
-                ),
+            //         )
+            //     ),
+            //     // 从BucketOffset中获得存储meta data的位置,并把BucketOffset[bucketIdx]加8 bytes
+            //     c.setLocal(
+            //         "pIdxBucketOffset",//point to BucketOffset i-th element
+            //         c.i32_add(
+            //             c.getLocal("pBucketOffset"),
+            //             c.i32_mul(
 
-                // 设置metadata[bucketIdx]的值
-                c.setLocal("tmp",
-                    c.i32_load(
-                        c.getLocal("pIdxBucketOffset")
-                    )),
-                c.i64_store(
-                    c.getLocal("tmp"),
-                    0,
-                    c.getLocal("metadata")
-                ),
-                // BucketOffset[bucketIdx]往后加8 bytes
-                c.i32_store(
-                    c.getLocal("pIdxBucketOffset"),
-                    0,
-                    c.i32_add(
-                        c.i32_const(8),
-                        c.setLocal("tmp")
-                    )
-                ),
+            //                 c.getLocal("bucketIdx"),
+            //                 c.i32_const(4)
+            //             )
+            //         )
+            //     ),
 
-                c.setLocal("itIndex", c.i32_add(c.getLocal("itIndex"), c.i32_const(4))),
-                c.setLocal("itMetadata", c.i32_add(c.getLocal("itMetadata"), c.i32_const(8))),//Metadata是64位
-                c.setLocal("j_i64", c.i64_add(c.getLocal("j_i64"), c.i64_const(1))),
-                c.br(0)
-            )),
+            //     // 设置metadata[bucketIdx]的值
+            //     c.setLocal("tmp",
+            //         c.i32_load(
+            //             c.getLocal("pIdxBucketOffset")
+            //         )),
+            //     c.i64_store(
+            //         c.getLocal("tmp"),
+            //         0,
+            //         c.getLocal("metadata")
+            //     ),
+            //     // BucketOffset[bucketIdx]往后加8 bytes
+            //     c.i32_store(
+            //         c.getLocal("pIdxBucketOffset"),
+            //         0,
+            //         c.i32_add(
+            //             c.i32_const(8),
+            //             c.getLocal("tmp")
+            //         )
+            //     ),
+
+            //     c.setLocal("itIndex", c.i32_add(c.getLocal("itIndex"), c.i32_const(4))),
+            //     c.setLocal("itMetadata", c.i32_add(c.getLocal("itMetadata"), c.i32_const(8))),//Metadata是64位
+            //     c.setLocal("j_i64", c.i64_add(c.getLocal("j_i64"), c.i64_const(1))),
+            //     c.br(0)
+            // )),
 
             // TODO: free memory
         );
@@ -2669,173 +2686,6 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
             )),
 
             c.call(prefix + "_add", c.getLocal("pTable"), c.getLocal("pAcc"), c.getLocal("pTable"))
-        );
-    }
-
-    function buildMyBatchAffineMergeBLS12381() {
-        // some bugs in batch inverse.
-        const f = module.addFunction(prefix + "_MyBatchAffineMergeBLS12381");
-        //console.log(prefixField); f1m
-        //console.log(prefix); g1m
-        f.addParam("pIn1", "i32");
-        f.addParam("pIn2", "i32");
-        f.addParam("n", "i32");
-        f.addParam("pOut", "i32");
-
-        f.addLocal("pAux", "i32");
-        f.addLocal("itIn1", "i32");
-        f.addLocal("itIn2", "i32");
-        f.addLocal("itAux", "i32");
-        f.addLocal("itOut", "i32");
-        f.addLocal("i", "i32");
-
-        const c = f.getCodeBuilder();
-
-        const tmp = c.i32_const(module.alloc(n8));
-        const tmp2 = c.i32_const(module.alloc(n8));
-
-        const Y2 = c.i32_const(module.alloc(n8));
-        const Y1 = c.i32_const(module.alloc(n8));
-        const X1 = c.i32_const(module.alloc(n8));
-        const M = c.i32_const(module.alloc(n8));
-        const X3 = c.i32_const(module.alloc(n8));
-        const Y3 = c.i32_const(module.alloc(n8));
-        const X1_square = c.i32_const(module.alloc(n8));
-        const X1_squareX1_square = c.i32_const(module.alloc(n8));
-        const X1_squareX1_squareX1_square = c.i32_const(module.alloc(n8));
-        const Y2_MINUS_Y1 = c.i32_const(module.alloc(n8));
-        const M_square = c.i32_const(module.alloc(n8));
-        const M_square_MINUS_X1 = c.i32_const(module.alloc(n8));
-        const M_square_MINUS_X1_X2 = c.i32_const(module.alloc(n8));
-        const X1_MINUS_X3 = c.i32_const(module.alloc(n8));
-        const X1_MINUS_X3_MUL_M = c.i32_const(module.alloc(n8));
-
-        // f.addCode(
-        //     c.call(prefixField + "_add", c.getLocal("itIn2"), c.getLocal("itIn2"), c.i32_add(c.getLocal("pOut"), c.i32_const(n8)))
-        // );
-        // f.addCode(
-        //     c.call(prefixField + "_add", c.getLocal("itIn2"), c.getLocal("itIn2"), c.getLocal("pOut"))
-        // );
-
-
-        f.addCode(
-            c.setLocal("pAux", c.i32_load(c.i32_const(0))),
-            c.setLocal("itAux", c.i32_load(c.i32_const(0))),
-            c.i32_store(
-                c.i32_const(0),
-                c.i32_add(
-                    c.getLocal("pAux"),
-                    c.i32_mul(c.getLocal("n"), c.i32_const(n8 * 2))
-                )
-            ),
-            c.setLocal("itIn1", c.getLocal("pIn1")),
-            c.setLocal("itIn2", c.getLocal("pIn2")),
-            c.setLocal("itOut", c.getLocal("pOut")),
-            c.setLocal("i", c.i32_const(0)),
-
-            c.block(c.loop(
-                c.br_if(1, c.i32_eq(c.getLocal("i"), c.getLocal("n"))),
-
-                // x2 - x1
-                c.call(prefixField + "_sub", c.getLocal("itIn1"), c.getLocal("itIn2"), c.getLocal("itAux")),
-                c.setLocal("itIn1", c.i32_add(c.getLocal("itIn1"), c.i32_const(n8 * 2))),
-                c.setLocal("itIn2", c.i32_add(c.getLocal("itIn2"), c.i32_const(n8 * 2))),
-                c.setLocal("itAux", c.i32_add(c.getLocal("itAux"), c.i32_const(n8))),
-                c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
-                c.br(0)
-            )),
-
-            // pAux-------itAux
-            c.call(
-                prefixField + "_batchInverse",
-                c.getLocal("pAux"),
-                c.i32_const(n8),
-                c.getLocal("n"),
-                c.getLocal("itAux"),
-                c.i32_const(n8)
-            ),
-
-
-            //c.setLocal("itAux", c.getLocal("pAux")),
-            c.setLocal("itIn1", c.getLocal("pIn1")),
-            c.setLocal("itIn2", c.getLocal("pIn2")),
-
-            c.setLocal("i", c.i32_const(0)),
-            c.block(c.loop(
-                c.br_if(1, c.i32_eq(c.getLocal("i"), c.getLocal("n"))),
-
-
-                c.if(
-                    c.call(prefixField + "_isZero", c.getLocal("itAux")),
-                    // m = 3x^2+a / 2y1.  
-                    // a==0 in BLS12381
-                    [
-                        ...c.call(
-                            prefixField + "_square",
-                            c.getLocal("itIn1"),
-                            X1_square
-                        ),
-                        ...c.call(
-                            prefixField + "_add",
-                            X1_square,
-                            X1_square,
-                            X1_squareX1_square,
-                        ),
-                        ...c.call(
-                            prefixField + "_add",
-                            X1_square,
-                            X1_squareX1_square,
-                            X1_squareX1_squareX1_square,
-                        ),
-                        ...c.call(
-                            prefixField + "_mul",
-                            X1_squareX1_squareX1_square,
-                            c.getLocal("itAux"),
-                            M,
-                        ),
-
-                    ],
-                    // m = y2-y1 / (x2-x1)
-                    [
-                        ...c.call(
-                            prefixField + "_sub",
-                            c.i32_add(c.getLocal("itIn2"), c.i32_const(n8)),
-                            c.i32_add(c.getLocal("itIn1"), c.i32_const(n8)),
-                            Y2_MINUS_Y1,
-                        ),
-                        ...c.call(
-                            prefixField + "_mul",
-                            Y2_MINUS_Y1,
-                            c.getLocal("itAux"),
-                            M
-                        ),
-
-                    ]
-                ),
-                // store x3  
-                // x3 = m^2 - x1 - x2
-
-                c.call(prefixField + "_square", M, M_square),
-                c.call(prefixField + "_sub", M_square, c.getLocal("itIn1"), M_square_MINUS_X1),
-                c.call(prefixField + "_sub", M_square_MINUS_X1, c.getLocal("itIn2"), c.getLocal("itOut")),
-                // store y3
-                // y3 = m * (x1 - x3) - y1
-                c.call(prefixField + "_sub", c.getLocal("itIn1"), c.getLocal("itOut"), X1_MINUS_X3),
-                c.call(prefixField + "_mul", M, X1_MINUS_X3, X1_MINUS_X3_MUL_M),
-                c.call(prefixField + "_sub", X1_MINUS_X3_MUL_M, c.i32_add(c.getLocal("itIn1"), c.i32_const(n8)), c.i32_add(c.getLocal("itOut"), c.i32_const(n8))),
-
-                c.setLocal("itIn1", c.i32_add(c.getLocal("itIn1"), c.i32_const(n8 * 2))),
-                c.setLocal("itIn2", c.i32_add(c.getLocal("itIn2"), c.i32_const(n8 * 2))),
-                c.setLocal("itAux", c.i32_add(c.getLocal("itAux"), c.i32_const(n8))),
-                c.setLocal("itOut", c.i32_add(c.getLocal("itOut"), c.i32_const(n8 * 2))),
-                c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
-                c.br(0)
-            )),
-
-            c.i32_store(
-                c.i32_const(0),
-                c.getLocal("pAux")
-            )
         );
     }
 
