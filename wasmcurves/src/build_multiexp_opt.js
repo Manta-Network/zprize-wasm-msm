@@ -82,7 +82,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                 c.getLocal("pArr"),
                 c.i32_shl(
                     c.getLocal("index"),
-                    c.i32_const(3),
+                    c.i32_const(2),
                 ),
             )),
         )
@@ -104,7 +104,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                     c.getLocal("pArr"),
                     c.i32_shl(
                         c.getLocal("index"),
-                        c.i32_const(3),
+                        c.i32_const(2),
                     ),
                 ),
                 c.getLocal("value"),
@@ -2097,6 +2097,56 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         );
     }
 
+    // Tests if storeI32 and loadI32 is correct.
+    function buildTestStoreLoadI32() {
+        const f = module.addFunction(fnName + "_testLoadStoreI32");
+        // Pointer to a 1-d array with i32 elements
+        f.addParam("pArr", "i32");
+        // Length of the input vector
+        f.addParam("length", "i32");
+        // Index
+        f.addLocal("i", "i32");
+        // Temporary value
+        f.addLocal("tmp", "i32");
+        const c = f.getCodeBuilder();
+        f.addCode(
+            // for(i=0; i<length; i++) {
+            //      tmp = pArr[i];
+            //      tmp += i;
+            //      pArr[i] = tmp;
+            // }
+            c.setLocal("i", c.i32_const(0)),
+            c.block(c.loop(
+                c.br_if(
+                    1,
+                    c.i32_eq(
+                        c.getLocal("i"),
+                        c.getLocal("length"),
+                    )
+                ),
+                c.setLocal("tmp",
+                    c.call(fnName + "_loadI32",
+                        c.getLocal("pArr"),
+                        c.getLocal("i"),
+                    ),
+                ),
+                c.setLocal("tmp",
+                    c.i32_add(
+                        c.getLocal("tmp"),
+                        c.getLocal("i"),
+                    ),
+                ),
+                c.call(fnName + "_storeI32",
+                    c.getLocal("pArr"),
+                    c.getLocal("i"),
+                    c.getLocal("tmp"),
+                ),
+                c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
+                c.br(0),
+            )),
+        )
+    }
+
     buildAddAssignI32InMemoryUncheck();
     buildAllocateMemory();
     buildInitializeI32();
@@ -2105,7 +2155,6 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     buildStoreI64();
     buildLoadI32();
     buildStoreI32();
-
     // buildAddAffinePoints();
     // buildComputeSchedule();
     // buildConstructAdditionChains();
@@ -2122,8 +2171,10 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     // buildReduceTable();
     // buildReduceBuckets();
     // buildSinglePointComputeSchedule();
-
     //module.exportFunction(fnName);
     //module.exportFunction(fnName + "_chunk");
     module.exportFunction(fnName + "_organizeBucketsOneRound");
+
+    buildTestStoreLoadI32();
+    module.exportFunction(fnName + "_testLoadStoreI32");
 };
