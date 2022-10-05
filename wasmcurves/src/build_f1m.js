@@ -992,7 +992,7 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
 
 
     module.exportFunction(intPrefix + "_copy", prefix+"_copy");
-    module.exportFunction(intPrefix + "_zero", prefix+"_zero"); 
+    module.exportFunction(intPrefix + "_zero", prefix+"_zero");
     module.exportFunction(intPrefix + "_isZero", prefix+"_isZero");
     module.exportFunction(intPrefix + "_eq", prefix+"_eq");
 
