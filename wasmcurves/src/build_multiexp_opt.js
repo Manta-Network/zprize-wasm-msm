@@ -527,8 +527,8 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     //              [(3, 0), (1, 0), (0, 0), 
     //              (0, 1), (1, 1), (3, 1), (2, 1), (4, 1),
     //              (0, 2), (3, 2)] 
-    function buildOrganizeBuckets() {
-        const f = module.addFunction(fnName + "_OrganizeBuckets");
+    function buildOrganizeBucketsOneRound() {
+        const f = module.addFunction(fnName + "_OrganizeBucketsOneRound");
         const c = f.getCodeBuilder();
         f.addParam("pPointSchedule", "i32");
         f.addParam("n", "i32");// number of points
@@ -539,13 +539,13 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
 
 
         // // Auxiliary array, should be initailize to 0.
-        // f.addParam("pTableSize", "i32");// size:2^c * 32bit. The number of points in each bucket
-        // f.addParam("pBucketOffset", "i32");// size: 2^c * 32 bit. The offset of the i-th bucket in pMetadata
-        // f.addParam("pIndex", "i32");// size:  N * 32bit. Store the number of the bucket to which the i-th point belongs
+        f.addParam("pTableSize", "i32");// size:2^c * 32bit. The number of points in each bucket
+        f.addParam("pBucketOffset", "i32");// size: 2^c * 32 bit. The offset of the i-th bucket in pMetadata
+        f.addParam("pIndex", "i32");// size:  N * 32bit. Store the number of the bucket to which the i-th point belongs
 
         // // for debug
-        // f.addParam("debug_32", "i32");
-        // f.addParam("debug_64", "i32");
+        f.addParam("debug_32", "i32");
+        f.addParam("debug_64", "i32");
 
 
         f.addLocal("pointIdx", "i32");
@@ -561,6 +561,8 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addLocal("tmp1", "i32");
         f.addLocal("tmp2", "i32");
         f.addLocal("tmp3", "i32");
+        f.addLocal("tmp4", "i32");
+        f.addLocal("tmp5", "i32");
 
         // array iterator
         f.addLocal("itTableSize", "i32");
@@ -653,44 +655,18 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                     )
                 ),
                 // should implement pBucketOffset[j] = pBucketOffset[j-1] + pTableSize[j] 
-                c.setLocal(
-                    "tmp3",
-                    c.i32_mul(
-                        c.i32_load(c.getLocal("itTableSize")),
-                        c.i32_const(8)// 8byte per elemnt in metadata
-                    )
-                ),
-                c.setLocal(
-                    "tmp2",
-                    c.i32_add(
-                        c.getLocal("tmp3"),
-                        //c.i32_const(1),
-                        c.i32_load(c.i32_sub(c.getLocal("itBucketOffset"), c.i32_const(4)))// error
-                    )
-                ),
-                c.setLocal(
-                    "tmp1",
-                    c.i32_load(
-                        c.getLocal("tmp2")
-                    )
-                ),
                 c.i32_store(
                     c.getLocal("itBucketOffset"),
-                    c.getLocal("tmp1"),
+                    //c.i32_load(
+                        c.i32_add(
+                            c.i32_mul(
+                                c.i32_load(c.getLocal("itTableSize")),
+                                c.i32_const(8)// 8byte per elemnt in metadata
+                            ),
+                            c.i32_load(c.i32_sub(c.getLocal("itBucketOffset"), c.i32_const(4))),
+                        )
+                    //)
                 ),
-
-                // c.i32_store(
-                //     c.getLocal("itBucketOffset"),
-                //     c.i32_load(
-                //         c.i32_add(
-                //             c.i32_mul(
-                //                 c.i32_load(c.getLocal("itTableSize")),
-                //                 c.i32_const(8)// 8byte per elemnt in metadata
-                //             ),
-                //             c.i32_load(c.i32_sub(c.getLocal("itBucketOffset"), c.i32_const(4))),
-                //         )
-                //     )
-                // ),
                 c.setLocal("itTableSize", c.i32_add(c.getLocal("itTableSize"), c.i32_const(4))),
                 c.setLocal("itBucketOffset", c.i32_add(c.getLocal("itBucketOffset"), c.i32_const(4))),
                 c.setLocal("j", c.i32_add(c.getLocal("j"), c.i32_const(1))),
@@ -699,80 +675,76 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
 
             // The following code computes pMetadata.
             // 再便利一遍所有的点，构建meta data ，同时对meta data进行排序（根据itBucketOffset放入相应位置）
-            // c.setLocal("itIndex", c.getLocal("pIndex")),
-            // c.setLocal("itMetadata", c.getLocal("pMetadata")),
-            // c.setLocal("j_i64", c.i64_const(0)),
-            // c.setLocal("n_i64", c.i64_extend_i32_u(c.getLocal("n"))),
-            // c.block(c.loop(
-            //     c.br_if(
-            //         1,
-            //         c.i64_eq(
-            //             c.getLocal("j_i64"),
-            //             c.getLocal("n_i64")
-            //         )
-            //     ),
+            c.setLocal("itIndex", c.getLocal("pIndex")),
+            c.setLocal("itMetadata", c.getLocal("pMetadata")),
+            c.setLocal("j_i64", c.i64_const(0)),
+            c.setLocal("n_i64", c.i64_extend_i32_u(c.getLocal("n"))),
+            c.block(c.loop(
+                c.br_if(
+                    1,
+                    c.i64_eq(
+                        c.getLocal("j_i64"),
+                        c.getLocal("n_i64")
+                    )
+                ),
 
-            //     // get mem[itIndex], i32 --> i64
-            //     // c.setLocal("bucketIdx", c.i64_extend_i32_u(c.i32_load(
-            //     //     c.getLocal("itIndex")
-            //     // ))),
-            //     c.setLocal("bucketIdx", c.i32_load(
-            //         c.getLocal("itIndex")
-            //     )),
+                // get mem[itIndex], i32 --> i64
+                c.setLocal("bucketIdx", c.i32_load(
+                    c.getLocal("itIndex")
+                )),
 
-            //     // j 和 mem[itIndex]拼接得到64位meta data
-            //     c.setLocal(
-            //         "metadata",
-            //         c.i64_or(
-            //             // j: point index
-            //             c.i64_shl(
-            //                 c.getLocal("j_i64"),
-            //                 c.i64_const(32)
-            //             ),
-            //             c.i64_extend_i32_u(c.getLocal("bucketIdx"))
+                // j 和 mem[itIndex]拼接得到64位meta data
+                c.setLocal(
+                    "metadata",
+                    c.i64_or(
+                        // j: point index
+                        c.i64_shl(
+                            c.getLocal("j_i64"),
+                            c.i64_const(32)
+                        ),
+                        c.i64_extend_i32_u(c.getLocal("bucketIdx"))
 
-            //         )
-            //     ),
-            //     // 从BucketOffset中获得存储meta data的位置,并把BucketOffset[bucketIdx]加8 bytes
-            //     c.setLocal(
-            //         "pIdxBucketOffset",//point to BucketOffset i-th element
-            //         c.i32_add(
-            //             c.getLocal("pBucketOffset"),
-            //             c.i32_mul(
+                    )
+                ),
+                // 从BucketOffset中获得存储meta data的位置,并把BucketOffset[bucketIdx]加8 bytes
+                c.setLocal(
+                    "pIdxBucketOffset",//point to BucketOffset i-th element
+                    c.i32_add(
+                        c.getLocal("pBucketOffset"),
+                        c.i32_mul(
 
-            //                 c.getLocal("bucketIdx"),
-            //                 c.i32_const(4)
-            //             )
-            //         )
-            //     ),
+                            c.getLocal("bucketIdx"),
+                            c.i32_const(4)
+                        )
+                    )
+                ),
 
-            //     // 设置metadata[bucketIdx]的值
-            //     c.setLocal("tmp",
-            //         c.i32_load(
-            //             c.getLocal("pIdxBucketOffset")
-            //         )),
-            //     c.i64_store(
-            //         c.getLocal("tmp"),
-            //         0,
-            //         c.getLocal("metadata")
-            //     ),
-            //     // BucketOffset[bucketIdx]往后加8 bytes
-            //     c.i32_store(
-            //         c.getLocal("pIdxBucketOffset"),
-            //         0,
-            //         c.i32_add(
-            //             c.i32_const(8),
-            //             c.getLocal("tmp")
-            //         )
-            //     ),
+                // 设置metadata[bucketIdx]的值
+                c.setLocal("tmp",
+                    c.i32_load(
+                        c.getLocal("pIdxBucketOffset")
+                    )),
+                c.i64_store(
+                    c.getLocal("tmp"),
+                    0,
+                    c.getLocal("metadata")
+                ),
+                // BucketOffset[bucketIdx]往后加8 bytes
+                c.i32_store(
+                    c.getLocal("pIdxBucketOffset"),
+                    0,
+                    c.i32_add(
+                        c.i32_const(8),
+                        c.getLocal("tmp")
+                    )
+                ),
 
-            //     c.setLocal("itIndex", c.i32_add(c.getLocal("itIndex"), c.i32_const(4))),
-            //     c.setLocal("itMetadata", c.i32_add(c.getLocal("itMetadata"), c.i32_const(8))),//Metadata是64位
-            //     c.setLocal("j_i64", c.i64_add(c.getLocal("j_i64"), c.i64_const(1))),
-            //     c.br(0)
-            // )),
+                c.setLocal("itIndex", c.i32_add(c.getLocal("itIndex"), c.i32_const(4))),
+                c.setLocal("itMetadata", c.i32_add(c.getLocal("itMetadata"), c.i32_const(8))),//Metadata是64位
+                c.setLocal("j_i64", c.i64_add(c.getLocal("j_i64"), c.i64_const(1))),
+                c.br(0)
+            )),
 
-            // TODO: free memory
         );
     }
 
@@ -1126,9 +1098,9 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addLocal("y1", "i32");
         f.addLocal("x2", "i32");
         f.addLocal("y2", "i32");
-
-        const m = c.i32_const(module.alloc(n8));
-        const X3 = c.i32_const(module.alloc(n8));
+        const c = f.getCodeBuilder();
+        const m = c.i32_const(module.alloc(n8g));
+        const X3 = c.i32_const(module.alloc(n8g));
 
         f.addCode(
             // alloc memory
@@ -2197,27 +2169,28 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         );
     }
 
-    buildAddAffinePoints();
-    buildAddAssignI32InMemoryUncheck();
-    buildAllocateMemory();
-    buildComputeSchedule();
-    buildConstructAdditionChains();
-    buildCountBits();
-    buildEvaluateAdditionChains();
-    buildGetChunk();
-    buildGetNumBuckets();
-    buildGetNumChunks();
-    buildGetOptimalChunkWidth();
-    buildInitializeI32();
-    buildInitializeI64();
-    buildMultiexp();
-    buildMutiexpChunks();
-    buildOrganizeBuckets();
-    buildRearrangePoints();
-    buildReduceTable();
-    buildReduceBuckets();
-    buildSinglePointComputeSchedule();
+    // buildAddAffinePoints();
+    // buildAddAssignI32InMemoryUncheck();
+    // buildAllocateMemory();
+    // buildComputeSchedule();
+    // buildConstructAdditionChains();
+    // buildCountBits();
+    // buildEvaluateAdditionChains();
+    // buildGetChunk();
+    // buildGetNumBuckets();
+    // buildGetNumChunks();
+    // buildGetOptimalChunkWidth();
+    // buildInitializeI32();
+    // buildInitializeI64();
+    // buildMultiexp();
+    // buildMutiexpChunks();
+    buildOrganizeBucketsOneRound();
+    // buildRearrangePoints();
+    // buildReduceTable();
+    // buildReduceBuckets();
+    // buildSinglePointComputeSchedule();
 
-    module.exportFunction(fnName);
-    module.exportFunction(fnName + "_chunk");
+    //module.exportFunction(fnName);
+    //module.exportFunction(fnName + "_chunk");
+    module.exportFunction(fnName + "_OrganizeBucketsOneRound");
 };

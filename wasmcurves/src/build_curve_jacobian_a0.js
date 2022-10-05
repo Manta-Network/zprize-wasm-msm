@@ -20,7 +20,7 @@
 const buildTimesScalarNAF = require("./build_timesscalarnaf");
 //const buildTimesScalar = require("./build_timesscalar");
 const buildBatchConvertion = require("./build_batchconvertion");
-const buildMultiexp = require("./build_multiexp");
+const buildMultiexp = require("./build_multiexp_opt");
 
 module.exports = function buildCurve(module, prefix, prefixField, pB) {
 
