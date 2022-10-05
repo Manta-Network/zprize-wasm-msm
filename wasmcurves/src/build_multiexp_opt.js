@@ -658,13 +658,13 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                 c.i32_store(
                     c.getLocal("itBucketOffset"),
                     //c.i32_load(
-                        c.i32_add(
-                            c.i32_mul(
-                                c.i32_load(c.getLocal("itTableSize")),
-                                c.i32_const(8)// 8byte per elemnt in metadata
-                            ),
-                            c.i32_load(c.i32_sub(c.getLocal("itBucketOffset"), c.i32_const(4))),
-                        )
+                    c.i32_add(
+                        c.i32_mul(
+                            c.i32_load(c.getLocal("itTableSize")),
+                            c.i32_const(8)// 8byte per elemnt in metadata
+                        ),
+                        c.i32_load(c.i32_sub(c.getLocal("itBucketOffset"), c.i32_const(4))),
+                    )
                     //)
                 ),
                 c.setLocal("itTableSize", c.i32_add(c.getLocal("itTableSize"), c.i32_const(4))),
@@ -764,7 +764,9 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         // Length of the input point vector
         f.addParam("numPoints", "i32");
         // Number of buckets
-        f.addParam("numBucket", "i32");
+        f.addParam("numBuckets", "i32");
+        // Max bucket bits
+        f.addParam("maxBucketBits", "i32");
         // A 1d array of point schedules as the addition chains. Shape:
         f.addParam("pRes", "i32");
 
@@ -985,7 +987,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         //f.addParam("maxCount", "i32"); // max point number in a bucket
         //f.addParam("pTableSize", "i32"); //bucket_counts, number of points in a bucket
         f.addParam("pBitoffset", "i32");
-        f.addParam("numPoint", "i32"); // number of points
+        f.addParam("numPoints", "i32"); // number of points
         f.addParam("handle_edge_cases", "i32"); // bool type
         f.addParam("max_bucket_bits", "i32");
         f.addParam("pPoint", "i32");// original point vectors
@@ -1462,13 +1464,259 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         );
     }
 
+    // Given a number `n`, counts the number of significant bits.
+    // For example, if n = 5 (i.e., 00000000000000000000000000000101), the output is 2
+    function buildGetMSB() {
+        const f = module.addFunction(fnName + "_getMsb");
+        f.addParam("n", "i32");
+        c.setReturnType("i32");
+        c.i32_sub(
+            c.i32_const(31),
+            c.i32_clz(c.getLocal("n")),
+        );
+    }
+
     // TODO
     function buildReduceBuckets() {
         const f = module.addFunction(fnName + "_reduceBuckets");
+        // Pointer to the input point vector
+        f.addParam("pPoints", "i32");
+        // Pointer to a 1-d array of point schedules for a specific round
+        f.addParam("pPointSchedule", "i32");
+        // TODO. Update interface
+        f.addParam("maxCount", "i32");
+        // Pointer to a 1d array of number of points in each bucket for a specific
+        // round
+        // TODO: Consider not cache this. This keeps changing for each reduce_bucket. It should be computed on-the-fly in construct_addition_chain
+        f.addParam("pTableSize", "i32");
+        // Pointer to a 1d array of the starting index of the i^th bucket
+        f.addParam("pBitOffset", "i32");
+        // Length of the input point vector
+        f.addParam("numPoints", "i32");
+        // Number of buckets
+        f.addParam("numBuckets", "i32");
+        // Pointer to a 1-d array of point schedules for a specific round
+        // This stores the processed point schedules from `ConstructAdditionChains`.
+        f.addParam("pPointScheduleAlt", "i32");
+        // Pointer to a 1-d array of G1 points as the scratch space. Lengh: numPoints
+        f.addParam("pPointPairs1", "i32");
+        // Pointer to a 1-d array of G1 points as the scratch space. Lengh: numPoints
+        f.addParam("pPointPairs2", "i32");
+        // Pointer to the output buckets
+        f.addParam("pOutputBuckets", "i32");
+        // Max bucket bits
+        f.addLocal("maxBucketBits", "i32");
+        //
+        f.addLocal("start", "i32");
+        // Index
+        f.addLocal("i", "i32");
+        // Index
+        f.addLocal("j", "i32");
+        //
+        f.addLocal("pointsInRound", "i32");
+        // &pBitOffset[i+1]
+        f.addLocal("pBitOffsetIPlusOne", "i32");
+        // 
+        f.addLocal("numBits", "i32");
+        //
+        f.addLocal("pCount", "i32");
+        // Number of points in a single bucket
+        f.addLocal("newBucketCount", "i32");
+        //
+        f.addLocal("pCurrentOffset", "i32");
+        // Indicator
+        f.addLocal("hasEntry", "i32");
+        c.setReturnType("i32");
         const c = f.getCodeBuilder();
         f.addCode(
-
-
+            c.call(prefix + "_ConstructAdditionChains",
+                c.getLocal("pPointSchedule"),
+                c.getLocal("maxCount", "i32"),
+                c.getLocal("pTableSize", "i32"),
+                c.getLocal("pBitOffset", "i32"),
+                c.getLocal("numPoints", "i32"),
+                c.getLocal("numBuckets", "i32"),
+                c.getLocal("maxBucketBits", "i32"),
+                c.getLocal("pPointScheduleAlt", "i32"),
+            ),
+            c.if(
+                c.i32_eq(c.getLocal("maxBucketBits"), c.i32_const(0)),
+                c.ret(c.getLocal("pPointPairs1")),
+            ),
+            c.call(prefix + "_EvaluateAdditionChains",
+                c.getLocal("pBitOffset"),
+                c.getLocal("numPoints"),
+                c.i32_const(0), // Default for handling edge cases
+                c.getLocal("maxBucketBits"),
+                c.getLocal("pPoints"),
+                c.getLocal("pPointScheduleAlt"),
+                c.getLocal("pPointPairs1"),
+            ),
+            // The following code updates the array pointed by pBitOffset
+            // start = 0;
+            // for (i = 0; i < maxBucketBits; i++) {
+            //     pBitOffsetIPlusOne = pBitOffset + (i+1)*4
+            //     const uint32_t pointsInRound = 
+            //       (numPoints - *pBitOffsetIPlusOne) >> i;
+            //     start = numPoints - pointsInRound;
+            //     *pBitOffsetIPlusOne = start + pointsInRound / 2;
+            // }
+            c.setLocal("start", c.i32_const(0)),
+            c.setLocal("i", c.i32_const(0)),
+            c.block(c.loop(
+                c.br_if(
+                    1,
+                    c.i32_eq(
+                        c.getLocal("i"),
+                        c.getLocal("maxBucketBits")
+                    )
+                ),
+                c.setLocal("pBitOffsetIPlusOne",
+                    c.i32_add(
+                        c.getLocal("pBitOffset"),
+                        c.i32_shl(
+                            c.i32_add(c.getLocal("i"), c.i32_const(1)),
+                            2,
+                        ),
+                    ),
+                ),
+                c.setLocal("pointsInRound",
+                    c.i32_shr_u(
+                        c.i32_sub(
+                            c.getLocal("numPoints"),
+                            c.i32_load(c.getLocal("pBitOffsetIPlusOne")),
+                        ),
+                        c.getLocal("i"),
+                    ),
+                ),
+                c.setLocal("start",
+                    c.i32_sub(
+                        c.getLocal("numPoints"),
+                        c.getLocal("pointsInRound"),
+                    ),
+                ),
+                c.i32_store(
+                    c.getLocal("pBitOffsetIPlusOne"),
+                    s.i32_add(
+                        c.getLocal("start"),
+                        c.i32_shr_u(
+                            c.getLocal("pointsInRound"),
+                            c.i32_const(1),
+                        ),
+                    ),
+                ),
+                c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
+                c.br(0),
+            )),
+            // Iterate over each bucket. Identify how many remaining points there are, and compute their point schedules
+            // numPoints = 0;
+            // for (i = 0; i < numBuckets; ++i) {
+            //     pCount = &pBucketCounts[i];
+            //     numBits = getMsb(*pCount) + 1;
+            //     newBucketCount = 0;
+            //     for (j = 0; j < numBits; ++j) {
+            //         pCurrentOffset = &pBitOffsets[j];
+            //         hasEntry = ((count >> j) & 1) == 1;
+            //         if (hasEntry) {
+            //             pPointScheduleAlt[numPoints] = (*pCurrentOffset << 32) + i;
+            //             ++numPoints;
+            //             ++newBucketCount;
+            //             ++*pCurrentOffset;
+            //         }
+            //     }
+            //     *pCount = newBucketCount;
+            // }
+            c.setLocal(c.getLocal("numPoints"), c.i32_const(0)),
+            c.setLocal("i", c.i32_const(0)),
+            c.block(c.loop(
+                c.br_if(
+                    1,
+                    c.i32_eq(c.getLocal("i"), c.getLocal("numBuckets")),
+                ),
+                c.setLocal("pCount",
+                    c.i32_add(
+                        c.getLocal("pBucketCounts"),
+                        c.i32_shl(
+                            c.getLocal("i"),
+                            c.i32_const(2),
+                        ),
+                    ),
+                ),
+                c.setLocal("numBits",
+                    c.i32_add(
+                        c.call(prefix + "_getMsb", c.i32_load(c.getLocal("pCount"))),
+                        c.i32_const(1),
+                    ),
+                ),
+                c.setLocal("newBucketCount", c.i32_const(0)),
+                c.setLocal("j", c.i32_const(0)),
+                c.block(c.loop(
+                    c.br_if(
+                        1,
+                        c.getLocal("numBits"),
+                    ),
+                    c.setLocal("pCurrentOffset",
+                        c.i32_add(
+                            c.getLocal("pBitOffsets"),
+                            c.i32_shl(
+                                c.getLocal("j"),
+                                c.i32_const(2),
+                            ),
+                        ),
+                    ),
+                    c.if(
+                        c.i32_eq(
+                            c.i32_and(
+                                c.i32_shr_u(
+                                    c.getLocal("count"),
+                                    c.getLocal("j"),
+                                ),
+                                c.i32_const(1),
+                            ),
+                            c.i32_const(1),
+                        ),
+                        [
+                            ...c.i64_store(
+                                c.i32_add(
+                                    c.getLocal("pPointScheduleAlt"),
+                                    c.i32_shl(
+                                        c.getLocal("numPoints"),
+                                        c.i32_const(3),
+                                    ),
+                                ),
+                                c.i64_add(
+                                    c.i64_shl(
+                                        c.i64_extend_i32_u(c.i32_load(c.getLocal("pCurrentOffset"))),
+                                        c.i64_const(32),
+                                    ),
+                                    c.i64_extend_i32_u(c.getLocal("i")),
+                                ),
+                            ),
+                            ...c.setLocal("numPoints", c.i32_add(c.getLocal("numPoints"), c.i32_const(1))),
+                            ...c.setLocal("newBucketCount", c.i32_add(c.getLocal("newBucketCount"), c.i32_const(1))),
+                            ...c.setLocal(c.getLocal("pCurrentOffset"), c.i32_add(c.i32_load(c.getLocal("pCurrentOffset")), c.i32_const(1))),
+                        ]
+                    ),
+                    c.setLocal("j", c.i32_add(c.getLocal("j"), c.i32_const(1))),
+                    c.br(0),
+                )),
+                c.i32_store(c.getLocal("pCount"), c.getLocal("newBucketCount")),
+                c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
+                c.br(0),
+            )),
+            c.ret(c.call(prefix + "_reduceBuckets",
+                c.getLocal("pPointPairs1"),
+                c.getLocal("pPointScheduleAlt"),
+                c.getLocal("maxCount"),
+                c.getLocal("pTableSize"), // TODO
+                c.getLocal("pBitOffset"),
+                c.getLocal("numPoints"),
+                c.getLocal("numBuckets"),
+                c.getLocal("pPointSchedule"),
+                c.getLocal("pPointPairs2"),
+                c.getLocal("pPointPairs1"),
+                c.getLocal("pOutputBuckets"),
+            )),
         );
     }
 
@@ -1555,7 +1803,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
             ),
             // for (int roundIdx = 0; roundIdx < numChunks; roundIdx++) {
             //     reduce_buckets(
-            //         pPointSchedule,
+            //         pPointSchedule[roundIdx*numPoints],
             //         numPoints,
             //         pPoints,
             //         numChunks,
@@ -1584,7 +1832,16 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                 ),
                 c.call(prefix + "_reduceBuckets",
                     c.i32_add(
-                        c.getLocal("pPointSchedule"),
+                        c.i32_add(
+                            c.getLocal("pPointSchedule"),
+                            c.i32_shl(
+                                c.i32_mul(
+                                    c.getLocal("roundIdx"),
+                                    c.getLocal("numPoints"),
+                                ),
+                                3,
+                            ),
+                        ),
                         c.i32_shl(
                             c.i32_mul(
                                 c.getLocal("roundIdx"),
