@@ -799,6 +799,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                 c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
                 c.br(0),
             )),
+            c.setLocal(c.i32_const(0), c.getLocal("pBucketCount")),
         );
     }
 
