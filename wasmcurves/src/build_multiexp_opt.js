@@ -869,7 +869,18 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         );
     }
 
-    // TODO: Add Documents
+    // Given the pointer `pPointSchedule` to the sorted point schedules of the current round,
+    // `numPoints` as the length of the input point vector, `bucketNum` as the number
+    // of buckets, this function construct addition chains stores the results in the vector 
+    // pointed to by `pRes`.
+    // For example:
+    //      Input: [(0,0), (1,0), (2,0), (8,1), (9,1), (3,2), (4,2), (5,2), (6,2), (7,2)]. 
+    //              Here, (i,j) indicates the i^th point in the j^th buckets.
+    //      Output: Addition chains
+    //              [(0,0), (3,2),
+    //               (1,0), (2,0),
+    //               (8,1), (9,1),
+    //               (4,2), (5,2), (6,2), (7,2)]
     function buildConstructAdditionChains() {
         const f = module.addFunction(fnName + "_ConstructAdditionChains");
         // Pointer to 1d array of point schedules of a specific round
@@ -900,7 +911,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addLocal("current_offset", "i32");
         f.addLocal("k_end", "i32");
         f.addLocal("schedule", "i64"); // meta data
-        f.addLocal("pResPointOffset", "i32");// pBitoffsetCopy中的值，也就是对应于pRes在哪
+        f.addLocal("pResPointOffset", "i32");
         f.addLocal("address", "i32");
         // Array
         f.addLocal("pBitoffsetCopy", "i32");
@@ -912,7 +923,6 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         const c = f.getCodeBuilder();
         f.addCode(
             // alloc memery
-            // pBitoffsetCopy可以被释放
             c.setLocal("pBitoffsetCopy", c.i32_load(c.i32_const(0))),
             c.i32_store(
                 c.i32_const(0),
@@ -958,24 +968,17 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                     c.i32_add(
                         c.i32_mul(
                             c.i32_load(c.getLocal("itBitoffet")),
-                            c.i32_const(8) // 8 byte per element in pRes
+                            c.i32_const(8)
                         ),
                         c.getLocal("pRes")
                     )
                 ),
-                
-
                 c.setLocal("itBitoffetCopy", c.i32_add(c.getLocal("itBitoffetCopy"), c.i32_const(4))),
                 c.setLocal("itBitoffet", c.i32_add(c.getLocal("itBitoffet"), c.i32_const(4))),
                 c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
                 c.br(0)
             )),
             
-            
-            
-
-
-
             // Loop over all bucket
             c.setLocal("i", c.i32_const(0)),
             c.setLocal("itTableSize", c.getLocal("pTableSize")),
@@ -989,14 +992,14 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                     )
                 ),
                 // process i-th bucket
-                c.setLocal(// 当前的桶有多少point
+                c.setLocal(// the number of points in the current bucket 
                     "count",
                     c.i32_load(
                         c.getLocal("itTableSize")
                     )
                 ),
 
-                c.setLocal(// count占了几位
+                c.setLocal(// the number of bit of count
                     "num_bits",
                     c.i32_sub(
                         c.i32_const(32),
@@ -1016,7 +1019,6 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                             c.getLocal("num_bits")
                         )
                     ),
-
                     c.setLocal(
                         "address",
                         c.i32_add(
@@ -1060,7 +1062,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                             )
                         ),
                         c.setLocal(
-                            "pResPointOffset",//pBitoffsetCopy中的值，也就是对应于pRes在哪
+                            "pResPointOffset",// point to pRes
                             c.i32_load(// bitOffsetCopy[bucket index]
                                 c.getLocal(
                                     "address",
@@ -1072,10 +1074,10 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                             c.getLocal("address"),
                             c.i32_add(
                                 c.getLocal("pResPointOffset"),
-                                c.i32_const(8) //一个元素8 byte
+                                c.i32_const(8)
                             )
                         ),
-                        // pRes[xxx] = meta data
+                        // set pRes
                         c.i64_store(
                             c.getLocal("pResPointOffset"),
                             c.getLocal("schedule")
