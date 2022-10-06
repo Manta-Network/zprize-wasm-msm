@@ -248,6 +248,111 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         )
     }
 
+    // Gets the maximum in an i32 array pointed by `pArr` with length `length`.
+    function buildMaxArrayValue() {
+        const f = module.addFunction(fnName + "_maxArrayValue");
+        // Pointer to an array
+        f.addParam("pArr", "i32");
+        // Length of the array
+        f.addParam("length", "i32");
+        f.setReturnType("i32");
+        // Max value
+        f.addLocal("max", "i32");
+        // Index
+        f.addLocal("i", "i32");
+        // Temporary value
+        f.addLocal("tmp", "i32");
+        const c = f.getCodeBuilder();
+        f.addCode(
+            // max = 0
+            // for (i = 0; i < length; i++) {
+            //      if(pArr[i] > max) {
+            //          max = pArr[i]
+            //      }
+            // }
+            c.setLocal("max", c.i32_const(0)),
+            c.setLocal("i", c.i32_const(0)),
+            c.block(c.loop(
+                c.br_if(1,
+                    c.i32_eq(
+                        c.getLocal("i"),
+                        c.getLocal("length"),
+                    ),
+                ),
+                c.setLocal("tmp",
+                    c.call(fnName + "_loadI32",
+                        c.getLocal("pArr"),
+                        c.getLocal("i"),
+                    ),
+                ),
+                c.if(
+                    c.i32_gt_s(
+                        c.getLocal("tmp"),
+                        c.getLocal("max"),
+                    ),
+                    c.setLocal("max", c.getLocal("tmp")),
+                ),
+                c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
+                c.br(0),
+            )),
+            c.getLocal("max"),
+        );
+    }
+
+    // Copies data from `pInputArr` to `pOutputArr`
+    function buildCopyArray() {
+        const f = module.addFunction(fnName + "_copyArray");
+        // Pointer to the input array
+        f.addParam("pInputArr", "i32");
+        // Length of the array
+        f.addParam("length", "i32");
+        // Pointer to the output array
+        f.addParam("pOutputArr", "i32");
+        // Index
+        f.addLocal("i", "i32");
+        const c = f.getCodeBuilder();
+        f.addCode(
+            // for (i = 0; i < length; i++) {
+            //      pOutputArr[i] = pInputArr[i]
+            // }
+            c.setLocal("i", c.i32_const(0)),
+            c.block(c.loop(
+                c.br_if(1,
+                    c.i32_eq(
+                        c.getLocal("i"),
+                        c.getLocal("length"),
+                    ),
+                ),
+                c.call(fnName + "_storeI32",
+                    c.getLocal("pOutputArr"),
+                    c.getLocal("i"),
+                    c.call(fnName + "_loadI32",
+                        c.getLocal("pInputArr"),
+                        c.getLocal("i"),
+                    ),
+                ),
+                c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
+                c.br(0),
+            )),
+        );
+    }
+
+
+    // Given a number `n`, counts the number of significant bits.
+    // For example, if n = 5 (i.e., 00000000000000000000000000000101), the output is 3
+    function buildGetMSB() {
+        const f = module.addFunction(fnName + "_getMsb");
+        f.addParam("n", "i32");
+        f.setReturnType("i32");
+        const c = f.getCodeBuilder();
+        f.addCode(
+            c.i32_sub(
+                c.i32_const(32),
+                c.i32_clz(c.getLocal("n")),
+            ),
+        );
+    }
+
     // Returns the optimal number of bits in each scalar chunk.
     function buildGetOptimalChunkWidth() {
         const f = module.addFunction(fnName + "_getOptimalBucketWidth");
@@ -284,74 +389,75 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         );
     }
 
-    // Computes the bit offsets when splitting points in each bucket into pairs,
-    // pair of pairs, pair of pairs of pairs, etc.
+    // Given a pointer `pBucketCounts` to 1d array of the number of points in each bucket,
+    // `numBuckets` as the number of buckets, `maxBucketBits` as the bucket bits of the 
+    // max bucket count, this function computes the bit offsets when splitting points in 
+    // each bucket into pairs, pair of pairs, pair of pairs of pairs, etc. The results is
+    // storoed in `pBitOffsets`.
     // Example:
     //    Suppose we have 3 buckets with bucket_counts = [3, 5, 2], a.k.a. [11, 101, 10]
     //    This function first sets bit_offsets as [0, 1+1, 2+2, 4] = [0, 2, 4, 4]
     //    Then, this function sets bit_offsets as [0, 2, 6, 10]
     function buildCountBits() {
         const f = module.addFunction(fnName + "_countBits");
-        // A pointer to an array of the number of points in each bucket
+        // A pointer to 1d array of the number of points in each bucket. Shape: numBuckets+1
         f.addParam("pBucketCounts", "i32");
         // Number of buckets
         f.addParam("numBuckets", "i32");
-        // Max number of bucket bits
-        // For example, if maximum number of points in a bucket is is 7 (i.e., 111),
-        // the numBits would be 3.
-        f.addParam("numBits", "i32");
+        // Bucket bits of the max bucket count
+        // For example, if the max bucket count is 49 (i.e. 0x31), the bucket bit is 6.
+        f.addParam("maxBucketBits", "i32");
         // A pointer to an array of bit offsets.
         f.addParam("pBitOffsets", "i32");
+        // Index
         f.addLocal("i", "i32");
+        // Index
         f.addLocal("j", "i32");
+        // bucketCounts[i]
         f.addLocal("bucketCountsI", "i32");
-        f.addLocal("pBitOffsetsJ", "i32");
+        // maxBucketBits + 1
+        f.addLocal("maxBucketBitsPlusOne", "i32");
         const c = f.getCodeBuilder();
         f.addCode(
-            // Initializes pBitOffsets[i] = 0 for 0 <= i <= numBits
-            c.call(
-                fnName + "_initializeI32",
-                c.getLocal("pBitOffsets"),
-                c.add_i32(
-                    c.getLocal("numBits"),
+            c.setLocal("maxBucketBitsPlusOne",
+                c.i32_add(
+                    c.getLocal("maxBucketBits"),
                     c.i32_const(1),
                 ),
+            ),
+            c.call(fnName + "_initializeI32",
+                c.getLocal("pBitOffsets"),
+                c.getLocal("maxBucketBitsPlusOne"),
                 c.i32_const(0),
             ),
-            //  for (size_t i = 0; i < num_buckets; ++i) {
-            //      for (uint32_t j = 0; j < num_bits; ++j) {
-            //          bit_offsets[j + 1] += (bucket_counts[i] & (1U << j));
+            //  for (i = 0; i < numBuckets; ++i) {
+            //      for (j = 0; j < maxBucketBits; ++j) {
+            //          pBitOffsets[j + 1] += (pBucketCounts[i] & (1U << j));
             //      }
             //  }
             c.setLocal("i", c.i32_const(0)),
             c.block(c.loop(
-                c.br_if(
-                    1,
+                c.br_if(1,
                     c.i32_eq(
                         c.getLocal("i"),
                         c.getLocal("numBuckets")
                     )
                 ),
-                c.setLocal(
-                    "bucketCountsI",
-                    c.i32_load(
-                        c.i32_add(
-                            c.getLocal("pBucketCounts"),
-                            c.getLocal("i"),
-                        )
+                c.setLocal("bucketCountsI",
+                    c.call(fnName + "_loadI32",
+                        c.getLocal("pBucketCounts"),
+                        c.getLocal("i"),
                     ),
                 ),
                 c.setLocal("j", c.i32_const(0)),
                 c.block(c.loop(
-                    c.br_if(
-                        1,
+                    c.br_if(1,
                         c.i32_eq(
                             c.getLocal("j"),
-                            c.getLocal("numBits"),
+                            c.getLocal("maxBucketBits"),
                         )
                     ),
-                    c.call(
-                        prefix + "_addAssignI32InMemoryUncheck",
+                    c.call(fnName + "_addAssignI32InMemoryUncheck",
                         c.getLocal("pBitOffsets"),
                         c.i32_add(
                             c.getLocal("j"),
@@ -371,35 +477,25 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                 c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
                 c.br(0)
             )),
-            // Equivalent in C:
-            //  for (size_t j = 2; j < num_bits + 1; ++j) {
-            //      bit_offsets[j] += bit_offsets[j - 1];
+            //  for (j = 2; j < maxBucketBits + 1; j++) {
+            //      pBitOffsets[j] += pBitOffsets[j - 1];
             //  }
             c.setLocal("j", c.i32_const(2)),
             c.block(c.loop(
-                c.br_if(
-                    1,
-                    c.i32_gt_u(
+                c.br_if(1,
+                    c.i32_eq(
                         c.getLocal("j"),
-                        c.getLocal("numBits"),
-                    )
-                ),
-                c.setLocal(
-                    "pBitOffsetsJ",
-                    c.i32_add(
-                        c.getLocal("pBitOffsets"),
-                        c.getLocal("j"),
+                        c.getLocal("maxBucketBitsPlusOne"),
                     ),
                 ),
-                c.i32_store(
-                    c.getLocal("pBitOffsetsJ"),
-                    c.i32_add(
-                        c.i32_load(c.getLocal("pBitOffsetsJ")),
-                        c.i32_load(
-                            c.i32_sub(
-                                c.getLocal("pBitOffsetsJ"),
-                                c.i32_const(1),
-                            ),
+                c.call(fnName + "_addAssignI32InMemoryUncheck",
+                    c.getLocal("pBitOffsets"),
+                    c.getLocal("j"),
+                    c.call(fnName + "_loadI32",
+                        c.getLocal("pBitOffsets"),
+                        c.i32_sub(
+                            c.getLocal("j"),
+                            c.i32_const(1),
                         ),
                     ),
                 ),
@@ -871,8 +967,9 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
 
     // Given the pointer `pPointSchedule` to the sorted point schedules of the current round,
     // `numPoints` as the length of the input point vector, `bucketNum` as the number
-    // of buckets, this function constructs addition chains and stores the results in the vector 
-    // pointed to by `pRes`.
+    // of buckets, this function constructs addition chains, stores the processed point schedules
+    // in the vector pointed to by `pMetadata`, and stores the bit offsets in `pBitOffset`.
+    // 
     // For example:
     //      Input: [(0,0), (1,0), (2,0), (8,1), (9,1), (3,2), (4,2), (5,2), (6,2), (7,2)]. 
     //              Here, (i,j) indicates the i^th point in the j^th buckets.
@@ -880,14 +977,20 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     //              [(0,0), (3,2),
     //               (1,0), (2,0), (8,1), (9,1),
     //               (4,2), (5,2), (6,2), (7,2)]
+    //
+    // Assumption:
+    //      pPointSchedules: point schedules have been sorted by the bucket index
+    //      pBucketCounts: bucket counts is valid and matches pPointSchedules
     function buildConstructAdditionChains() {
         const f = module.addFunction(fnName + "_constructAdditionChains");
         // Pointer to 1d array of point schedules of a specific round
         // Assuming that point schedules have been sorted by the bucket index
         // Shape: numPoints
         f.addParam("pPointSchedule", "i32");
-        // Max number of points in a bucket
-        f.addParam("maxCount", "i32");
+        // Length of the input point vector
+        f.addParam("numPoints", "i32");
+        // Number of buckets
+        f.addParam("numBuckets", "i32");
         // Pointer to 1d array of number of points in each bucket for a specific
         // round. Shape: numBuckets
         f.addParam("pBucketCounts", "i32");
@@ -897,141 +1000,111 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         //       (1,0), (2,0), (8,1), (9,1),
         //       (4,2), (5,2), (6,2), (7,2)]
         // we have pBitOffset = [0, 2, 6, 10]
-        f.addParam("pBitOffset", "i32");
-        // Length of the input point vector
-        f.addParam("numPoints", "i32");
-        // Number of buckets
-        f.addParam("numBuckets", "i32");
+        f.addParam("pBitOffsets", "i32");
         // Pointer to 1d array of point schedules as the addition chains. Shape:
-        f.addParam("pRes", "i32");
-        f.addLocal("maxBucketBits", "i32");// 32 - leading zeros
-        f.addLocal("i", "i32");
-        f.addLocal("j", "i32");
-        f.addLocal("k", "i32");
+        f.addParam("pMetadata", "i32");
+        // Max number of points in a bucket
+        f.addLocal("maxCount", "i32");
+        // Bucket bits of the max bucket count
+        // For example, if the max bucket count is 49 (i.e. 0x31), the bucket bit is 5.
+        f.addLocal("maxBucketBits", "i32");
+        // Local copy of pBitOffsets
+        f.addLocal("pBitOffsetsCopy", "i32");
+        // Number of points in a bucket
         f.addLocal("count", "i32");
-        f.addLocal("num_bits", "i32");
-        f.addLocal("current_offset", "i32");
-        f.addLocal("k_end", "i32");
-        f.addLocal("schedule", "i64");
-        f.addLocal("pResPointOffset", "i32");
-        f.addLocal("address", "i32");
-        // Array
-        f.addLocal("pBitOffsetCopy", "i32");
-        // Array iterator
-        f.addLocal("itBitoffetCopy", "i32");
-        f.addLocal("itBitoffet", "i32");
-        f.addLocal("itTableSize", "i32");
-        f.addLocal("itPointSchedule", "i32");
+        // Number of bits for a count
+        f.addLocal("numBits", "i32");
+        // Index of point schedules
+        f.addLocal("scheduleIdx", "i32");
+        // Index
+        f.addLocal("i", "i32");
+        // Index
+        f.addLocal("j", "i32");
+        // Index
+        f.addLocal("k", "i32");
+        // Index
+        f.addLocal("kEnd", "i32");
         const c = f.getCodeBuilder();
         f.addCode(
-            // alloc memery
-            c.setLocal("pBitOffsetCopy", c.i32_load(c.i32_const(0))),
-            c.i32_store(
-                c.i32_const(0),
-                c.i32_add(
-                    c.getLocal("pBitOffsetCopy"),
-                    c.i32_mul(
-                        c.i32_add(
-                            c.getLocal("numBuckets"),
-                            c.i32_const(1)
-                        ),
-                        c.i32_const(4)  //32bits, 4bytes
-                    )
-                )
-            ),
-            // if maxCount ==  00000001 00000001 00000001 00000001
-            //    maxBucketBits = 32 - 7
-            c.setLocal(
-                "maxBucketBits",
-                c.i32_sub(
-                    c.i32_const(32),
-                    c.i32_clz(
-                        c.getLocal("maxCount")
-                    )
-                )
-            ),
-            // Equivalent in C:
-            //      bit_offsets_copy[i] = state.bit_offsets[i];
-            // also add bitoffset+pRes here
-            c.setLocal("i", c.i32_const(0)),
-            c.setLocal("itBitoffet", c.getLocal("pBitOffset")),
-            c.setLocal("itBitoffetCopy", c.getLocal("pBitOffsetCopy")),
-            c.block(c.loop(
-                c.br_if(
-                    1,
-                    c.i32_eq(
-                        c.getLocal("i"),
-                        c.getLocal("numBuckets")
-                    )
+            c.setLocal("maxCount",
+                c.call(fnName + "_maxArrayValue",
+                    c.getLocal("pBucketCounts"),
+                    c.getLocal("numBuckets"),
                 ),
-
-                c.i32_store(
-                    c.getLocal("itBitoffetCopy"),
+            ),
+            c.setLocal("maxBucketBits",
+                c.call(fnName + "_getMsb",
+                    c.getLocal("maxCount"),
+                )
+            ),
+            c.call(fnName + "_countBits",
+                c.getLocal("pBucketCounts"),
+                c.getLocal("numBuckets"),
+                c.getLocal("maxBucketBits"),
+                c.getLocal("pBitOffsets"),
+            ),
+            c.setLocal("pBitOffsetsCopy",
+                c.call(fnName + "_allocateMemory",
                     c.i32_add(
-                        c.i32_mul(
-                            c.i32_load(c.getLocal("itBitoffet")),
-                            c.i32_const(8)
-                        ),
-                        c.getLocal("pRes")
-                    )
+                        c.getLocal("numBuckets"),
+                        c.i32_const(1)
+                    ),
                 ),
-                c.setLocal("itBitoffetCopy", c.i32_add(c.getLocal("itBitoffetCopy"), c.i32_const(4))),
-                c.setLocal("itBitoffet", c.i32_add(c.getLocal("itBitoffet"), c.i32_const(4))),
-                c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
-                c.br(0)
-            )),
-
-            // Loop over all bucket
+            ),
+            c.call(fnName + "_copyArray",
+                c.getLocal("pBitOffsets"),
+                c.i32_add(
+                    c.getLocal("numBuckets"),
+                    c.i32_const(1),
+                ),
+                c.getLocal("pBitOffsetsCopy"),
+            ),
+            // scheduleIdx = 0;
+            // for (i=0; i<numBuckets; i++) {
+            //      count = pBucketCounts[i];
+            //      numBits = getMsb(count) + 1;
+            //      for (j=0; j<numBits; j++) {
+            //          kEnd = count & (1 << j);
+            //          for (k=0; k<kEnd; k++) {
+            //              pMetadata[pBitOffsetsCopy[j]] = pPointSchedule[scheduleIdx];
+            //              pBitOffsetsCopy[j]++;
+            //              scheduleIdx++;
+            //          }
+            //      }
+            // }
+            c.setLocal("scheduleIdx", c.i32_const(0)),
             c.setLocal("i", c.i32_const(0)),
-            c.setLocal("itTableSize", c.getLocal("pBucketCounts")),
-            c.setLocal("itPointSchedule", c.getLocal("pPointSchedule")),
             c.block(c.loop(
-                c.br_if(
-                    1,
+                c.br_if(1,
                     c.i32_eq(
                         c.getLocal("i"),
                         c.getLocal("numBuckets")
                     )
                 ),
-                // process i-th bucket
-                c.setLocal(// the number of points in the current bucket 
-                    "count",
-                    c.i32_load(
-                        c.getLocal("itTableSize")
-                    )
+                c.setLocal("count",
+                    c.call(fnName + "_loadI32",
+                        c.getLocal("pBucketCounts"),
+                        c.getLocal("i"),
+                    ),
                 ),
-                c.setLocal(// the number of bit of count
-                    "num_bits",
-                    c.i32_sub(
-                        c.i32_const(32),
-                        c.i32_clz(
-                            c.getLocal("count")
-                        )
-                    )
+                c.setLocal("numBits",
+                    c.i32_add(
+                        c.call(fnName + "_getMsb",
+                            c.getLocal("count"),
+                        ),
+                        c.i32_const(1),
+                    ),
                 ),
-                // Loop over num_bits of one bucket
                 c.setLocal("j", c.i32_const(0)),
                 c.block(c.loop(
-                    c.br_if(
-                        1,
+                    c.br_if(1,
                         c.i32_eq(
                             c.getLocal("j"),
-                            c.getLocal("num_bits")
+                            c.getLocal("numBits")
                         )
                     ),
                     c.setLocal(
-                        "address",
-                        c.i32_add(
-                            c.getLocal("pBitOffsetCopy"),
-                            c.i32_mul(
-                                c.i32_const(4),
-                                c.getLocal("j")
-                            )
-                        )
-                    ),
-                    // C: k_end = count & (1UL << j)
-                    c.setLocal(
-                        "k_end",
+                        "kEnd",
                         c.i32_and(
                             c.getLocal("count"),
                             c.i32_shl(
@@ -1040,62 +1113,43 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                             )
                         )
                     ),
-
-                    // Loop over 2^j points
-                    c.setLocal(
-                        "k",
-                        c.i32_const(0)
-                    ),
+                    c.setLocal("k", c.i32_const(0)),
                     c.block(c.loop(
-                        c.br_if(
-                            1,
+                        c.br_if(1,
                             c.i32_eq(
                                 c.getLocal("k"),
-                                c.getLocal("k_end")
+                                c.getLocal("kEnd")
                             )
                         ),
-                        //schedule = state.point_schedule[schedule_it]
-                        c.setLocal(
-                            "schedule",//meta data
-                            c.i64_load(
-                                c.getLocal("itPointSchedule")
-                            )
+                        c.call(fnName + "_storeI64",
+                            c.getLocal("pMetadata"),
+                            c.call(fnName + "_loadI32",
+                                c.getLocal("pBitOffsetsCopy"),
+                                c.getLocal("j"),
+                            ),
+                            c.call(fnName + "_loadI64",
+                                c.getLocal("pPointSchedule"),
+                                c.getLocal("scheduleIdx"),
+                            ),
                         ),
-                        c.setLocal(
-                            "pResPointOffset",// point to pRes
-                            c.i32_load(// bitOffsetCopy[bucket index]
-                                c.getLocal(
-                                    "address",
-                                )
-                            )
+                        c.call(fnName + "_addAssignI32InMemoryUncheck",
+                            c.getLocal("pBitOffsetsCopy"),
+                            c.getLocal("j"),
+                            c.i32_const(1),
                         ),
-                        // bitOffsetCopy[bucket index]++
-                        c.i32_store(
-                            c.getLocal("address"),
-                            c.i32_add(
-                                c.getLocal("pResPointOffset"),
-                                c.i32_const(8)
-                            )
-                        ),
-                        // set pRes
-                        c.i64_store(
-                            c.getLocal("pResPointOffset"),
-                            c.getLocal("schedule")
-                        ),
-                        c.setLocal("itPointSchedule", c.i32_add(c.getLocal("itPointSchedule"), c.i32_const(8))),
+                        c.setLocal("scheduleIdx", c.i32_add(c.getLocal("scheduleIdx"), c.i32_const(1))),
                         c.setLocal("k", c.i32_add(c.getLocal("k"), c.i32_const(1))),
                         c.br(0)
                     )),
                     c.setLocal("j", c.i32_add(c.getLocal("j"), c.i32_const(1))),
                     c.br(0)
                 )),
-                c.setLocal("itTableSize", c.i32_add(c.getLocal("itTableSize"), c.i32_const(4))),
                 c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
                 c.br(0)
             )),
             c.i32_store(
                 c.i32_const(0),
-                c.getLocal("pBitOffsetCopy")
+                c.getLocal("pBitOffsetsCopy")
             )
         );
     }
@@ -1106,7 +1160,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         //f.addParam("pPointSchedules", "i32"); // point sorted by bucket index
         //f.addParam("maxCount", "i32"); // max point number in a bucket
         //f.addParam("pTableSize", "i32"); //bucket_counts, number of points in a bucket
-        f.addParam("pBitOffset", "i32");
+        f.addParam("pBitOffsets", "i32");
         f.addParam("numPoints", "i32"); // number of points
         f.addParam("handle_edge_cases", "i32"); // bool type
         f.addParam("max_bucket_bits", "i32");
@@ -1159,7 +1213,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                                         ),
                                         c.i32_const(4)
                                     ),
-                                    c.getLocal("pBitOffset")
+                                    c.getLocal("pBitOffsets")
                                 )
                             )
                         ),
@@ -1584,18 +1638,6 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         );
     }
 
-    // Given a number `n`, counts the number of significant bits.
-    // For example, if n = 5 (i.e., 00000000000000000000000000000101), the output is 2
-    function buildGetMSB() {
-        const f = module.addFunction(fnName + "_getMsb");
-        f.addParam("n", "i32");
-        c.setReturnType("i32");
-        c.i32_sub(
-            c.i32_const(31),
-            c.i32_clz(c.getLocal("n")),
-        );
-    }
-
     // TODO
     function buildReduceBuckets() {
         const f = module.addFunction(fnName + "_reduceBuckets");
@@ -1610,7 +1652,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         // TODO: Consider not cache this. This keeps changing for each reduce_bucket. It should be computed on-the-fly in construct_addition_chain
         f.addParam("pTableSize", "i32");
         // Pointer to a 1d array of the starting index of the i^th bucket
-        f.addParam("pBitOffset", "i32");
+        f.addParam("pBitOffsets", "i32");
         // Length of the input point vector
         f.addParam("numPoints", "i32");
         // Number of buckets
@@ -1653,7 +1695,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                 c.getLocal("pPointSchedules"),
                 c.getLocal("maxCount", "i32"),
                 c.getLocal("pTableSize", "i32"),
-                c.getLocal("pBitOffset", "i32"),
+                c.getLocal("pBitOffsets", "i32"),
                 c.getLocal("numPoints", "i32"),
                 c.getLocal("numBuckets", "i32"),
                 c.getLocal("maxBucketBits", "i32"),
@@ -1664,7 +1706,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                 c.ret(c.getLocal("pPointPairs1")),
             ),
             c.call(prefix + "_EvaluateAdditionChains",
-                c.getLocal("pBitOffset"),
+                c.getLocal("pBitOffsets"),
                 c.getLocal("numPoints"),
                 c.i32_const(0), // Default for handling edge cases
                 c.getLocal("maxBucketBits"),
@@ -1693,7 +1735,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                 ),
                 c.setLocal("pBitOffsetIPlusOne",
                     c.i32_add(
-                        c.getLocal("pBitOffset"),
+                        c.getLocal("pBitOffsets"),
                         c.i32_shl(
                             c.i32_add(c.getLocal("i"), c.i32_const(1)),
                             2,
@@ -1829,7 +1871,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                 c.getLocal("pPointScheduleAlt"),
                 c.getLocal("maxCount"),
                 c.getLocal("pTableSize"), // TODO
-                c.getLocal("pBitOffset"),
+                c.getLocal("pBitOffsets"),
                 c.getLocal("numPoints"),
                 c.getLocal("numBuckets"),
                 c.getLocal("pPointSchedules"),
@@ -2269,6 +2311,66 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         )
     }
 
+    // Tests if maxArrayValue is correct.
+    function buildTestMaxArrayValue() {
+        const f = module.addFunction(fnName + "_testMaxArrayValue");
+        // Pointer to an array
+        f.addParam("pArr", "i32");
+        // Length of the array
+        f.addParam("length", "i32");
+        // Max value
+        f.addParam("pMax", "i32");
+        const c = f.getCodeBuilder();
+        f.addCode(
+            c.call(fnName + "_storeI32",
+                c.getLocal("pMax"),
+                c.i32_const(0),
+                c.call(fnName + "_maxArrayValue",
+                    c.getLocal("pArr"),
+                    c.getLocal("length"),
+                ),
+            ),
+        );
+    }
+
+    // Tests if maxArrayValue is correct.
+    function buildTestGetMSB() {
+        const f = module.addFunction(fnName + "_testGetMsb");
+        // Pointer to an array
+        f.addParam("pArr", "i32");
+        // Length of the array
+        f.addParam("length", "i32");
+        // Pointer to an array of Msb
+        f.addParam("pMsb", "i32");
+        // Index
+        f.addLocal("i", "i32");
+        const c = f.getCodeBuilder();
+        f.addCode(
+            c.setLocal("i", c.i32_const(0)),
+            c.block(c.loop(
+                c.br_if(
+                    1,
+                    c.i32_eq(
+                        c.getLocal("i"),
+                        c.getLocal("length"),
+                    )
+                ),
+                c.call(fnName + "_storeI32",
+                    c.getLocal("pMsb"),
+                    c.getLocal("i"),
+                    c.call(fnName + "_getMsb",
+                        c.call(fnName + "_loadI32",
+                            c.getLocal("pArr"),
+                            c.getLocal("i"),
+                        ),
+                    ),
+                ),
+                c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
+                c.br(0),
+            )),
+        );
+    }
+
     buildLoadI64();
     buildStoreI64();
     buildLoadI32();
@@ -2277,10 +2379,14 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     buildAllocateMemory();
     buildInitializeI32();
     buildInitializeI64();
+    buildMaxArrayValue();
+    buildCopyArray();
+    buildGetMSB();
+
     // buildAddAffinePoints();
     // buildComputeSchedule();
+    buildCountBits();
     buildConstructAdditionChains();
-    // buildCountBits();
     // buildEvaluateAdditionChains();
     // buildGetChunk();
     buildGetOptimalChunkWidth();
@@ -2294,16 +2400,17 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     // buildReduceTable();
     // buildReduceBuckets();
     // buildSinglePointComputeSchedule();
-    //module.exportFunction(fnName);
-    //module.exportFunction(fnName + "_chunk");
+    module.exportFunction(fnName + "_countBits");
     module.exportFunction(fnName + "_organizeBuckets");
     module.exportFunction(fnName + "_organizeBucketsOneRound");
     module.exportFunction(fnName + "_constructAdditionChains");
 
+    buildTestGetMSB();
+    buildTestMaxArrayValue();
     buildTestStoreLoadI32();
     buildTestStoreLoadI64();
+    module.exportFunction(fnName + "_testGetMsb");
     module.exportFunction(fnName + "_testLoadStoreI32");
     module.exportFunction(fnName + "_testLoadStoreI64");
-
-
+    module.exportFunction(fnName + "_testMaxArrayValue");
 };
