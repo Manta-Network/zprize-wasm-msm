@@ -272,14 +272,14 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     function buildGetNumBuckets() {
         const f = module.addFunction(fnName + "_getNumBuckets");
         // Number of points and scalars in the input vector
-        f.addParam("num", "i32");
+        f.addParam("numPoints", "i32");
         // Returns the number of bucket 2^c
         f.setReturnType("i32");
         const c = f.getCodeBuilder();
         f.addCode(
             c.i32_shl(
-                i32_const(1),
-                c.call(prefix + "_getOptimalBucketWidth", c.getLocal("num"))
+                c.i32_const(1),
+                c.call(fnName + "_getOptimalBucketWidth", c.getLocal("numPoints"))
             ),
         );
     }
@@ -795,6 +795,72 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                     c.getLocal("pBucketOffsets"),
                     c.getLocal("bucketIdx"),
                     c.i32_const(1),
+                ),
+                c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
+                c.br(0),
+            )),
+        );
+    }
+
+    // Given the pointer `pPointSchedule` to the point schedules of all rounds, 
+    // `numPoints` as the length of the input point vector, `bucketNum` as the number
+    // of buckets, this function sorted the point schedules by the bucket index for
+    // each round and stores the results in the 2d array pointed to by `pMetadata`.
+    function buildOrganizeBuckets() {
+        const f = module.addFunction(fnName + "_organizeBuckets");
+        // Pointer to a 2d array of point schedules. Shape: numChunks * numPoints
+        f.addParam("pPointSchedules", "i32");
+        // Length of the input point vector
+        f.addParam("numPoints", "i32");
+        // Number of chunks
+        f.addParam("numChunks", "i32");
+        // Number of buckets
+        f.addParam("numBuckets", "i32");
+        // Pointer to a 2d array of point schedules for storing the processed results.
+        // Shape: numChunks * numPoints
+        f.addParam("pMetadata", "i32");
+        // Index
+        f.addLocal("i", "i32");
+        // i*numPoints
+        f.addLocal("iMulNumPoints", "i32");
+        const c = f.getCodeBuilder();
+        f.addCode(
+            // for (i=0; i<numChunks; i++) {
+            //      organizeBucketsOneRound(
+            //          &pPointSchedules[i*numPoints],
+            //          numPoints,
+            //          numBuckets,
+            //          &pMetadata[i*numPoints],
+            //      );
+            // }
+            c.setLocal("i", c.i32_const(0)),
+            c.block(c.loop(
+                c.br_if(1,
+                    c.i32_eq(
+                        c.getLocal("i"),
+                        c.getLocal("numChunks"),
+                    ),
+                ),
+                c.setLocal("iMulNumPoints",
+                    c.i32_shl(
+                        c.i32_mul(
+                            c.getLocal("i"),
+                            c.getLocal("numPoints"),
+                        ),
+                        c.i32_const(3),
+                    ),
+                ),
+                c.call(fnName + "_organizeBucketsOneRound",
+                    c.i32_add(
+                        c.getLocal("pPointSchedules"),
+                        c.getLocal("iMulNumPoints"),
+                    ),
+                    c.getLocal("numPoints"),
+                    c.getLocal("numBuckets"),
+                    c.i32_add(
+                        c.getLocal("pMetadata"),
+                        c.getLocal("iMulNumPoints"),
+                    ),
                 ),
                 c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
                 c.br(0),
@@ -2217,18 +2283,20 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     // buildCountBits();
     // buildEvaluateAdditionChains();
     // buildGetChunk();
-    // buildGetNumBuckets();
+    buildGetOptimalChunkWidth();
+    buildGetNumBuckets();
     // buildGetNumChunks();
-    // buildGetOptimalChunkWidth();
     // buildMultiexp();
     // buildMutiexpChunks();
     buildOrganizeBucketsOneRound();
+    buildOrganizeBuckets();
     // buildRearrangePoints();
     // buildReduceTable();
     // buildReduceBuckets();
     // buildSinglePointComputeSchedule();
     //module.exportFunction(fnName);
     //module.exportFunction(fnName + "_chunk");
+    module.exportFunction(fnName + "_organizeBuckets");
     module.exportFunction(fnName + "_organizeBucketsOneRound");
 
     buildTestStoreLoadI32();
