@@ -69,41 +69,38 @@ describe("Basic tests for batch affine in bls12-381", function () {
         }
     });
 
-    it("construct_addition_chains is correct.", async () => {
-
+    it("constructAdditionChains is correct.", async () => {
         let inputs = [
-            0x0000000000000000, 0x0000000100000000, 0x0000000200000000, 0x0000000800000001, 
+            0x0000000000000000, 0x0000000100000000, 0x0000000200000000, 0x0000000800000001,
             0x0000000900000001, 0x0000000300000002, 0x0000000400000002, 0x0000000500000002,
             0x0000000600000002, 0x0000000700000002
         ];
         let expectedOutput = [
             0x0000000000000000, 0x0000000300000002, 0x0000000100000000, 0x0000000200000000,
-            0x0000000800000001, 0x0000000900000001, 0x0000000400000002, 0x0000000500000002, 
+            0x0000000800000001, 0x0000000900000001, 0x0000000400000002, 0x0000000500000002,
             0x0000000600000002, 0x0000000700000002
         ];
         let numPoints = 10;
         let numBuckets = 3;
         let maxCount = 3;
         const pPointSchedules = pb.alloc(8 * numPoints);
-        const pTableSize = pb.alloc(4 * numBuckets);//ok
+        const pBucketCounts = pb.alloc(4 * numBuckets);
         const pBitoffset = pb.alloc((numBuckets + 1) * 4);
-        const pRes = pb.alloc(numPoints*8);
+        const pRes = pb.alloc(numPoints * 8);
         for (let i = 0; i < numPoints; i++) {
             pb.set(pPointSchedules + 8 * i, inputs[i], 8);
         }
-        pb.set(pBitoffset,0,4);
-        pb.set(pBitoffset+4,2,4);
-        pb.set(pBitoffset+4*2,6,4);
-        pb.set(pBitoffset+4*3,10,4);
-        pb.set(pTableSize,3,4);
-        pb.set(pTableSize+4,2,4);
-        pb.set(pTableSize+4*2,5,4);
-
-        pb.g1m_multiexp_ConstructAdditionChains(pPointSchedules,maxCount,pTableSize,pBitoffset,numPoints,numBuckets,pRes);
+        pb.set(pBitoffset, 0, 4);
+        pb.set(pBitoffset + 4, 2, 4);
+        pb.set(pBitoffset + 4 * 2, 6, 4);
+        pb.set(pBitoffset + 4 * 3, 10, 4);
+        pb.set(pBucketCounts, 3, 4);
+        pb.set(pBucketCounts + 4, 2, 4);
+        pb.set(pBucketCounts + 4 * 2, 5, 4);
+        pb.g1m_multiexp_constructAdditionChains(pPointSchedules, maxCount, pBucketCounts, pBitoffset, numPoints, numBuckets, pRes);
         let output = pb.get(pRes, numPoints, 8);
         for (let i = 0; i < 10; i++) {
             assert.equal(output[i], expectedOutput[i]);
         }
-        
     });
 });
