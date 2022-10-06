@@ -25,4 +25,19 @@ describe("Utility Tests", function () {
             assert.equal(output[i], expectedOutput[i]);
         }
     });
+
+    it("storeI64 and loadI64 is correct.", async () => {
+        let length = 5;
+        const input = [4, 9, 5, 2, 11];
+        let expectedOutput = [4, 10, 7, 5, 15];
+        const pArr = pb.alloc(8 * length);
+        for (let i = 0; i < length; i++) {
+            pb.set(pArr + 8 * i, input[i], 8);
+        }
+        pb.g1m_multiexp_testLoadStoreI64(pArr, length);
+        let output = pb.get(pArr, length, 8);
+        for (let i = 0; i < length; i++) {
+            assert.equal(output[i], expectedOutput[i]);
+        }
+    });
 });
