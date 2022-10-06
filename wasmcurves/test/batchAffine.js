@@ -68,4 +68,61 @@ describe("Basic tests for batch affine in bls12-381", function () {
             assert.equal(output[i], expectedOutput[i]);
         }
     });
+
+    it("It should test construct_addition_chains", async () => {
+        const pG1 = pb.bls12381.pG1gen;
+        let n = 10;
+        let bucketNum = 8;
+
+        const pPointSchedule = pb.alloc(8*n);
+        const pMetadata = pb.alloc(n*8);
+        const pTableSize = pb.alloc(bucketNum*4);//ok
+        const pBucketOffset = pb.alloc(bucketNum*4);
+        const pIndex = pb.alloc(n*4);//ok
+        const debug32 = pb.alloc(4);
+        const debug64 = pb.alloc(8);
+        const pBitoffset = pb.alloc((bucketNum+1)*4);
+        const pRes = pb.alloc(n*8);
+        let maxCount = 3;
+
+        let point1Schedule = 0x0000000000000001n;
+        let point2Schedule = 0x0000000100000001n;
+        let point3Schedule = 0x0000000200000001n;
+        let point4Schedule = 0x0000000300000003n;
+        let point5Schedule = 0x0000000400000003n;
+        let point6Schedule = 0x0000000500000003n;
+        let point7Schedule = 0x0000000600000003n;
+        let point8Schedule = 0x0000000700000003n;
+        let point9Schedule = 0x0000000800000002n;
+        let point10Schedule = 0x0000000900000002n;
+
+        pb.set(pPointSchedule,point1Schedule,8);
+        pb.set(pPointSchedule+8,point2Schedule,8);
+        pb.set(pPointSchedule+8*2,point3Schedule,8);
+        pb.set(pPointSchedule+8*3,point4Schedule,8);
+        pb.set(pPointSchedule+8*4,point5Schedule,8);
+        pb.set(pPointSchedule+8*5,point6Schedule,8);
+        pb.set(pPointSchedule+8*6,point7Schedule,8);
+        pb.set(pPointSchedule+8*7,point8Schedule,8);
+        pb.set(pPointSchedule+8*8,point9Schedule,8);
+        pb.set(pPointSchedule+8*9,point10Schedule,8);
+
+        pb.set(pBitoffset,0,4);
+        pb.set(pBitoffset+4,2,4);
+        pb.set(pBitoffset+4*2,6,4);
+        pb.set(pBitoffset+4*3,10,4);
+        
+        console.log("========Test OrganizeBucketsOneRound========")
+        pb.g1m_multiexp_OrganizeBucketsOneRound(pPointSchedule,n,bucketNum,pMetadata,pTableSize,pBucketOffset,pIndex,debug32,debug64);
+        console.log(pb.get(pPointSchedule+8,1,8).toString(16))
+        console.log(pb.get(pMetadata+8*9,1,8).toString(16))
+
+        console.log("========Test ConstructAdditionChains========")
+        pb.g1m_multiexp_ConstructAdditionChains(pPointSchedule,maxCount,pTableSize,pBitoffset,n,bucketNum,pRes);
+        for(let i=0;i<10;i++){
+            console.log(pb.get(pRes+8*i,1,8).toString(16))
+        }
+        
+        // 0 0   point1Schedule point2Schedule point3Schedule point3Schedule 0 0
+    });
 });
