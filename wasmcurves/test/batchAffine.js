@@ -86,19 +86,6 @@ describe("Basic tests for batch affine in bls12-381", function () {
         }
     });
 
-    // 0xF    8    9    2    7    E    5    1
-    //   1111 1000 1001 0010 0111 1110 0101 0001
-    //   00011 11100 01001 00100 11111 10010 10001
-    //   3     28    9     4     31    18    17
-
-    //   1111 1000 1001 0010 0111 1110 0101 0001
-    //   00011 11100 01001 00100 11111 10010 10001
-    //   3     28    9     4     31    18    17
-
-    //  [1] 0000 1000 1001 0010 0111 1110 0101 0001
-    //   00000 0100 01001 00100 11111 10010 10001
-    //   0     4    9     4     31    18    17
-
     it("getChunk is correct.", async () => {
         const inputScalarArr = [0xF, 0xF0, 0x70, 0xE5, 0xFFFF, 0xE51, 0x7E51,
             0x27E51, 0x927E51, 0x8927E51, 0xF8927E51, 0x1F8927E51];
@@ -119,7 +106,7 @@ describe("Basic tests for batch affine in bls12-381", function () {
             [17, 18, 31, 4, 9, 28, 3],
             [17, 18, 31, 4, 9, 28, 7, 0],
         ];
-        for (let i = 0; i < 2; i++) {
+        for (let i = 0; i < 12; i++) {
             let inputScalar = inputScalarArr[i];
             const chunkSize = chunkSizeArr[i];
             const scalarSize = scalarSizeArr[i];
@@ -172,6 +159,77 @@ describe("Basic tests for batch affine in bls12-381", function () {
         let output = pb.get(pMetadata, numPoints, 8);
         for (let i = 0; i < numPoints; i++) {
             assert.equal(output[i], expectedOutput[i]);
+        }
+    });
+
+    it("singlePointComputeSchedule is correct.", async () => {
+        const inputScalarArr = [0xF, 0xF0, 0x70, 0xE5, 0xFFFF, 0xE51, 0x7E51,
+            0x27E51, 0x927E51, 0x8927E51, 0xF8927E51, 0x1F8927E51];
+        const scalarSizeArr = [1, 1, 1, 1, 2, 2, 2, 3, 5, 4, 4, 5];
+        const chunkSizeArr = [5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5];
+        const pointIdxArr = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        const numChunksArr = [1, 2, 2, 2, 4, 3, 4, 4, 5, 6, 7, 8];
+        const expectedOutputPointSchedulesArr = [
+            [0x000000000000000F],
+            [0x0000000000000010, 0x0000000000000007],
+            [0x0000000000000010, 0x0000000000000003],
+            [0x0000000000000005, 0x0000000000000007],
+            [0x000000000000001F, 0x000000000000001F, 0x000000000000001F, 0x0000000000000001],
+            [0x0000000000000011, 0x0000000000000012, 0x0000000000000003],
+            [0x0000000000000011, 0x0000000000000012, 0x000000000000001F,
+                0xffffffffffffffffn],
+            [0x0000000000000011, 0x0000000000000012, 0x000000000000001F,
+                0x0000000000000004],
+            [0x0000000000000011, 0x0000000000000012, 0x000000000000001F,
+                0x0000000000000004, 0x0000000000000009],
+            [0x0000000000000011, 0x0000000000000012, 0x000000000000001F,
+                0x0000000000000004, 0x0000000000000009, 0x0000000000000004],
+            [0x0000000000000011, 0x0000000000000012, 0x000000000000001F,
+                0x0000000000000004, 0x0000000000000009, 0x000000000000001C, 0x0000000000000003],
+            [0x0000000000000011, 0x0000000000000012, 0x000000000000001F,
+                0x0000000000000004, 0x0000000000000009, 0x000000000000001C, 0x0000000000000007, 0xffffffffffffffffn],
+        ];
+        const expectedOutputRoundCountsArr = [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3],
+            [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [0, 0, 0, 0, 2, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1],
+            [0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1],
+        ];
+        for (let i = 0; i < 12; i++) {
+            let inputScalar = inputScalarArr[i];
+            const scalarSize = scalarSizeArr[i];
+            const chunkSize = chunkSizeArr[i];
+            const pointIdx = pointIdxArr[i];
+            const numPoints = 1;
+            const numChunks = numChunksArr[i];
+            const bucketCounts = 32;
+            let expectedOutputPointSchedules = expectedOutputPointSchedulesArr[i];
+            let expectedOutputRoundCounts = expectedOutputRoundCountsArr[i];
+            const pScalar = pb.alloc(scalarSize);
+            const pPointSchedules = pb.alloc(8 * numChunks);
+            const pRoundCounts = pb.alloc(4 * bucketCounts);
+            pb.set(pScalar, inputScalar, scalarSize);
+            pb.g1m_multiexp_singlePointComputeSchedule(pScalar, scalarSize, chunkSize, pointIdx, numPoints, numChunks, pPointSchedules, pRoundCounts);
+            let outputPointSchedules = pb.get(pPointSchedules, numChunks, 8);
+            let outputRoundCounts = pb.get(pRoundCounts, bucketCounts, 4);
+            if (numChunks == 1) {
+                assert.equal(outputPointSchedules, expectedOutputPointSchedules[0]);
+            } else {
+                for (let i = 0; i < numChunks; i++) {
+                    assert.equal(outputPointSchedules[i], expectedOutputPointSchedules[i]);
+                }
+            }
+            for (let i = 0; i < bucketCounts; i++) {
+                assert.equal(outputRoundCounts[i], expectedOutputRoundCounts[i]);
+            }
         }
     });
 });
