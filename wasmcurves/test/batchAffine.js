@@ -86,6 +86,60 @@ describe("Basic tests for batch affine in bls12-381", function () {
         }
     });
 
+    // 0xF    8    9    2    7    E    5    1
+    //   1111 1000 1001 0010 0111 1110 0101 0001
+    //   00011 11100 01001 00100 11111 10010 10001
+    //   3     28    9     4     31    18    17
+
+    //   1111 1000 1001 0010 0111 1110 0101 0001
+    //   00011 11100 01001 00100 11111 10010 10001
+    //   3     28    9     4     31    18    17
+
+    //  [1] 0000 1000 1001 0010 0111 1110 0101 0001
+    //   00000 0100 01001 00100 11111 10010 10001
+    //   0     4    9     4     31    18    17
+
+    it("getChunk is correct.", async () => {
+        const inputScalarArr = [0xF, 0xF0, 0x70, 0xE5, 0xFFFF, 0xE51, 0x7E51,
+            0x27E51, 0x927E51, 0x8927E51, 0xF8927E51, 0x1F8927E51];
+        const chunkSizeArr = [5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5];
+        const scalarSizeArr = [1, 1, 1, 1, 2, 2, 2, 3, 5, 4, 4, 5];
+        const numChunksArr = [1, 2, 2, 2, 4, 3, 4, 4, 5, 6, 7, 8];
+        const expectedOutputArr = [
+            [15],
+            [16, 7],
+            [16, 3],
+            [5, 7],
+            [31, 31, 31, 1],
+            [17, 18, 3],
+            [17, 18, 31, 0],
+            [17, 18, 31, 4],
+            [17, 18, 31, 4, 9],
+            [17, 18, 31, 4, 9, 4],
+            [17, 18, 31, 4, 9, 28, 3],
+            [17, 18, 31, 4, 9, 28, 7, 0],
+        ];
+        for (let i = 0; i < 2; i++) {
+            let inputScalar = inputScalarArr[i];
+            const chunkSize = chunkSizeArr[i];
+            const scalarSize = scalarSizeArr[i];
+            const numChunks = numChunksArr[i];
+            let expectedOutput = expectedOutputArr[i];
+            const pScalar = pb.alloc(scalarSize);
+            const pChunks = pb.alloc(4 * numChunks);
+            pb.set(pScalar, inputScalar, scalarSize);
+            pb.g1m_multiexp_testGetChunk(pScalar, scalarSize, chunkSize, pChunks);
+            let output = pb.get(pChunks, numChunks, 4);
+            if (numChunks == 1) {
+                assert.equal(output, expectedOutput[0]);
+            } else {
+                for (let i = 0; i < numChunks; i++) {
+                    assert.equal(output[i], expectedOutput[i]);
+                }
+            }
+        }
+    });
+
     it("constructAdditionChains is correct.", async () => {
         let inputs = [
             0x0000000000000000, 0x0000000100000000, 0x0000000200000000, 0x0000000800000001,
