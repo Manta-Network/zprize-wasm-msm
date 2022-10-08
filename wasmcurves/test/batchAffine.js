@@ -232,4 +232,42 @@ describe("Basic tests for batch affine in bls12-381", function () {
             }
         }
     });
+
+    it("rearrangePoints is correct.", async () => {
+        // use fake point for simplicity
+        let points = [
+            0x000011111111111111, 0x000022222222222222, 
+            0x11111111, 0x11112222, 0x22221111, 0x22222222, 0x33331111, 0x33332222, 
+            0x44441111, 0x44442222, 0x55551111, 0x55552222, 0x66661111, 0x66662222, 
+            0x77771111, 0x77772222, 0x88881111, 0x88882222, 0x99991111, 0x99992222
+        ];
+        let schedules = [
+            0x0000000000000000, 0x0000000300000002, 0x0000000100000000, 0x0000000200000000,
+            0x0000000800000001, 0x0000000900000001, 0x0000000400000002, 0x0000000500000002,
+            0x0000000600000002, 0x0000000700000002
+        ];
+        let expectedOutput = [
+            0x000011111111111111, 0x000022222222222222, 
+            0x33331111, 0x33332222, 0x11111111, 0x11112222, 0x22221111, 0x22222222, 
+            0x88881111, 0x88882222, 0x99991111, 0x99992222, 0x44441111, 0x44442222,
+            0x55551111, 0x55552222, 0x66661111, 0x66662222, 0x77771111, 0x77772222
+        ];
+        let numPoints = 10;
+        const pPointSchedules = pb.alloc(8 * numPoints);
+        const pPoints = pb.alloc(numPoints * n8q * 2);
+        const pRes = pb.alloc(numPoints * n8q * 2);
+
+        for (let i = 0; i < numPoints; i++) {
+            pb.set(pPointSchedules + 8 * i, schedules[i], 8);
+        }
+        for (let i = 0; i < numPoints; i++) {
+            pb.set(pPoints + 96 * i, points[i * 2], 48);
+            pb.set(pPoints + 96 * i + 48, points[i * 2 + 1], 48);
+        }
+        pb.g1m_multiexp_rearrangePoints(numPoints, pPoints, pPointSchedules, pRes);
+        let output = pb.get(pRes, numPoints * 2 , 48);
+        for (let i = 0; i < numPoints * 2; i++) {
+            assert.equal(output[i], expectedOutput[i]);
+        }
+    });
 });

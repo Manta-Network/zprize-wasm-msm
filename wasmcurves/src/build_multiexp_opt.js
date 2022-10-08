@@ -19,8 +19,9 @@
 
 module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     const n64g = module.modules[prefix].n64;
-    const n8g = n64g * 8;
+    const n8g = n64g * 8; // 144
 
+    const n8 = 48
     // Loads an i64 scalar pArr[index].
     function buildLoadI64() {
         const f = module.addFunction(fnName + "_loadI64");
@@ -1479,24 +1480,38 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
 
     }
 
+    // Given the pointer `pSchedule` to the addtion chains of the current round,
+    // `n` as the length of the input point vector, `pPoint` as the pointer to initial point vectors.
+    // this function arranges the points in the order of the schedule, 
+    // stores the processed point in the vector pointed to by `pRes`.
+    // 
+    // For example:
+    //      Input: Addition chains (pSchedule)
+    //              [(0,0), (3,2),
+    //               (1,0), (2,0), (8,1), (9,1),
+    //               (4,2), (5,2), (6,2), (7,2)]
+    //              Here, (i,j) indicates the i^th point in the j^th buckets.
+    //             pPoint
+    //              [p0, p1, p2, p3, p4, p5, p6, p7, p8, p9]   
+    //      Output: 
+    //              [p0, p3, p1, p2, p8, p9, p4, p5, p6, p7]
+    //              Here, pi is i-th point, and in affine representation (x, y). 
+    //              Each point use 384*2 bits.
     function buildRearrangePoints() {
-        const f = module.addFunction(fnName + "_RearrangePoints");
+        const f = module.addFunction(fnName + "_rearrangePoints");
         f.addParam("n", "i32");// number of points
-        f.addParam("pPoint", "i32");// original point vectors
-        // Schedule is an array like this:(pointIdx,bucketIdx)
-        // sorted by bit index
-        // [(3, 1, 0), (0, 1, 1),
-        //  (1, 1, 0), (0, 0, 0), (0, 1, 2), (3, 1, 2),
-        //  (1, 1, 1), (3, 0, 1), (2, 1, 1), (4, 0, 1)]
+        f.addParam("pPoint", "i32");// point vectors
         f.addParam("pSchedule", "i32");
-        // reschedule the points based on Schedule, copy results in the new memory.
+        // Arrange the points based on Schedule, copy results in the new memory.
         f.addParam("pRes", "i32");
+        const c = f.getCodeBuilder();
 
         f.addLocal("itSchedule", "i32");
         f.addLocal("itRes", "i32");
         f.addLocal("i", "i32");
         f.addLocal("pointIdx", "i32");
         f.addLocal("pointSrc", "i32");
+
         f.addCode(
             c.setLocal("i", c.i32_const(0)),
             c.setLocal("itSchedule", c.getLocal("pSchedule")),
@@ -1507,10 +1522,11 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                     c.i32_eq(
                         c.getLocal("i"),
                         c.getLocal("n")
+                        //c.i32_const(9)
                     )
                 ),
 
-                // get src point address based on itSchedule
+                // get src point address
                 c.setLocal(
                     "pointIdx",
                     c.i32_wrap_i64(
@@ -1520,30 +1536,27 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                         )
                     )
                 ),
+
                 c.setLocal(
                     "pointSrc",
                     c.i32_add(
                         c.getLocal("pPoint"),
                         c.i32_mul(
                             c.getLocal("pointIdx"),
-                            c.i32_const(n8g * 2)
+                            c.i32_const(n8 * 2)
                         )
                     )
                 ),
+
                 // copy to the new momory
-                // copy x
-                c.call(prefix + "_copy", c.getLocal("pointSrc"), c.getLocal("itRes")),
-                // copy y
-                c.call(prefix + "_copy", c.getLocal("pointSrc"), c.i32_add(c.getLocal("itRes"), c.i32_const(n8g))),
+                c.call(prefix + "_copyAffine", c.getLocal("pointSrc"), c.getLocal("itRes")), 
 
                 c.setLocal("itSchedule", c.i32_add(c.getLocal("itSchedule"), c.i32_const(8))),
-                c.setLocal("itRes", c.i32_add(c.getLocal("itRes"), c.i32_const(n8g * 2))),// one point
+                c.setLocal("itRes", c.i32_add(c.getLocal("itRes"), c.i32_const(n8 * 2))),
                 c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
                 c.br(0)
             )),
-
         );
-
     }
 
     // Given the pointer `pScalar` to a scalar of `scalarSize` bytes, `chunkSize` as
@@ -2433,7 +2446,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     // buildGetNumChunks();
     buildOrganizeBucketsOneRound();
     buildOrganizeBuckets();
-    // buildRearrangePoints();
+    buildRearrangePoints();
     // buildReduceTable();
     // buildReduceBuckets();
     buildSinglePointComputeSchedule();
@@ -2445,6 +2458,8 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     module.exportFunction(fnName + "_organizeBucketsOneRound");
     module.exportFunction(fnName + "_constructAdditionChains");
     module.exportFunction(fnName + "_singlePointComputeSchedule");
+    module.exportFunction(fnName + "_rearrangePoints");
+    
 
     buildTestGetMSB();
     buildTestMaxArrayValue();
