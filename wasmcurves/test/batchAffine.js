@@ -270,4 +270,34 @@ describe("Basic tests for batch affine in bls12-381", function () {
             assert.equal(output[i], expectedOutput[i]);
         }
     });
+
+    it("addAffinePointsOneRound is correct (no duplicate points).", async () => {
+        // use fake point for simplicity
+        // assume BitOffset [0, 2, 6, 10];
+        let pairs = [
+            0x00001111, 0x00002222, 
+            0x33331111, 0x33332222, 0x11111111, 0x11112222, 0x22221111, 0x22222222, 
+            0x88881111, 0x88882222, 0x99991111, 0x99992222, 0x44441111, 0x44442222,
+            0x55551111, 0x55552222, 0x66661111, 0x66662222, 0x77771111, 0x77772222
+        ];
+        let pointsInRound = 10;
+        let numPoints = 10;
+        const pPaires = pb.alloc(numPoints * n8q * 2);
+        const pRes = pb.alloc(numPoints * n8q * 2);
+        const pInverse = pb.alloc(numPoints * n8q); // only for test
+        const debug = pb.alloc(4);
+
+        for (let i = 0; i < numPoints; i++) {
+            pb.set(pPaires + 96 * i, pairs[i * 2], 48);
+            pb.set(pPaires + 96 * i + 48, pairs[i * 2 + 1], 48);
+        }
+        pb.g1m_multiexp_addAffinePointsOneRound(numPoints, pointsInRound, pPaires, pRes, pInverse, debug);
+
+        //console.log(pb.get(debug,1,4));
+        let output = pb.get(pInverse, numPoints, 48);
+        for (let i = 0; i < numPoints; i++) {
+            console.log(output[i].toString(16))
+            //assert.equal(output[i], expectedOutput[i]);
+        }
+    });
 });

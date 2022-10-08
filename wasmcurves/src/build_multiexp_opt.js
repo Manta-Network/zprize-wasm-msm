@@ -18,10 +18,12 @@
 */
 
 module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
-    const n64g = module.modules[prefix].n64;
+    const n64g = module.modules[prefix].n64; // prefix g1m
     const n8g = n64g * 8; // 144
 
-    const n8 = 48
+    const n8 = 48 // only for our msm implementation 
+    const prefixField = "f1m"// only for our msm implementation 
+
     // Loads an i64 scalar pArr[index].
     function buildLoadI64() {
         const f = module.addFunction(fnName + "_loadI64");
@@ -1226,19 +1228,31 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         );
     }
 
-    // one round
-    function buildAddAffinePoints() {
-        const f = module.addFunction(fnName + "_AddAffinePoints");
+    // This function adds a bunch of points together using affine addition formulae.
+    // For example:
+    // Suppose the memory of the point is in the following format:
+    //         x_1, y_1, x_2, y_2, x_3, y_3, x_4, y_4 ...
+    // We first store x_i+1 - x_i in ScratchSpace. And then store intermediate results in pPair
+    //      ScratchSpace: x_2-x_1(2y_1), x_4-x_3(2y_3) ...
+    //      Inverse:      1/(x_2-x_1)(1/2y_1), 1/(x_4-x_3)(1/(2y_3))
+    //      pPair:        x_1, y_2-y_1, x_1+x_2, y_2(0), ...
+    // The number in bracket is the case when two points are the same.
+    //      Input: pairs of points
+    //             [p0 | p3 | p1 p2 | p8 p9 | p4 p5 p6 p7]
+    //      Output: 
+    //             [p0 | p3 | x  x    x  x  | p1+p2 p8+p9 p4+p5 p6+p7]
+    function buildAddAffinePointsOneRound() {
+        const f = module.addFunction(fnName + "_addAffinePointsOneRound");
         f.addParam("n", "i32"); //number of points
         f.addParam("pointsInRound", "i32")
-        //f.addParam("pPoints", "i32");
         f.addParam("pPairs", "i32");// store in paires. memory layout: x1y1(384*2bits) x2y2 x3y3 ...
         f.addParam("pRes", "i32")
-
+        f.addParam("pInverse", "i32"); // pointer to inverse array, n*n8 bytes 
+        f.addParam("debug", "i32");
 
         // Array
-        f.addLocal("pInverse", "i32"); // pointer to inverse array, n*n8g bytes 
-        f.addLocal("pScratchSpace", "i32");// store x2-x1, x4-x3, ... n*n8g
+        //f.addLocal("pInverse", "i32"); // pointer to inverse array, n*n8 bytes 
+        f.addLocal("pScratchSpace", "i32");// store x2-x1, x4-x3, ... n*n8
 
         // Array ierator
         f.addLocal("itPairs", "i32");
@@ -1246,18 +1260,27 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addLocal("itInverse", "i32");
         f.addParam("itRes", "i32")
 
-
         f.addLocal("i", "i32");
         f.addLocal("start", "i32");// n - (number in a round)
-        f.addLocal("step", "i32"); // step between two point, 384/8 * 2 * 2, (sizeof(x)) * (x,y) *(2 point)
+        f.addLocal("step", "i32"); // step between two point, 384/8 * 2 * 2. (sizeof(x)) * (x,y) *(2 point)
         f.addLocal("x1", "i32"); //address
         f.addLocal("y1", "i32");
         f.addLocal("x2", "i32");
         f.addLocal("y2", "i32");
         const c = f.getCodeBuilder();
-        const m = c.i32_const(module.alloc(n8g));
-        const X3 = c.i32_const(module.alloc(n8g));
+        const m = c.i32_const(module.alloc(n8));
+        const X3 = c.i32_const(module.alloc(n8));
 
+        const X1_square = c.i32_const(module.alloc(n8));  
+        const X1_squareX1_square = c.i32_const(module.alloc(n8));
+        const X1_squareX1_squareX1_square = c.i32_const(module.alloc(n8));
+        const M = c.i32_const(module.alloc(n8));
+        const X1_MINUS_X3 = c.i32_const(module.alloc(n8));
+        const X1_MINUS_X3_MUL_M = c.i32_const(module.alloc(n8));
+        const M_square = c.i32_const(module.alloc(n8));
+        
+
+        
         f.addCode(
             // alloc memory
             c.setLocal("pScratchSpace", c.i32_load(c.i32_const(0))),
@@ -1267,67 +1290,45 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                     c.getLocal("pScratchSpace"),
                     c.i32_mul(
                         c.getLocal("n"),
-                        c.i32_const(n8g)  // should be 384/8
+                        c.i32_const(n8)  // should be 384/8
                     )
                 )
             ),
 
-            c.setLocal("pInverse", c.i32_load(c.i32_const(0))),
-            c.i32_store(
-                c.i32_const(0),
-                c.i32_add(
-                    c.getLocal("pInverse"),
-                    c.i32_mul(
-                        c.getLocal("n"),
-                        c.i32_const(n8g)  // should be 384/8
-                    )
-                )
-            ),
+            // uncomment when the test is done
+            // c.setLocal("pInverse", c.i32_load(c.i32_const(0))),
+            // c.i32_store(
+            //     c.i32_const(0),
+            //     c.i32_add(
+            //         c.getLocal("pInverse"),
+            //         c.i32_mul(
+            //             c.getLocal("n"),
+            //             c.i32_const(n8)  // should be 384/8
+            //         )
+            //     )
+            // ),
 
-            // start= n-pointsInRound
+            // start= n - pointsInRound
             c.setLocal("start", c.i32_sub(c.getLocal("n"), c.getLocal("pointsInRound"))),
             // i= n-2
-            c.setLocal("i", c.i32_sub(c.getLocal("n"), c.i32_const("i"))),
+            c.setLocal("i", c.i32_sub(c.getLocal("n"), c.i32_const(2))),
             c.setLocal(
                 "itPairs",
                 c.i32_add(
                     c.getLocal("pPairs"),
                     c.i32_mul(
                         c.getLocal("i"),
-                        c.i32_const(n8g * 2)
+                        c.i32_const(n8 * 2)
                     )
                 )
             ),
 
-            // while(i>start){
-            //  calculate res
-            //}
             c.block(c.loop(
-                c.br_if(1, c.i32_lt_u(c.getLocal("i"), c.getLocal("start"))),
-                // find two points Idx to add
-                // c.setLocal(
-                //     "pointIdx1",
-                //     c.i32_wrap_i64(
-                //         c.i64_shr_u(
-                //             c.i64_load(c.getLocal("itPairs")),
-                //             c.i64_const(32)
-                //         )
-                //     )   
-                // ),
-                // c.setLocal("itPairs", c.i32_add(c.getLocal("itPairs"), c.i32_const(8))),// fetch second point 
-                // c.setLocal(
-                //     "pointIdx2",
-                //     c.i32_wrap_i64(
-                //         c.i64_shr_u(
-                //             c.i64_load(c.getLocal("itPairs")),
-                //             c.i64_const(32)
-                //         )
-                //     )   
-                // ),
+                c.br_if(1, c.i32_lt_s(c.getLocal("i"), c.getLocal("start"))),
                 c.setLocal("x1", c.getLocal("itPairs")),
-                c.setLocal("y1", c.i32_add(c.getLocal("itPairs"), c.i32_const(n8g))),
-                c.setLocal("x2", c.i32_add(c.getLocal("itPairs"), c.i32_const(n8g * 2))),
-                c.setLocal("y2", c.i32_add(c.getLocal("itPairs"), c.i32_const(n8g * 3))),
+                c.setLocal("y1", c.i32_add(c.getLocal("itPairs"), c.i32_const(n8))),
+                c.setLocal("x2", c.i32_add(c.getLocal("itPairs"), c.i32_const(n8 * 2))),
+                c.setLocal("y2", c.i32_add(c.getLocal("itPairs"), c.i32_const(n8 * 3))),
 
                 // x2-x1
                 c.setLocal(
@@ -1335,27 +1336,28 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                     c.i32_add(
                         c.getLocal("pScratchSpace"),
                         c.i32_mul(
-                            c.i32_shl(
+                            c.i32_shr_u(
                                 c.getLocal("i"),
                                 c.i32_const(1)
                             ),
-                            c.i32_const(n8g)
+                            c.i32_const(n8)
                         )
                     )
                 ),
+                
                 // Store x2-x1/2y1 in pScratchSpace for batch inverse, y2-y1 in y2, x1+x2 in x1
-                c.call(prefix + "_sub", c.getLocal("x2"), c.getLocal("x1"), c.getLocal("itScratchSpace")),
+                c.call(prefixField + "_sub", c.getLocal("x2"), c.getLocal("x1"), c.getLocal("itScratchSpace")),
                 c.if(
-                    c.call(prefix + "_isZero", c.getLocal("itScratchSpace")),
+                    c.call(prefixField + "_isZero", c.getLocal("itScratchSpace")),
                     [
-                        c.call(prefix + "_sub", c.getLocal("y1"), c.getLocal("y1"), c.getLocal("itScratchSpace")),
-                        c.call(prefix + "_zero", c.getLocal("y2")),// if x2-x1=0, store 0 in y2
+                        c.call(prefixField + "_add", c.getLocal("y1"), c.getLocal("y1"), c.getLocal("itScratchSpace")),
+                        c.call(prefixField + "_zero", c.getLocal("y2")),// if x2-x1=0, store 0 in y2
                     ],
                 ),
-                c.call(prefix + "_add", c.getLocal("x2"), c.getLocal("x1"), c.getLocal("x2")),
-                c.call(prefix + "_sub", c.getLocal("y2"), c.getLocal("y1"), c.getLocal("y1")),
+                c.call(prefixField + "_add", c.getLocal("x2"), c.getLocal("x1"), c.getLocal("x2")),
+                c.call(prefixField + "_sub", c.getLocal("y2"), c.getLocal("y1"), c.getLocal("y1")),
 
-                c.setLocal("itPairs", c.i32_sub(c.getLocal("itPairs"), c.i32_const(n8g * 2 * 2))),
+                c.setLocal("itPairs", c.i32_sub(c.getLocal("itPairs"), c.i32_const(n8 * 2 * 2))),
                 c.setLocal("i", c.i32_sub(c.getLocal("i"), c.i32_const(2))),
                 c.br(0)
             )),
@@ -1363,30 +1365,29 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
             c.setLocal( // inverse start address
                 "itInverse",
                 c.i32_add(
-                    c.getLocal("pPairs"),
+                    c.getLocal("pScratchSpace"),
                     c.i32_mul(
                         c.getLocal("start"),
-                        c.i32_const(n8g * 2)
+                        c.i32_const(n8)
                     )
                 )
             ),
 
-            // get 1/(x2-x1), 1/(x4-x3), ...
+            // calculate 1/(x2-x1), 1/(x4-x3), ...
             c.call(
-                prefix + "_batchInverse",
+                prefixField + "_batchInverse",
                 c.getLocal("itInverse"),
-                c.i32_const(n8g),
-                c.i32_shl(c.getLocal("pointsInRound"), c.i32_const(1)),
+                c.i32_const(n8),
+                c.i32_shr_u(c.getLocal("pointsInRound"), c.i32_const(1)),
                 c.getLocal("pInverse"),
-                c.i32_const(n8g)
+                c.i32_const(n8)
             ),
 
-
-
+            // TODO: should be in-place
             // i= n-2
             c.setLocal("i", c.i32_sub(c.getLocal("n"), c.i32_const(2))),
-            c.setLocal("itPairs", c.i32_add(c.getLocal("pPairs"), c.i32_mul(c.getLocal("i"), c.i32_const(n8g * 2)))),
-            c.setLocal("itRes", c.i32_add(c.getLocal("pPairs"), c.i32_mul(c.i32_sub(c.getLocal("n"), c.i32_const(1)), c.i32_const(n8g * 2)))), // point to last element
+            c.setLocal("itPairs", c.i32_add(c.getLocal("pPairs"), c.i32_mul(c.getLocal("i"), c.i32_const(n8 * 2)))),
+            c.setLocal("itRes", c.i32_add(c.getLocal("pPairs"), c.i32_mul(c.i32_sub(c.getLocal("n"), c.i32_const(1)), c.i32_const(n8 * 2)))), // point to last element
             c.setLocal(
                 "itInverse",
                 c.i32_add(
@@ -1396,7 +1397,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                             c.getLocal("i"),
                             c.i32_const(1)
                         ),
-                        c.i32_const(n8g)
+                        c.i32_const(n8)
                     )
                 )
             ),
@@ -1405,20 +1406,18 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
             //  store res
             //}
             c.block(c.loop(
-                c.br_if(1, c.i32_lt_u(c.getLocal("i"), c.getLocal("start"))),
+                c.br_if(1, c.i32_lt_s(c.getLocal("i"), c.getLocal("start"))),
                 c.setLocal("x1", c.getLocal("itPairs")),//x1
-                c.setLocal("y1", c.i32_add(c.getLocal("itPairs"), c.i32_const(n8g))),//y1
-                c.setLocal("x2", c.i32_add(c.getLocal("itPairs"), c.i32_const(n8g * 2))),//x1+x2
-                c.setLocal("y2", c.i32_add(c.getLocal("itPairs"), c.i32_const(n8g * 3))),//y2-y1
-
-
+                c.setLocal("y1", c.i32_add(c.getLocal("itPairs"), c.i32_const(n8))),//y1
+                c.setLocal("x2", c.i32_add(c.getLocal("itPairs"), c.i32_const(n8 * 2))),//x1+x2
+                c.setLocal("y2", c.i32_add(c.getLocal("itPairs"), c.i32_const(n8 * 3))),//y2-y1
                 c.if(
-                    c.call(prefix + "_isZero", c.getLocal("y2")),
+                    c.call(prefixField + "_isZero", c.getLocal("y2")),
                     // m = 3x^2+a / 2y1.  
                     // a==0 in BLS12381
                     [
                         ...c.call(
-                            prefix + "_square",
+                            prefixField + "_square",
                             c.getLocal("x1"),
                             X1_square
                         ),
@@ -1445,7 +1444,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                     // m = y2-y1 / (x2-x1)
                     [
                         ...c.call(
-                            prefix + "_mul",
+                            prefixField + "_mul",
                             c.getLocal("y2"),
                             c.getLocal("itInverse"),
                             M
@@ -1456,17 +1455,17 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                 // store x3  
                 // x3 = m^2 - x1 - x2
 
-                c.call(prefix + "_square", M, M_square),
-                c.call(prefix + "_sub", M_square, c.getLocal("x2"), "itRes"),
+                c.call(prefixField + "_square", M, M_square),
+                c.call(prefixField + "_sub", M_square, c.getLocal("x2"), "itRes"),
                 // store y3
                 // y3 = m * (x1 - x3) - y1
-                c.call(prefix + "_sub", c.getLocal("x1"), c.getLocal("itRes"), X1_MINUS_X3),
-                c.call(prefix + "_mul", M, X1_MINUS_X3, X1_MINUS_X3_MUL_M),
-                c.call(prefix + "_sub", X1_MINUS_X3_MUL_M, c.getLocal("y1"), c.i32_add(c.getLocal("itRes"), c.i32_const(n8g))),
+                c.call(prefixField + "_sub", c.getLocal("x1"), c.getLocal("itRes"), X1_MINUS_X3),
+                c.call(prefixField + "_mul", M, X1_MINUS_X3, X1_MINUS_X3_MUL_M),
+                c.call(prefixField + "_sub", X1_MINUS_X3_MUL_M, c.getLocal("y1"), c.i32_add(c.getLocal("itRes"), c.i32_const(n8))),
 
-                c.setLocal("itPairs", c.i32_sub(c.getLocal("itPairs"), c.i32_const(n8g * 2 * 2))),
-                c.setLocal("itRes", c.i32_sub(c.getLocal("itRes"), c.i32_const(n8g * 2))),// store one element each time
-                c.setLocal("itScratchSpace", c.i32_sub(c.getLocal("itScratchSpace"), c.i32_const(n8g))),
+                c.setLocal("itPairs", c.i32_sub(c.getLocal("itPairs"), c.i32_const(n8 * 2 * 2))),
+                c.setLocal("itRes", c.i32_sub(c.getLocal("itRes"), c.i32_const(n8 * 2))),// store one element each time
+                c.setLocal("itScratchSpace", c.i32_sub(c.getLocal("itScratchSpace"), c.i32_const(n8))),
                 c.setLocal("i", c.i32_sub(c.getLocal("i"), c.i32_const(2))),
                 c.br(0)
             )),
@@ -2436,7 +2435,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     buildCopyArray();
     buildGetMSB();
 
-    // buildAddAffinePoints();
+    buildAddAffinePointsOneRound();
     buildCountBits();
     buildConstructAdditionChains();
     // buildEvaluateAdditionChains();
@@ -2459,6 +2458,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     module.exportFunction(fnName + "_constructAdditionChains");
     module.exportFunction(fnName + "_singlePointComputeSchedule");
     module.exportFunction(fnName + "_rearrangePoints");
+    module.exportFunction(fnName + "_addAffinePointsOneRound");
     
 
     buildTestGetMSB();
