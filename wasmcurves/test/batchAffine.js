@@ -27,6 +27,7 @@ describe("Basic tests for batch affine in bls12-381", function () {
     function printG1(s, p) {
         console.log(s + " G1(" + printHex(p) + " , " + printHex(p + n8q) + " , " + printHex(p + n8q * 2) + ")");
     }
+    
 
     it("organizeBucketsOneRound is correct.", async () => {
         let inputs = [0x0000000000000000, 0x0000000100000003, 0x0000000200000000, 0x0000000300000001, 0x0000000400000002, 0x0000000500000001, 0x0000000600000003];
@@ -271,33 +272,154 @@ describe("Basic tests for batch affine in bls12-381", function () {
         }
     });
 
-    it("addAffinePointsOneRound is correct (no duplicate points).", async () => {
+    it("addAffinePointsOneRound is correct.", async () => {
         // use fake point for simplicity
-        // assume BitOffset [0, 2, 6, 10];
         let pairs = [
-            0x00001111, 0x00002222, 
-            0x33331111, 0x33332222, 0x11111111, 0x11112222, 0x22221111, 0x22222222, 
-            0x88881111, 0x88882222, 0x99991111, 0x99992222, 0x44441111, 0x44442222,
-            0x55551111, 0x55552222, 0x66661111, 0x66662222, 0x77771111, 0x77772222
+            0x17f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bbn,
+            0x8b3f481e3aaa0f1a09e30ed741d8ae4fcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e1n, 
+            0x572cbea904d67468808c8eb50a9450c9721db309128012543902d0ac358a62ae28f75bb8f1c7c42c39a8c5529bf0f4en, 
+            0x166a9d8cabc673a322fda673779d8e3822ba3ecb8670e461f73bb9021d5fd76a4c56d9d4cd16bd1bba86881979749d28n, 
+            0x11111111, 0x11112222, 0x22221111, 0x22222222, 
+            0xc9b60d5afcbd5663a8a44b7c5a02f19e9a77ab0a35bd65809bb5c67ec582c897feb04decc694b13e08587f3ff9b5b60n,
+            0x143be6d078c2b79a7d4f1d1b21486a030ec93f56aa54e1de880db5a66dd833a652a95bee27c824084006cb5644cbd43fn, 
+            0x99991111, 0x99992222, 0x44441111, 0x44442222,
+            0x55551111, 0x55552222, 
+            0x00001113, 0x66662222, 0x00001113, 0x66662222 // same point test
         ];
-        let pointsInRound = 10;
+        let expectedF1mOutput = []
+        let expectedG1mOutput = []
+        let resultTest = []
+        let cleanDataTest = []
+        let pointsInRound = 8;
         let numPoints = 10;
         const pPaires = pb.alloc(numPoints * n8q * 2);
-        const pRes = pb.alloc(numPoints * n8q * 2);
-        const pInverse = pb.alloc(numPoints * n8q); // only for test
-        const debug = pb.alloc(4);
 
+        console.log("========= Expected results=========")
+        const x1 = pb.alloc(n8q);
+        const y1 = pb.alloc(n8q);
+        const x2 = pb.alloc(n8q);
+        const y2 = pb.alloc(n8q);
+        const m = pb.alloc(n8q);
+        const x1_square = pb.alloc(n8q);
+        const x1_squarex1_square = pb.alloc(n8q);
+        const x1_squarex1_squarex1_square = pb.alloc(n8q);
+        const y1_add_y1 = pb.alloc(n8q);
+        const y1_add_y1_inv = pb.alloc(n8q);
+        
+        const y2_minus_y1 = pb.alloc(n8q);
+        const x2_minus_x1 = pb.alloc(n8q);
+        const x2_minus_x1_inv = pb.alloc(n8q);
+        const x2_add_x1 = pb.alloc(n8q);
+        const m_square = pb.alloc(n8q);
+        const x1_minus_x3 = pb.alloc(n8q);
+        const x1_minus_x3_mul_m = pb.alloc(n8q);
+        const x3 = pb.alloc(n8q);
+        const y3 = pb.alloc(n8q);
+
+        for(let start=(numPoints-pointsInRound)*2;start<numPoints*2;start+=4){
+            pb.set(x1, pairs[start], 48);
+            pb.set(y1, pairs[start+1], 48);
+            pb.set(x2, pairs[start+2], 48);
+            pb.set(y2, pairs[start+3], 48);
+            pb.f1m_toMontgomery(x1,x1);
+            pb.f1m_toMontgomery(y1,y1);
+            pb.f1m_toMontgomery(x2,x2);
+            pb.f1m_toMontgomery(y2,y2);
+            
+            pb.f1m_add(x2,x1,x2_add_x1);
+            pb.f1m_sub(x2,x1,x2_minus_x1);
+
+            if(pb.get(x2_minus_x1,1,48) == 0){
+                pb.f1m_mul(x1, x1, x1_square);
+                pb.f1m_add(x1_square, x1_square, x1_squarex1_square);
+                pb.f1m_add(x1_squarex1_square, x1_square, x1_squarex1_squarex1_square);
+                pb.f1m_add(y1, y1, y1_add_y1);
+                pb.f1m_inverse(y1_add_y1, y1_add_y1_inv);
+                pb.f1m_mul(y1_add_y1_inv, x1_squarex1_squarex1_square, m);
+            }
+            else{
+                pb.f1m_sub(y2,y1,y2_minus_y1);
+                pb.f1m_inverse(x2_minus_x1,x2_minus_x1_inv);
+                pb.f1m_mul(x2_minus_x1_inv, y2_minus_y1, m);
+            }
+            pb.f1m_mul(m, m, m_square); // m^2
+            pb.f1m_sub(m_square, x2_add_x1, x3);//x3
+            pb.f1m_sub(x1, x3, x1_minus_x3);
+            pb.f1m_mul(x1_minus_x3, m, x1_minus_x3_mul_m);
+            pb.f1m_sub(x1_minus_x3_mul_m, y1, y3);//y3
+            pb.f1m_fromMontgomery(x3,x3);
+            pb.f1m_fromMontgomery(y3,y3);
+            expectedF1mOutput.push(pb.get(x3, 1, 48));
+            expectedF1mOutput.push(pb.get(y3, 1, 48));
+            console.log(pb.get(x3, 1, 48).toString(16));
+            console.log(pb.get(y3, 1, 48).toString(16));
+        }
+
+        console.log("=========addAffinePointsOneRound results=========")
         for (let i = 0; i < numPoints; i++) {
             pb.set(pPaires + 96 * i, pairs[i * 2], 48);
             pb.set(pPaires + 96 * i + 48, pairs[i * 2 + 1], 48);
+            pb.f1m_toMontgomery(pPaires + 96 * i, pPaires + 96 * i);
+            pb.f1m_toMontgomery(pPaires + 96 * i + 48, pPaires + 96 * i + 48); 
         }
-        pb.g1m_multiexp_addAffinePointsOneRound(numPoints, pointsInRound, pPaires, pRes, pInverse, debug);
-
-        //console.log(pb.get(debug,1,4));
-        let output = pb.get(pInverse, numPoints, 48);
+        
+        pb.g1m_multiexp_addAffinePointsOneRound(numPoints, pointsInRound, pPaires);
         for (let i = 0; i < numPoints; i++) {
-            console.log(output[i].toString(16))
-            //assert.equal(output[i], expectedOutput[i]);
+            pb.f1m_fromMontgomery(pPaires + 96 * i, pPaires + 96 * i);
+            pb.f1m_fromMontgomery(pPaires + 96 * i + 48, pPaires + 96 * i + 48); 
+        }
+        let output = pb.get(pPaires, numPoints * 2, 48);
+        for (let i = numPoints * 2 - pointsInRound; i < numPoints * 2; i++) {
+            resultTest.push(output[i]);
+            console.log(output[i].toString(16));
+        }
+        for(let i = 0; i < (numPoints -  pointsInRound) * 2 ; i++){
+            cleanDataTest.push(output[i]);
+            //console.log(output[i].toString(16));
+        }
+
+        console.log("=========expectedOutput=========")
+        const expectedOutput = pb.alloc(numPoints/2 * n8q *3);
+        const g1minput = pb.alloc(numPoints * n8q * 3);
+        for(let i = 0; i < numPoints; i++){
+            pb.set(g1minput + 144 * i, pairs[i * 2], 48);
+            pb.set(g1minput + 144 * i + 48, pairs[i * 2 + 1], 48);
+            pb.f1m_toMontgomery(g1minput + 144 * i, g1minput + 144 * i);
+            pb.f1m_toMontgomery(g1minput + 144 * i + 48, g1minput + 144 * i + 48);
+            pb.f1m_one(g1minput + 144 * i + 96);
+        }
+        for(let i = 0; i < numPoints; i++){
+            pb.set(expectedOutput + 48 * i , 0, 48);
+        }
+        for(let i = 0; i < numPoints / 2; i++){
+            pb.g1m_add(g1minput+2*i*144,g1minput+2*i*144+144,expectedOutput+i*144)
+            pb.g1m_normalize(expectedOutput+i*144,expectedOutput+i*144)
+        }
+        for (let i = 0; i < numPoints; i++) {
+            pb.f1m_fromMontgomery(expectedOutput + 144 * i, expectedOutput + 144 * i);
+            pb.f1m_fromMontgomery(expectedOutput + 144 * i + 48, expectedOutput + 144 * i + 48); 
+            pb.f1m_fromMontgomery(expectedOutput + 144 * i + 96, expectedOutput + 144 * i + 96); 
+        }
+        let output2 = pb.get(expectedOutput, numPoints/2 *3, 48);
+        for (let i = (numPoints-pointsInRound) / 2 *3; i < numPoints / 2 * 3; i+=3) {
+            expectedG1mOutput.push(output2[i]);
+            expectedG1mOutput.push(output2[i+1]);
+            // console.log(output2[i].toString(16));
+            // console.log(output2[i+1].toString(16));
+        }
+
+        // Test whether pPaires equals paire in index [0...pointsInRound] 
+        for (let i = 0; i < (numPoints -  pointsInRound) * 2; i++) {
+            assert.equal(pairs[i], cleanDataTest[i]);
+        }
+        // Test result in two ways
+        // f1m
+        for (let i = 0; i < pointsInRound ; i++) {
+            assert.equal(expectedF1mOutput[i], resultTest[i]);
+        }
+        // wasmcurve g1m
+        for (let i = 0; i < pointsInRound ; i++) {
+            assert.equal(expectedG1mOutput[i], resultTest[i]);
         }
     });
 });
