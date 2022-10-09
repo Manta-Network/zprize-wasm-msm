@@ -1136,25 +1136,25 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         );
     }
 
-    // TODO: Add Documents
+    // This function evaluates a chain of pairwise additions.
+    // For example:
+    // The input pPoint is the initial point array:
+    //      [p0, p1, p2, p3, p4, p5, p6, p7, p8, p9] 
+    // pAdditionChains is the pointer to addition chains:
+    //              [(0,0), (3,2),
+    //               (1,0), (2,0), (8,1), (9,1),
+    //               (4,2), (5,2), (6,2), (7,2)]
+    // We first call _rearrangePoints() to arrange points as follows:
+    //      [p0, p3, p1, p2, p8, p9, p4, p5, p6, p7]
+    // And then repeatedly calling the _addAffinePointsOneRound() function to get results.
     function buildEvaluateAdditionChains() {
-        const f = module.addFunction(fnName + "_EvaluateAdditionChains");
-        //f.addParam("pPointSchedules", "i32"); // point sorted by bucket index
-        //f.addParam("maxCount", "i32"); // max point number in a bucket
-        //f.addParam("pTableSize", "i32"); //bucket_counts, number of points in a bucket
+        const f = module.addFunction(fnName + "_evaluateAdditionChains");
         f.addParam("pBitOffsets", "i32");
         f.addParam("numPoints", "i32"); // number of points
-        f.addParam("handle_edge_cases", "i32"); // bool type
         f.addParam("max_bucket_bits", "i32");
         f.addParam("pPoint", "i32");// original point vectors
-        // Schedule is an array like this:(pointIdx,bucketIdx)
-        // sorted by bit index
-        // [(3, 1, 0), (0, 1, 1),
-        //  (1, 1, 0), (0, 0, 0), (0, 1, 2), (3, 1, 2),
-        //  (1, 1, 1), (3, 0, 1), (2, 1, 1), (4, 0, 1)]
-        f.addParam("pSchedule", "i32");
-        // 1d array of `numPoint` points as the result.
-        f.addParam("pRes", "i32"); // result array start point. size: N*8 byte
+        f.addParam("pAdditionChains", "i32");
+        f.addParam("pRes", "i32"); // result array start point. size: N*2*n8 byte
 
         f.addLocal("end", "i32");
         f.addLocal("points_in_round", "i32");
@@ -1163,13 +1163,15 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addLocal("i", "i32");
         f.addLocal("j", "i32");
         f.addLocal("k", "i32");
+        const c = f.getCodeBuilder();
 
         f.addCode(
             // end = state.num_points
             c.setLocal(
                 "end",
-                c.getLocal("n")
+                c.getLocal("numPoints")
             ),
+            c.call(fnName + "_rearrangePoints", c.getLocal("numPoints"), c.getLocal("pPoint"), c.getLocal("pAdditionChains"), c.getLocal("pRes")),
             c.setLocal("i", c.i32_const(0)),
             c.block(c.loop(
                 c.br_if(
@@ -1185,13 +1187,13 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                     "points_in_round",
                     c.i32_shr_u(
                         c.i32_sub(
-                            c.getLocal("n"),
+                            c.getLocal("numPoints"),
                             c.i32_load(
                                 c.i32_add(
                                     c.i32_mul(
                                         c.i32_add(
                                             c.i32_const(1),
-                                            c.getLocal(i)
+                                            c.getLocal("i")
                                         ),
                                         c.i32_const(4)
                                     ),
@@ -1202,26 +1204,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                         c.getLocal("i")
                     )
                 ),
-
-                // TODO: 应该把_AddAffinePointspres和pPaire合并？
-                c.call(prefix + "_RearrangePoints", c.getLocal("n"), c.getLocal("pPoint"), c.getLocal("pSchedule"), c.getLocal("pRes")),
-                c.call(prefix + "_AddAffinePoints", c.getLocal("n"), c.getLocal("points_in_round"), c.getLocal("pRes")),
-
-                // c.if(
-                //     c.getLocal("handle_edge_cases"),
-                //     [
-
-                //         ...c.call(
-                //             xxxx
-                //         )
-                //     ],
-                //     [
-                //         ...c.call(
-                //             xxxx
-                //         )
-                //     ]
-                // ),
-
+                c.call(fnName + "_addAffinePointsOneRound", c.getLocal("numPoints"), c.getLocal("points_in_round"), c.getLocal("pRes")),
                 c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
                 c.br(0)
             )),
@@ -1258,7 +1241,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addLocal("itPairs", "i32");
         f.addLocal("itScratchSpace", "i32");
         f.addLocal("itInverse", "i32");
-        f.addParam("itRes", "i32")
+        f.addLocal("itRes", "i32")
 
         f.addLocal("i", "i32");
         f.addLocal("start", "i32");// n - (number in a round)
@@ -1278,9 +1261,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         const X1_MINUS_X3 = c.i32_const(module.alloc(n8));
         const X1_MINUS_X3_MUL_M = c.i32_const(module.alloc(n8));
         const M_square = c.i32_const(module.alloc(n8));
-        
-
-        
+          
         f.addCode(
             // alloc memory
             c.setLocal("pScratchSpace", c.i32_load(c.i32_const(0))),
@@ -1714,7 +1695,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                 c.i32_eq(c.getLocal("maxBucketBits"), c.i32_const(0)),
                 c.ret(c.getLocal("pPointPairs1")),
             ),
-            c.call(prefix + "_EvaluateAdditionChains",
+            c.call(prefix + "_evaluateAdditionChains",
                 c.getLocal("pBitOffsets"),
                 c.getLocal("numPoints"),
                 c.i32_const(0), // Default for handling edge cases
@@ -2450,7 +2431,6 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     buildAddAffinePointsOneRound();
     buildCountBits();
     buildConstructAdditionChains();
-    // buildEvaluateAdditionChains();
     buildGetChunk();
     buildGetOptimalChunkWidth();
     buildGetNumBuckets();
@@ -2458,6 +2438,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     buildOrganizeBucketsOneRound();
     buildOrganizeBuckets();
     buildRearrangePoints();
+    buildEvaluateAdditionChains();
     // buildReduceTable();
     // buildReduceBuckets();
     buildSinglePointComputeSchedule();
@@ -2471,6 +2452,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     module.exportFunction(fnName + "_singlePointComputeSchedule");
     module.exportFunction(fnName + "_rearrangePoints");
     module.exportFunction(fnName + "_addAffinePointsOneRound");
+    module.exportFunction(fnName + "_evaluateAdditionChains");
     
 
     buildTestGetMSB();
