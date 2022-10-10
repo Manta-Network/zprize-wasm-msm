@@ -657,10 +657,10 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     //      Input: [(0,0), (1,3), (2,0), (3,1), (4,2), (5,1), (6,3)]. Here, (i,j) 
     //              indicates the i^th point in the j^th buckets.
     //      Output: sort by bucket index
-    //              [(0,0), (2,0),
-    //               (3,1), (5,1),
+    //              [(3,1), (5,1),
     //               (4,2),
     //               (1,3), (6,3)]
+    //      Note that (0, 0) and (2,0) are skipped since bucket 0 does not need any computation.
     function buildOrganizeBucketsOneRound() {
         const f = module.addFunction(fnName + "_organizeBucketsOneRound");
         const c = f.getCodeBuilder();
@@ -682,6 +682,8 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addLocal("bucketIdx", "i32");
         // Index
         f.addLocal("i", "i32");
+        // Number of points with bucket index 0
+        f.addLocal("countBucket0", "i32");
         f.addCode(
             c.setLocal("pBucketCount",
                 c.call(fnName + "_allocateMemory",
@@ -694,23 +696,31 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                 c.i32_const(0),
             ),
             c.setLocal("pBucketOffsets",
-                c.call(fnName + "_allocateMemory", c.i32_shl(
-                    c.i32_add(
-                        c.getLocal("numBuckets"),
-                        c.i32_const(1),
+                c.call(fnName + "_allocateMemory",
+                    c.i32_shl(
+                        c.i32_add(
+                            c.getLocal("numBuckets"),
+                            c.i32_const(1),
+                        ),
+                        c.i32_const(2)
                     ),
-                    c.i32_const(2)
-                )),
+                ),
             ),
             c.setLocal("pPointBucketIdx",
                 c.call(fnName + "_allocateMemory",
                     c.i32_shl(c.getLocal("numPoints"), c.i32_const(2)),
                 ),
             ),
+            c.setLocal("countBucket0", c.i32_const(0)),
             // for(i=0; i<numPoints; i++) {
             //      bucketIdx = (pPointSchedule[i] & 0x7FFFFFFF) as i32
-            //      pPointBucketIdx[i] = bucketIdx
-            //      pBucketCount[bucketIdx] += 1;
+            //      if(bucketIdx == 0x7FFFFFFF) {
+            //          pPointBucketIdx[i] = 0;
+            //          countBucket0++;
+            //      } else {
+            //          pPointBucketIdx[i] = bucketIdx;
+            //          pBucketCount[bucketIdx] += 1;
+            //      }
             // }
             c.setLocal("i", c.i32_const(0)),
             c.block(c.loop(
@@ -722,15 +732,31 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                     ),
                     c.i64_const(0x7FFFFFFF)
                 ))),
-                c.call(fnName + "_storeI32",
-                    c.getLocal("pPointBucketIdx"),
-                    c.getLocal("i"),
-                    c.getLocal("bucketIdx"),
-                ),
-                c.call(fnName + "_addAssignI32InMemoryUncheck",
-                    c.getLocal("pBucketCount"),
-                    c.getLocal("bucketIdx"),
-                    c.i32_const(1),
+                c.if(
+                    c.i32_eq(
+                        c.getLocal("bucketIdx"),
+                        c.i32_const(0x7FFFFFFF),
+                    ),
+                    [
+                        ...c.call(fnName + "_storeI32",
+                            c.getLocal("pPointBucketIdx"),
+                            c.getLocal("i"),
+                            c.i32_const(0),
+                        ),
+                        ...c.setLocal("countBucket0", c.i32_add(c.getLocal("countBucket0"), c.i32_const(1))),
+                    ],
+                    [
+                        ...c.call(fnName + "_storeI32",
+                            c.getLocal("pPointBucketIdx"),
+                            c.getLocal("i"),
+                            c.getLocal("bucketIdx"),
+                        ),
+                        ...c.call(fnName + "_addAssignI32InMemoryUncheck",
+                            c.getLocal("pBucketCount"),
+                            c.getLocal("bucketIdx"),
+                            c.i32_const(1),
+                        ),
+                    ],
                 ),
                 c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
                 c.br(0)
@@ -769,8 +795,10 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
             )),
             // for(i=0; i<numPoints; i++) {
             //      bucketIdx = pPointBucketIdx[i];
-            //      pMetadata[pBucketOffsets[bucketIdx]] = pPointSchedules[i];
-            //      pBucketOffsets[bucketIdx] += 1;
+            //      if (bucketIdx != 0) {
+            //          pMetadata[pBucketOffsets[bucketIdx]] = pPointSchedules[i];
+            //          pBucketOffsets[bucketIdx] += 1;
+            //      }
             // }
             c.setLocal("i", c.i32_const(0)),
             c.block(c.loop(
@@ -781,21 +809,54 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                         c.getLocal("i"),
                     ),
                 ),
-                c.call(fnName + "_storeI64",
-                    c.getLocal("pMetadata"),
-                    c.call(fnName + "_loadI32",
-                        c.getLocal("pBucketOffsets"),
+                c.if(
+                    c.i32_ne(
                         c.getLocal("bucketIdx"),
+                        c.i32_const(0),
                     ),
-                    c.call(fnName + "_loadI64",
-                        c.getLocal("pPointSchedules"),
+                    [
+                        ...c.call(fnName + "_storeI64",
+                            c.getLocal("pMetadata"),
+                            c.call(fnName + "_loadI32",
+                                c.getLocal("pBucketOffsets"),
+                                c.getLocal("bucketIdx"),
+                            ),
+                            c.call(fnName + "_loadI64",
+                                c.getLocal("pPointSchedules"),
+                                c.getLocal("i"),
+                            ),
+                        ),
+                        ...c.call(fnName + "_addAssignI32InMemoryUncheck",
+                            c.getLocal("pBucketOffsets"),
+                            c.getLocal("bucketIdx"),
+                            c.i32_const(1),
+                        ),
+                    ]
+                ),
+                c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
+                c.br(0),
+            )),
+            // for(i=0; i<countBucket0; i++) {
+            //      pMetadata[numPoints-1-i] = 0xffffffffffffffffn;
+            // }
+            c.setLocal("i", c.i32_const(0)),
+            c.block(c.loop(
+                c.br_if(1,
+                    c.i32_eq(
                         c.getLocal("i"),
+                        c.getLocal("countBucket0"),
                     ),
                 ),
-                c.call(fnName + "_addAssignI32InMemoryUncheck",
-                    c.getLocal("pBucketOffsets"),
-                    c.getLocal("bucketIdx"),
-                    c.i32_const(1),
+                c.call(fnName + "_storeI64",
+                    c.getLocal("pMetadata"),
+                    c.i32_sub(
+                        c.i32_sub(
+                            c.getLocal("numPoints"),
+                            c.i32_const(1),
+                        ),
+                        c.getLocal("i"),
+                    ),
+                    c.i64_const(0xffffffffffffffffn),
                 ),
                 c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
                 c.br(0),

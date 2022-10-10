@@ -28,10 +28,9 @@ describe("Basic tests for batch affine in bls12-381", function () {
         console.log(s + " G1(" + printHex(p) + " , " + printHex(p + n8q) + " , " + printHex(p + n8q * 2) + ")");
     }
 
-
     it("organizeBucketsOneRound is correct.", async () => {
-        let inputs = [0x0000000000000000, 0x0000000100000003, 0x0000000200000000, 0x0000000300000001, 0x0000000400000002, 0x0000000500000001, 0x0000000600000003];
-        let expectedOutput = [0x0000000000000000, 0x0000000200000000, 0x0000000300000001, 0x0000000500000001, 0x0000000400000002, 0x0000000100000003, 0x0000000600000003];
+        let inputs = [0xffffffffffffffffn, 0x0000000100000003, 0xffffffffffffffffn, 0x0000000300000001, 0x0000000400000002, 0x0000000500000001, 0x0000000600000003];
+        let expectedOutput = [0x0000000300000001, 0x0000000500000001, 0x0000000400000002, 0x0000000100000003, 0x0000000600000003, 0xffffffffffffffffn, 0xffffffffffffffffn];
         let numPoints = 7;
         let numBuckets = 8;
         const pPointSchedules = pb.alloc(8 * numPoints);
@@ -41,19 +40,19 @@ describe("Basic tests for batch affine in bls12-381", function () {
         }
         pb.g1m_multiexp_organizeBucketsOneRound(pPointSchedules, numPoints, numBuckets, pMetadata);
         let output = pb.get(pMetadata, numPoints, 8);
-        for (let i = 0; i < numPoints; i++) {
+        for (let i = 0; i < numPoints - 2; i++) {
             assert.equal(output[i], expectedOutput[i]);
         }
     });
 
     it("organizeBuckets is correct.", async () => {
         let inputs = [
-            0x0000000000000000, 0x0000000100000003, 0x0000000200000000, 0x0000000300000001, 0x0000000400000002, 0x0000000500000001, 0x0000000600000003,
-            0x0000000000000004, 0x0000000100000002, 0x0000000200000003, 0x0000000300000000, 0x0000000400000007, 0x0000000500000006, 0x0000000600000002,
+            0xffffffffffffffffn, 0x0000000100000003, 0xffffffffffffffffn, 0x0000000300000001, 0x0000000400000002, 0x0000000500000001, 0x0000000600000003,
+            0x0000000000000004, 0x0000000100000002, 0x0000000200000003, 0xffffffffffffffffn, 0x0000000400000007, 0x0000000500000006, 0x0000000600000002,
         ];
         let expectedOutput = [
-            0x0000000000000000, 0x0000000200000000, 0x0000000300000001, 0x0000000500000001, 0x0000000400000002, 0x0000000100000003, 0x0000000600000003,
-            0x0000000300000000, 0x0000000100000002, 0x0000000600000002, 0x0000000200000003, 0x0000000000000004, 0x0000000500000006, 0x0000000400000007,
+            0x0000000300000001, 0x0000000500000001, 0x0000000400000002, 0x0000000100000003, 0x0000000600000003, 0xffffffffffffffffn, 0xffffffffffffffffn,
+            0x0000000100000002, 0x0000000600000002, 0x0000000200000003, 0x0000000000000004, 0x0000000500000006, 0x0000000400000007, 0xffffffffffffffffn,
         ];
         const numPoints = 7;
         const numBuckets = 8;
@@ -507,8 +506,8 @@ describe("Basic tests for batch affine in bls12-381", function () {
         }
         let output = pb.get(pPointRes, numPoints * 2, 48);
         for (let i = 6; i < numPoints; i++) { // TODO: Issue here
-            console.log("i: " + i + ". Output: " + output[2 * i].toString(16) + ", ", output[2 * i + 1].toString(16));
-            console.log("   ", "Expected: " + expectedOutput[2*i].toString(16) + ", ", expectedOutput[2*i+1].toString(16))
+            // console.log("i: " + i + ". Output: " + output[2 * i].toString(16) + ", ", output[2 * i + 1].toString(16));
+            // console.log("   ", "Expected: " + expectedOutput[2*i].toString(16) + ", ", expectedOutput[2*i+1].toString(16))
             assert.equal(output[2 * i], expectedOutput[2 * i]);
             assert.equal(output[2 * i + 1], expectedOutput[2 * i + 1]);
         }
