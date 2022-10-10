@@ -386,7 +386,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         // Bucket bits of the max bucket count
         // For example, if the max bucket count is 49 (i.e. 0x31), the bucket bit is 6.
         f.addParam("maxBucketBits", "i32");
-        // A pointer to an array of bit offsets.
+        // A pointer to an array of bit offsets. Shape: maxBucketBits+1
         f.addParam("pBitOffsets", "i32");
         // Index
         f.addLocal("i", "i32");
@@ -894,7 +894,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         // Pointer to 1d array of number of points in each bucket for a specific
         // round. Shape: numBuckets
         f.addParam("pBucketCounts", "i32");
-        // Pointer to 1d array of the starting index of the i^th bit. Shape: numBuckets + 1
+        // Pointer to 1d array of the starting index of the i^th bit. Shape: maxBucketBits + 1
         // For example, if the processed addition chain is
         //      [(0,0), (3,2),
         //       (1,0), (2,0), (8,1), (9,1),
@@ -1022,61 +1022,78 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         );
     }
 
-    // This function evaluates a chain of pairwise additions.
+    // Given a pointer `pPoints` to the input point vector, a pointer `pPointSchedules` to 
+    // the point schedules of the current round constructed by `constructAdditionChains`,
+    // a pointer `pBitOffsets` to 1d array of the starting index of the i^th bit, `numPoints`
+    // as the length of the input point vector, `maxBucketBits` as the max bucket bits,
+    // this function evaluates a chain of pairewise additions and stores the results in a vector
+    // pointed by `pPointRes`.
+    //
     // For example:
-    // The input pPoint is the initial point array:
-    //      [p0, p1, p2, p3, p4, p5, p6, p7, p8, p9] 
-    // pAdditionChains is the pointer to addition chains:
-    //              [(0,0), (3,2),
-    //               (1,0), (2,0), (8,1), (9,1),
-    //               (4,2), (5,2), (6,2), (7,2)]
-    // We first call reorderPoints() to arrange points as follows:
-    //      [p0, p3, p1, p2, p8, p9, p4, p5, p6, p7]
-    // And then repeatedly calling the _addAffinePointsOneRound() function to get results.
+    // Input:
+    //      pPoints:
+    //          [p0, p1, p2, p3, p4, p5, p6, p7, p8, p9] 
+    //      pPointSchedules:
+    //          [(0,0), (3,2),
+    //           (1,0), (2,0), (8,1), (9,1),
+    //           (4,2), (5,2), (6,2), (7,2)]
+    // Output:
+    //      pPointRes:
+    //          [p0, p3, p1+p2, p8+p9, p4+p5+p6+p7]
     function buildEvaluateAdditionChains() {
         const f = module.addFunction(fnName + "_evaluateAdditionChains");
+        // Pointer to the input point vector. Shape: numPoints
+        f.addParam("pPoints", "i32");
+        // Pointer `pPointSchedule` to the point schedules of the current round constructed
+        // by `constructAdditionChains`. Shape: numPoints
+        f.addParam("pPointSchedules", "i32");
+        // Pointer to 1d array of the starting index of the i^th bit. Shape: numBuckets + 1
         f.addParam("pBitOffsets", "i32");
-        f.addParam("numPoints", "i32"); // number of points
-        f.addParam("max_bucket_bits", "i32");
-        f.addParam("pPoint", "i32");// original point vectors
-        f.addParam("pAdditionChains", "i32");
-        f.addParam("pRes", "i32"); // result array start point. size: N*2*n8 byte
-        f.addLocal("end", "i32");
-        f.addLocal("points_in_round", "i32");
-        f.addLocal("start", "i32");
+        // Length of the input point vector
+        f.addParam("numPoints", "i32");
+        // Max bucket bits
+        f.addParam("maxBucketBits", "i32");
+        // Pointer to a point vector storing the computation results. Shape: numPoints
+        f.addParam("pPointRes", "i32");
+        // Number of points to be computed in this round. Since evaluateAdditionChains() may
+        // be called repeatedly, `pointsInRound` may be unequal to `numPoints`.
+        f.addLocal("pointsInRound", "i32");
+        // Index
         f.addLocal("i", "i32");
-        f.addLocal("j", "i32");
-        f.addLocal("k", "i32");
         const c = f.getCodeBuilder();
         f.addCode(
-            c.setLocal("end", c.getLocal("numPoints")),
-            c.call(fnName + "_reorderPoints", c.getLocal("pPoint"), c.getLocal("pAdditionChains"), c.getLocal("numPoints"), c.getLocal("pRes")),
+            c.call(fnName + "_reorderPoints",
+                c.getLocal("pPoints"),
+                c.getLocal("pPointSchedules"),
+                c.getLocal("numPoints"),
+                c.getLocal("pPointRes"),
+            ),
+            // for (i=0; i<maxBucketBits; i++) {
+            //    pointsInRound = (numPoints - pBitOffsets[i + 1]) >> i
+            // }
             c.setLocal("i", c.i32_const(0)),
             c.block(c.loop(
-                c.br_if(1, c.i32_eq(c.getLocal("i"), c.getLocal("max_bucket_bits"))),
-                //points_in_round = (state.num_points - state.bit_offsets[i + 1]) >> (i)
-                c.setLocal(
-                    "points_in_round",
+                c.br_if(1, c.i32_eq(c.getLocal("i"), c.getLocal("maxBucketBits"))),
+                c.setLocal("pointsInRound",
                     c.i32_shr_u(
                         c.i32_sub(
                             c.getLocal("numPoints"),
-                            c.i32_load(
+                            c.call(fnName + "_loadI32",
+                                c.getLocal("pBitOffsets"),
                                 c.i32_add(
-                                    c.i32_mul(
-                                        c.i32_add(
-                                            c.i32_const(1),
-                                            c.getLocal("i")
-                                        ),
-                                        c.i32_const(4)
-                                    ),
-                                    c.getLocal("pBitOffsets")
-                                )
-                            )
+                                    c.getLocal("i"),
+                                    c.i32_const(1),
+                                ),
+                            ),
                         ),
                         c.getLocal("i")
-                    )
+                    ),
                 ),
-                c.call(fnName + "_addAffinePointsOneRound", c.getLocal("numPoints"), c.getLocal("points_in_round"), c.getLocal("pRes")),
+                c.call(fnName + "_addAffinePointsOneRound",
+                    c.getLocal("numPoints"),
+                    c.getLocal("pointsInRound"),
+                    c.getLocal("pPointRes"),
+                ),
                 c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
                 c.br(0)
             )),
@@ -1101,7 +1118,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     //          pPointSchedule
     //              [p0, p3, p1, p2, p8, p9, p4, p5, p6, p7]
     //              Here, pi is i-th point, and in affine representation (x, y). 
-    //              Each point use 384*2 bits.
+    //              Each point use n8*2 bytes.
     function buildReorderPoints() {
         const f = module.addFunction(fnName + "_reorderPoints");
         // Pointer to the input point vector
@@ -1113,19 +1130,14 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         // Pointer to a 1d array of reordered points
         f.addParam("pReorderedPoints", "i32");
         const c = f.getCodeBuilder();
-        f.addLocal("itSchedule", "i32");
-        f.addLocal("itRes", "i32");
         f.addLocal("i", "i32");
         f.addLocal("pointIdx", "i32");
-        f.addLocal("pointSrc", "i32");
         f.addCode(
             // for (i=0; i<numPoints; i++) {
             //    pointIdx = pPointSchedule[i] >> 32;
             //    pReorderedPoints[i] = pPoints[pointIdx];
             // }
             c.setLocal("i", c.i32_const(0)),
-            // c.setLocal("itSchedule", c.getLocal("pPointSchedule")),
-            // c.setLocal("itRes", c.getLocal("pReorderedPoints")),
             c.block(c.loop(
                 c.br_if(1, c.i32_eq(c.getLocal("i"), c.getLocal("numPoints"))),
                 c.setLocal("pointIdx",
