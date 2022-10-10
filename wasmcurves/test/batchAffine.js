@@ -229,7 +229,7 @@ describe("Basic tests for batch affine in bls12-381", function () {
         }
     });
 
-    it("rearrangePoints is correct.", async () => {
+    it("reorderPoints is correct.", async () => {
         // use fake point for simplicity
         let points = [
             0x000011111111111111, 0x000022222222222222,
@@ -260,7 +260,7 @@ describe("Basic tests for batch affine in bls12-381", function () {
             pb.set(pPoints + 96 * i, points[i * 2], 48);
             pb.set(pPoints + 96 * i + 48, points[i * 2 + 1], 48);
         }
-        pb.g1m_multiexp_rearrangePoints(numPoints, pPoints, pPointSchedules, pRes);
+        pb.g1m_multiexp_reorderPoints(pPoints, pPointSchedules, numPoints, pRes);
         let output = pb.get(pRes, numPoints * 2, 48);
         for (let i = 0; i < numPoints * 2; i++) {
             assert.equal(output[i], expectedOutput[i]);
