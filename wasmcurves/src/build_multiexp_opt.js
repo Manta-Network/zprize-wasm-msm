@@ -957,14 +957,15 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addParam("pBucketCounts", "i32");
         // Pointer to 1d array of the starting index of the i^th bit. Shape: maxBucketBits + 1
         // For example, if the processed addition chain is
-        //      [(0,0), (3,2),
-        //       (1,0), (2,0), (8,1), (9,1),
+        //      [(3,2),
+        //       (8,1), (9,1),
         //       (4,2), (5,2), (6,2), (7,2)]
-        // we have pBitOffset = [0, 2, 6, 10]
+        // we have pBitOffset = [0, 1, 3, 7]
         f.addParam("pBitOffsets", "i32");
         // Pointer to 1d array of point schedules as the addition chains. Shape:
         f.addParam("pMetadata", "i32");
-        f.setReturnType("i32");
+        // Pointer to max bucket bits. This function computes max bucket bits and stores in this location.
+        f.addParam("pMaxBucketBits", "i32");
         // Max number of points in a bucket
         f.addLocal("maxCount", "i32");
         // Bucket bits of the max bucket count
@@ -1079,7 +1080,11 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                 c.i32_const(0),
                 c.getLocal("pBitOffsetsCopy")
             ),
-            c.getLocal("maxBucketBits"),
+            c.call(fnName + "_storeI32",
+                c.getLocal("pMaxBucketBits"),
+                c.i32_const(0),
+                c.getLocal("maxBucketBits"),
+            ),
         );
     }
 
@@ -1120,12 +1125,6 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addLocal("i", "i32");
         const c = f.getCodeBuilder();
         f.addCode(
-            // c.call(fnName + "_reorderPoints",
-            //     c.getLocal("pPoints"),
-            //     c.getLocal("pPointSchedules"),
-            //     c.getLocal("numPoints"),
-            //     c.getLocal("pPointRes"),
-            // ),
             // for (i=0; i<maxBucketBits; i++) {
             //    pointsInRound = (numPoints - pBitOffsets[i + 1]) >> i
             //    addAffinePointsOneRound(numPoints, pointsInRound, pPoints);
@@ -1199,7 +1198,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
             //    pointIdx = pPointSchedule[i] >> 32;
             //    pReorderedPoints[i] = pPoints[pointIdx];
             // }
-            c.setLocal("numPoints",c.i32_sub(c.getLocal("numPoints"), c.getLocal("countBucket0"))),
+            c.setLocal("numPoints", c.i32_sub(c.getLocal("numPoints"), c.getLocal("countBucket0"))),
             c.setLocal("i", c.i32_const(0)),
             c.block(c.loop(
                 c.br_if(1, c.i32_eq(c.getLocal("i"), c.getLocal("numPoints"))),
@@ -1581,7 +1580,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         // Pointer to 1d array of number of points in each bucket for a specific 
         // round. Shape: numBuckets
         f.addParam("pBucketCounts", "i32");
-        // Pointer to 1d array of the starting index of the i^th bit. Shape: numBuckets + 1
+        // Pointer to 1d array of the starting index of the i^th bit. Shape: maxBucketBits + 1
         // For example, if the processed addition chain is
         //      [(0,0), (3,2),
         //       (1,0), (2,0), (8,1), (9,1),
@@ -1596,7 +1595,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addParam("pPointPairs1", "i32");
         // Pointer to a 1-d array of G1 points as the scratch space. Lengh: numPoints
         f.addParam("pPointPairs2", "i32");
-        f.setReturnType("i32");
+        // f.setReturnType("i32");
         // Max bucket bits
         f.addLocal("maxBucketBits", "i32");
         // Index to start a new bit in pBitOffsets
@@ -1617,32 +1616,61 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addLocal("newBucketCount", "i32");
         // Pointer to the bit offsets for the current bucket and bit
         f.addLocal("pCurrentOffset", "i32");
+        // Pointer to the max bucket bits
+        f.addLocal("pMaxBucketBits", "i32");
+        // Number of points in the bucket zero
+        f.addLocal("bucketZeroCount", "i32");
+        f.setReturnType("i32")
         const c = f.getCodeBuilder();
         f.addCode(
+            c.setLocal("pMaxBucketBits", c.call(fnName + "_allocateMemory", c.i32_const(4))),
+            c.call(fnName + "_constructAdditionChains",
+                c.getLocal("pPointSchedules"),
+                c.getLocal("numPoints"),
+                c.getLocal("numBuckets"),
+                c.getLocal("pBucketCounts"),
+                c.getLocal("pBitOffsets"),
+                c.getLocal("pPointScheduleAlt"),
+                c.getLocal("pMaxBucketBits"),
+            ),
             c.setLocal("maxBucketBits",
-                c.call(fnName + "_constructAdditionChains",
-                    c.getLocal("pPointSchedules", "i32"),
-                    c.getLocal("numPoints", "i32"),
-                    c.getLocal("numBuckets", "i32"),
-                    c.getLocal("pBucketCounts", "i32"),
-                    c.getLocal("pBitOffsets", "i32"),
-                    c.getLocal("pPointScheduleAlt", "i32"),
+                c.call(fnName + "_loadI32",
+                    c.getLocal("pMaxBucketBits"),
+                    c.i32_const(0),
                 ),
             ),
-            // TODO: Move reorderPoints here
+            c.setLocal("bucketZeroCount",
+                c.i32_sub(
+                    c.getLocal("numPoints"),
+                    c.call(fnName + "_loadI32",
+                        c.getLocal("pBitOffsets"),
+                        c.getLocal("maxBucketBits"),
+                    ),
+                ),
+            ),
+            c.call(fnName + "_reorderPoints",
+                c.getLocal("pPoints"),
+                c.getLocal("pPointScheduleAlt"),
+                c.getLocal("numPoints"),
+                c.getLocal("bucketZeroCount"),
+                c.getLocal("pPointPairs1"),
+            ),
             c.if(
                 c.i32_eq(c.getLocal("maxBucketBits"), c.i32_const(1)),
-                c.ret(c.getLocal("pPoints")),
+                c.ret(c.getLocal("pPointPairs1")),
+            ),
+            c.setLocal("numPoints",
+                c.i32_sub(
+                    c.getLocal("numPoints"),
+                    c.getLocal("bucketZeroCount"),
+                ),
             ),
             c.call(fnName + "_evaluateAdditionChains",
+                c.getLocal("pPointPairs1"),
                 c.getLocal("pBitOffsets"),
                 c.getLocal("numPoints"),
                 c.getLocal("maxBucketBits"),
-                c.getLocal("pPoints"),
-                c.getLocal("pPointScheduleAlt"),
-                c.getLocal("pPointPairs1"),
             ),
-            // The following code updates the array pointed by pBitOffset
             // for (i = 0; i < maxBucketBits; i++) {
             //     pBitOffsetIPlusOne = pBitOffset + (i+1)*4
             //     pointsInRound = (numPoints - *pBitOffsetIPlusOne) >> i;
@@ -1748,7 +1776,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                             ...c.call(fnName + "_storeI64",
                                 c.getLocal("pPointScheduleAlt"),
                                 c.getLocal("numPoints"),
-                                c.i64_and(
+                                c.i64_or(
                                     c.i64_shl(
                                         c.i64_extend_i32_u(c.i32_load(c.getLocal("pCurrentOffset"))),
                                         c.i64_const(32),
@@ -1772,6 +1800,10 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                 c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
                 c.br(0),
             )),
+            c.i32_store(
+                c.i32_const(0),
+                c.getLocal("pMaxBucketBits")
+            ),
             c.ret(c.call(fnName + "_reduceBuckets",
                 c.getLocal("pPointPairs1"),
                 c.getLocal("pPointScheduleAlt"),

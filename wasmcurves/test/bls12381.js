@@ -313,27 +313,69 @@ describe("Basic tests for g1 in bls12-381", function () {
         assert.equal(pb.g1m_isZero(p1), 1);
 
     });
+
     it("It should timesScalar G1", async () => {
 
         const s=10;
         const pG1 = pb.bls12381.pG1gen;
 
+        // const p1 = pb.alloc(n8q*3);
+        // const p2 = pb.alloc(n8q*3);
+        // const ps = pb.alloc(n8r);
+
+        // pb.set(ps, s);
+
+        // pb.g1m_timesScalar(pG1, ps, n8r, p1);
+
+        // pb.g1m_zero(p2);
+
+        // for (let i=0; i<s; i++) {
+        //     pb.g1m_add(pG1,p2, p2);
+        // }
+
+        // assert.equal(pb.g1m_eq(p1, p2), 1);
+
+        const s1=10;
+        const s2 = 5;
+        const s3 = 4;
+        const s4 = 6;
+
         const p1 = pb.alloc(n8q*3);
         const p2 = pb.alloc(n8q*3);
-        const ps = pb.alloc(n8r);
+        const p3 = pb.alloc(n8q*3);
+        const p4 = pb.alloc(n8q*3);
+        const p12 = pb.alloc(n8q*3);
+        const p34 = pb.alloc(n8q*3);
+        const p1234 = pb.alloc(n8q*3);
+        const pRes = pb.alloc(n8q*3);
+        const ps1 = pb.alloc(n8r);
+        const ps2 = pb.alloc(n8r);
+        const ps3 = pb.alloc(n8r);
+        const ps4 = pb.alloc(n8r);
 
-        pb.set(ps, s);
+        pb.set(ps1, s1);
+        pb.set(ps2, s2);
+        pb.set(ps3, s3);
+        pb.set(ps4, s4);
 
-        pb.g1m_timesScalar(pG1, ps, n8r, p1);
+        pb.g1m_timesScalar(pG1, ps1, n8r, p1);
+        pb.g1m_timesScalar(pG1, ps2, n8r, p2);
+        pb.g1m_timesScalar(pG1, ps3, n8r, p3);
+        pb.g1m_timesScalar(pG1, ps4, n8r, p4);
 
-        pb.g1m_zero(p2);
+        pb.g1m_add(p1, p2, p12);
+        pb.g1m_add(p3, p4, p34);
+        pb.g1m_add(p12, p34, p1234);
 
-        for (let i=0; i<s; i++) {
-            pb.g1m_add(pG1,p2, p2);
-        }
+        pb.g1m_zero(pRes);
+        pb.g1m_add(pRes, p1, pRes);
+        pb.g1m_add(pRes, p2, pRes);
+        pb.g1m_add(pRes, p3, pRes);
+        pb.g1m_add(pRes, p4, pRes);
 
-        assert.equal(pb.g1m_eq(p1, p2), 1);
+        assert.equal(pb.g1m_eq(p1234, pRes), 1);
     });
+
     it("G1n == 0", async () => {
         const pG1 = pb.bls12381.pG1gen;
         const pr = pb.bls12381.pr;
