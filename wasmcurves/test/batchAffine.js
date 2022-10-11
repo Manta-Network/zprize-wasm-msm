@@ -129,17 +129,16 @@ describe("Basic tests for batch affine in bls12-381", function () {
 
     it("constructAdditionChains is correct.", async () => {
         let inputs = [
-            0x0000000000000000, 0x0000000100000000, 0x0000000200000000, 0x0000000800000001,
-            0x0000000900000001, 0x0000000300000002, 0x0000000400000002, 0x0000000500000002,
-            0x0000000600000002, 0x0000000700000002
+            0x0000000800000001, 0x0000000900000001, 0x0000000300000002, 0x0000000400000002,
+            0x0000000500000002, 0x0000000600000002, 0x0000000700000002, 0xffffffffffffffffn,
+            0xffffffffffffffffn, 0xffffffffffffffffn,
         ];
-        let precomputedBitOffset = [0, 2, 6, 10];
-        let precomputedBucketCounts = [3, 2, 5];
+        let precomputedBucketCounts = [0, 2, 5];
         let expectedOutput = [
-            0x0000000000000000, 0x0000000300000002, 0x0000000100000000, 0x0000000200000000,
-            0x0000000800000001, 0x0000000900000001, 0x0000000400000002, 0x0000000500000002,
-            0x0000000600000002, 0x0000000700000002
+            0x0000000300000002, 0x0000000800000001, 0x0000000900000001, 0x0000000400000002, 0x0000000500000002,
+            0x0000000600000002, 0x0000000700000002, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn,
         ];
+        let expectedBitOffset = [0, 1, 3, 7];
         let numPoints = 10;
         let numBuckets = 3;
         const pPointSchedules = pb.alloc(8 * numPoints);
@@ -149,15 +148,16 @@ describe("Basic tests for batch affine in bls12-381", function () {
         for (let i = 0; i < numPoints; i++) {
             pb.set(pPointSchedules + 8 * i, inputs[i], 8);
         }
-        for (let i = 0; i < numBuckets + 1; i++) {
-            pb.set(pBitOffsets + 4 * i, precomputedBitOffset[i], 4);
-        }
         for (let i = 0; i < numBuckets; i++) {
             pb.set(pBucketCounts + 4 * i, precomputedBucketCounts[i], 4);
         }
         pb.g1m_multiexp_constructAdditionChains(pPointSchedules, numPoints, numBuckets, pBucketCounts, pBitOffsets, pMetadata);
         let output = pb.get(pMetadata, numPoints, 8);
-        for (let i = 0; i < numPoints; i++) {
+        let outputBitOffset = pb.get(pBitOffsets, 4, 4);
+        for (let i = 0; i < 4; i++) {
+            assert.equal(outputBitOffset[i], expectedBitOffset[i]);
+        }
+        for (let i = 0; i < 7; i++) {
             assert.equal(output[i], expectedOutput[i]);
         }
     });
@@ -228,32 +228,79 @@ describe("Basic tests for batch affine in bls12-381", function () {
         }
     });
 
+    it("computeSchedule is correct.", async () => {
+        const inputScalars = [
+            0x0000000F, 0x000000F0, 0x00000070, 0x000000E5,
+            0x0000FFFF, 0x00000E51, 0x00007E51, 0x00027E51,
+            0x00927E51, 0x08927E51, 0xF8927E51];
+        const scalarSize = 4;
+        const chunkSize = 5;
+        const numChunks = 7;
+        const numPoints = 11;
+        const expectedOutputPointSchedules = [
+            [0x000000000000000F, 0x0000000100000010, 0x0000000200000010, 0x0000000300000005, 0x000000040000001F, 0x0000000500000011, 0x0000000600000011, 0x0000000700000011, 0x0000000800000011, 0x0000000900000011, 0x0000000A00000011], // Round1
+            [0xffffffffffffffffn, 0x0000000100000007, 0x0000000200000003, 0x0000000300000007, 0x000000040000001F, 0x0000000500000012, 0x0000000600000012, 0x0000000700000012, 0x0000000800000012, 0x0000000900000012, 0x0000000A00000012], // Round2
+            [0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0x000000040000001F, 0x0000000500000003, 0x000000060000001F, 0x000000070000001F, 0x000000080000001F, 0x000000090000001F, 0x0000000A0000001F], // Round3
+            [0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0x0000000400000001, 0xffffffffffffffffn, 0xffffffffffffffffn, 0x0000000700000004, 0x0000000800000004, 0x0000000900000004, 0x0000000A00000004], // Round4
+            [0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0x0000000800000009, 0x0000000900000009, 0x0000000A00000009], // Round5
+            [0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0x0000000900000004, 0x0000000A0000001C], // Round6
+            [0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0x0000000A00000003], // Round7
+        ];
+        const expectedOutputRoundCounts = [11, 10, 7, 5, 3, 2, 1];
+        const pScalars = pb.alloc(scalarSize * numPoints);
+        const pPointSchedules = pb.alloc(8 * numChunks * numPoints);
+        const pRoundCounts = pb.alloc(4 * numChunks);
+        for (let i = 0; i < numPoints; i++) {
+            pb.set(pScalars + scalarSize * i, inputScalars[i], scalarSize);
+        }
+        pb.g1m_multiexp_computeSchedule(pScalars, numPoints, scalarSize, chunkSize, numChunks, pPointSchedules, pRoundCounts);
+        let outputPointSchedules = pb.get(pPointSchedules, numChunks * numPoints, 8);
+        let outputRoundCounts = pb.get(pRoundCounts, numChunks, 4);
+        for (let i = 0; i < numChunks; i++) {
+            for (let j = 0; j < numPoints; j++) {
+                assert.equal(outputPointSchedules[i * numPoints + j], expectedOutputPointSchedules[i][j]);
+            }
+        }
+        for (let i = 0; i < numChunks; i++) {
+            assert.equal(outputRoundCounts[i], expectedOutputRoundCounts[i]);
+        }
+    });
+
     it("reorderPoints is correct.", async () => {
         // use fake point for simplicity
         let points = [
             0x000011111111111111, 0x000022222222222222,
-            0x11111111, 0x11112222, 0x22221111, 0x22222222, 0x33331111, 0x33332222,
-            0x44441111, 0x44442222, 0x55551111, 0x55552222, 0x66661111, 0x66662222,
-            0x77771111, 0x77772222, 0x88881111, 0x88882222, 0x99991111, 0x99992222
+            0x11111111, 0x11112222,
+            0x22221111, 0x22222222,
+            0x33331111, 0x33332222,
+            0x44441111, 0x44442222,
+            0x55551111, 0x55552222,
+            0x66661111, 0x66662222,
+            0x77771111, 0x77772222,
+            0x88881111, 0x88882222,
+            0x99991111, 0x99992222,
         ];
-        let schedules = [
-            0x0000000000000000, 0x0000000300000002, 0x0000000100000000, 0x0000000200000000,
-            0x0000000800000001, 0x0000000900000001, 0x0000000400000002, 0x0000000500000002,
-            0x0000000600000002, 0x0000000700000002
+        let pointSchedules = [
+            0x0000000300000002,
+            0x0000000800000001, 0x0000000900000001,
+            0x0000000400000002, 0x0000000500000002, 0x0000000600000002, 0x0000000700000002,
+            0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn,
         ];
         let expectedOutput = [
-            0x000011111111111111, 0x000022222222222222,
-            0x33331111, 0x33332222, 0x11111111, 0x11112222, 0x22221111, 0x22222222,
-            0x88881111, 0x88882222, 0x99991111, 0x99992222, 0x44441111, 0x44442222,
-            0x55551111, 0x55552222, 0x66661111, 0x66662222, 0x77771111, 0x77772222
+            0x33331111, 0x33332222,
+            0x88881111, 0x88882222,
+            0x99991111, 0x99992222,
+            0x44441111, 0x44442222,
+            0x55551111, 0x55552222,
+            0x66661111, 0x66662222,
+            0x77771111, 0x77772222,
         ];
         let numPoints = 10;
         const pPointSchedules = pb.alloc(8 * numPoints);
         const pPoints = pb.alloc(numPoints * n8q * 2);
         const pRes = pb.alloc(numPoints * n8q * 2);
-
         for (let i = 0; i < numPoints; i++) {
-            pb.set(pPointSchedules + 8 * i, schedules[i], 8);
+            pb.set(pPointSchedules + 8 * i, pointSchedules[i], 8);
         }
         for (let i = 0; i < numPoints; i++) {
             pb.set(pPoints + 96 * i, points[i * 2], 48);
@@ -261,7 +308,7 @@ describe("Basic tests for batch affine in bls12-381", function () {
         }
         pb.g1m_multiexp_reorderPoints(pPoints, pPointSchedules, numPoints, pRes);
         let output = pb.get(pRes, numPoints * 2, 48);
-        for (let i = 0; i < numPoints * 2; i++) {
+        for (let i = 0; i < 7 * 2; i++) {
             assert.equal(output[i], expectedOutput[i]);
         }
     });
@@ -417,8 +464,9 @@ describe("Basic tests for batch affine in bls12-381", function () {
         }
     });
 
+    // TODO
     it("evaluateAdditionChains is correct.", async () => {
-        let precomputedBitOffset = [0, 2, 6, 10];
+        let precomputedBitOffset = [0, 1, 3, 7];
         let inputPoints = [
             //0
             0x17f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bbn, 0x8b3f481e3aaa0f1a09e30ed741d8ae4fcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e1n,
@@ -442,25 +490,21 @@ describe("Basic tests for batch affine in bls12-381", function () {
             0x00001113, 0x66662222,
         ];
         let pointSchedules = [
-            0x0000000000000000, 0x0000000300000002,
-            0x0000000100000000, 0x0000000200000000, 0x0000000800000001, 0x0000000900000001,
+            0x0000000300000002,
+            0x0000000800000001, 0x0000000900000001,
             0x0000000400000002, 0x0000000500000002, 0x0000000600000002, 0x0000000700000002,
+            0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn,
         ];
         // Computation process:
         // Round1:
-        // [(p0, 0), (p3, 2),
-        //  (p1, 0), (p2, 0), (p8, 1), (p9, 1),
-        //  (p4, 2), (p5, 2), (p6, 2), (p7, 2),
+        // [(p3, 2),
+        //  (p8, 1), (p9, 1),
+        //  (p4, 2), (p8+p9, 1), (p4+p5, 2), (p6+p7, 2),
         // ]
         // Round2:
-        // [(p0, 0), (p3, 2),
-        //  (p1, 0), (p2, 0), (p8, 1), (p9, 1),
-        //  (p1+p2, 0), (p8+p9, 1), (p4+p5, 2), (p6+p7, 2),
-        // ]
-        // Round3:
-        // [(p0, 0), (p3, 2),
-        //  (p1, 0), (p2, 0), (p8, 1), (p9, 1),
-        //  (p1+p2, 0), (p8+p9, 1), (p4+p5, 2), (p4+p5+p6+p7, 2),
+        // [(p3, 2),
+        //  (p8, 1), (p9, 1),
+        //  (p4, 2), (p8+p9, 1), (p4+p5, 2), (p4+p5+p6+p7, 2),
         // ]
         let expectedOutput = [
             0x17f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bbn, 0x8b3f481e3aaa0f1a09e30ed741d8ae4fcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e1n,
@@ -513,41 +557,100 @@ describe("Basic tests for batch affine in bls12-381", function () {
         }
     });
 
-    it("computeSchedule is correct.", async () => {
-        const inputScalars = [
-            0x0000000F, 0x000000F0, 0x00000070, 0x000000E5,
-            0x0000FFFF, 0x00000E51, 0x00007E51, 0x00027E51,
-            0x00927E51, 0x08927E51, 0xF8927E51];
-        const scalarSize = 4;
-        const chunkSize = 5;
-        const numChunks = 7;
-        const numPoints = 11;
-        const expectedOutputPointSchedules = [
-            [0x000000000000000F, 0x0000000100000010, 0x0000000200000010, 0x0000000300000005, 0x000000040000001F, 0x0000000500000011, 0x0000000600000011, 0x0000000700000011, 0x0000000800000011, 0x0000000900000011, 0x0000000A00000011], // Round1
-            [0xffffffffffffffffn, 0x0000000100000007, 0x0000000200000003, 0x0000000300000007, 0x000000040000001F, 0x0000000500000012, 0x0000000600000012, 0x0000000700000012, 0x0000000800000012, 0x0000000900000012, 0x0000000A00000012], // Round2
-            [0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0x000000040000001F, 0x0000000500000003, 0x000000060000001F, 0x000000070000001F, 0x000000080000001F, 0x000000090000001F, 0x0000000A0000001F], // Round3
-            [0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0x0000000400000001, 0xffffffffffffffffn, 0xffffffffffffffffn, 0x0000000700000004, 0x0000000800000004, 0x0000000900000004, 0x0000000A00000004], // Round4
-            [0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0x0000000800000009, 0x0000000900000009, 0x0000000A00000009], // Round5
-            [0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0x0000000900000004, 0x0000000A0000001C], // Round6
-            [0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0x0000000A00000003], // Round7
+    it("reduceBuckets is correct.", async () => {
+        let inputPoints = [
+            //0
+            0x17f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bbn, 0x8b3f481e3aaa0f1a09e30ed741d8ae4fcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e1n,
+            //1
+            0x572cbea904d67468808c8eb50a9450c9721db309128012543902d0ac358a62ae28f75bb8f1c7c42c39a8c5529bf0f4en, 0x166a9d8cabc673a322fda673779d8e3822ba3ecb8670e461f73bb9021d5fd76a4c56d9d4cd16bd1bba86881979749d28n,
+            //2
+            0x11111111, 0x11112222,
+            //3
+            0x22221111, 0x22222222,
+            //4
+            0xc9b60d5afcbd5663a8a44b7c5a02f19e9a77ab0a35bd65809bb5c67ec582c897feb04decc694b13e08587f3ff9b5b60n, 0x143be6d078c2b79a7d4f1d1b21486a030ec93f56aa54e1de880db5a66dd833a652a95bee27c824084006cb5644cbd43fn,
+            //5
+            0x99991111, 0x99992222,
+            //6
+            0x44441111, 0x44442222,
+            //7
+            0x55551111, 0x55552222,
+            //8
+            0x00001113, 0x66662222,
+            //9
+            0x00001113, 0x66662222,
         ];
-        const expectedOutputRoundCounts = [11, 10, 7, 5, 3, 2, 1];
-        const pScalars = pb.alloc(scalarSize * numPoints);
-        const pPointSchedules = pb.alloc(8 * numChunks * numPoints);
-        const pRoundCounts = pb.alloc(4 * numChunks);
-        for (let i = 0; i < numPoints; i++) {
-            pb.set(pScalars + scalarSize * i, inputScalars[i], scalarSize);
-        }
-        pb.g1m_multiexp_computeSchedule(pScalars, numPoints, scalarSize, chunkSize, numChunks, pPointSchedules, pRoundCounts);
-        let outputPointSchedules = pb.get(pPointSchedules, numChunks * numPoints, 8);
-        let outputRoundCounts = pb.get(pRoundCounts, numChunks, 4);
-        for (let i = 0; i < numChunks; i++) {
-            for (let j = 0; j < numPoints; j++) {
-                assert.equal(outputPointSchedules[i * numPoints + j], expectedOutputPointSchedules[i][j]);
-            }
-        }
-        for (let i = 0; i < numChunks; i++) {
-            assert.equal(outputRoundCounts[i], expectedOutputRoundCounts[i]);
-        }
+        let pointSchedules = [
+            0x0000000800000001, 0x0000000900000001, 0x0000000300000002, 0x0000000400000002,
+            0x0000000500000002, 0x0000000600000002, 0x0000000700000002, 0xffffffffffffffffn,
+            0xffffffffffffffffn, 0xffffffffffffffffn,
+        ];
+        let numPoints = 10;
+        let numBuckets = 3;
+        // Bucket counts always only set bucketRounds[0] = 0.
+        let bucketCounts = [0, 2, 5];
+        let bitOffset = [0, 2, 6, 10];
+        // Computation process:
+        // Round1:
+        // [(p0, 0), (p3, 2),
+        //  (p1, 0), (p2, 0), (p8, 1), (p9, 1),
+        //  (p4, 2), (p5, 2), (p6, 2), (p7, 2),
+        // ]
+        // Round2:
+        // [(p0, 0), (p3, 2),
+        //  (p1, 0), (p2, 0), (p8, 1), (p9, 1),
+        //  (p1+p2, 0), (p8+p9, 1), (p4+p5, 2), (p6+p7, 2),
+        // ]
+        // Round3:
+        // [(p0, 0), (p3, 2),
+        //  (p1, 0), (p2, 0), (p8, 1), (p9, 1),
+        //  (p1+p2, 0), (p8+p9, 1), (p4+p5, 2), (p4+p5+p6+p7, 2),
+        // ]
+        let expectedOutput = [
+            0x17f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bbn, 0x8b3f481e3aaa0f1a09e30ed741d8ae4fcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e1n,
+            0x22221111, 0x22222222,
+            0x572cbea904d67468808c8eb50a9450c9721db309128012543902d0ac358a62ae28f75bb8f1c7c42c39a8c5529bf0f4en, 0x166a9d8cabc673a322fda673779d8e3822ba3ecb8670e461f73bb9021d5fd76a4c56d9d4cd16bd1bba86881979749d28n,
+            0x11111111, 0x11112222,
+            0x00001113, 0x66662222,
+            0x00001113, 0x66662222,
+            0x5ddf9db326a7aa0f4ff88983067e0f620fb16a1efe743b5a688d46754f71595961122048e76b0a81bfa483211973f4an, 0x4cfd435515eb5107591c69164fc00d98cc7e8f0f340e4efbb55ce92cde36745dc1ff5edc46acf04d13aeb0ea35ef3e7n,
+            0x11ad74c06469ff4c6759668d8d416f9c3cdbc7951ad425c27ce02286ee1627186b7ed2c1923b18f43d7b647cc5e0f45cn, 0x6a87279419d11a51bebeec5b21ee707a5f80ca4154ce823b0b02c0fef9dbd29e7d221d4e780fc9c413033b05df5646bn,
+            0xfc7a315b421f107c57fc2bcf07a39044dec34e22d206c13131a92401398b090ec80d65f2aef2eeee70c60d1f005120en, 0x99b90ad5051c9224f84079be603e4fb77dd6fe4329e870792010da8d65e0f25afcec9bba5954317318158816f549e3en,
+            0x1573654bdd7ebf04cee4e365ece6c637702e57046751a5aa1550981b70bd5a5dbaa64460b11837b32e9fde2820f8f02cn, 0x149b2813ec8bbfc753a663d7ebfad6a07b7ff3cf6377dc39dc565c2bb362afb727cd269650dda513b12b8640c86fa8a4n,
+        ];
+        // const pPoints = pb.alloc(numPoints * n8q * 2);
+        // const pBitOffsets = pb.alloc((numBuckets + 1) * 4);
+        // const pPointSchedules = pb.alloc(numPoints * 8);
+        // const pPointRes = pb.alloc(numPoints * n8q * 2);
+        // for (let i = 0; i < numPoints; i++) {
+        //     pb.set(pPoints + 96 * i, inputPoints[i * 2], 48);
+        //     pb.set(pPoints + 96 * i + 48, inputPoints[i * 2 + 1], 48);
+        //     pb.f1m_toMontgomery(pPoints + 96 * i, pPoints + 96 * i);
+        //     pb.f1m_toMontgomery(pPoints + 96 * i + 48, pPoints + 96 * i + 48);
+        // }
+        // for (let i = 0; i < numBuckets + 1; i++) {
+        //     pb.set(pBitOffsets + 4 * i, precomputedBitOffset[i], 4);
+        // }
+        // for (let i = 0; i < numPoints; i++) {
+        //     pb.set(pPointSchedules + 8 * i, pointSchedules[i], 8);
+        // }
+        // pb.g1m_multiexp_evaluateAdditionChains(
+        //     pPoints,
+        //     pPointSchedules,
+        //     pBitOffsets,
+        //     numPoints,
+        //     maxBucketBits,
+        //     pPointRes,
+        // );
+        // for (let i = 0; i < numPoints * 2; i++) {
+        //     pb.f1m_fromMontgomery(pPointRes + 48 * i, pPointRes + 48 * i);
+        // }
+        // let output = pb.get(pPointRes, numPoints * 2, 48);
+        // for (let i = 6; i < numPoints; i++) { // TODO: Issue here
+        //     // console.log("i: " + i + ". Output: " + output[2 * i].toString(16) + ", ", output[2 * i + 1].toString(16));
+        //     // console.log("   ", "Expected: " + expectedOutput[2*i].toString(16) + ", ", expectedOutput[2*i+1].toString(16))
+        //     assert.equal(output[2 * i], expectedOutput[2 * i]);
+        //     assert.equal(output[2 * i + 1], expectedOutput[2 * i + 1]);
+        // }
     });
 });
