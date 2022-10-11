@@ -942,8 +942,8 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     // Assumption:
     //      pPointSchedules: point schedules have been sorted by the bucket index
     //      pBucketCounts: bucket counts is valid and matches pPointSchedules
-    function buildConstructAdditionChains() {
-        const f = module.addFunction(fnName + "_constructAdditionChains");
+    function buildConstructAdditionChains_old() {
+        const f = module.addFunction(fnName + "_constructAdditionChains_old");
         // Pointer to 1d array of point schedules of a specific round
         // Assuming that point schedules have been sorted by the bucket index
         // Shape: numPoints
@@ -1023,6 +1023,148 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
             // }
             c.setLocal("scheduleIdx", c.i32_const(0)),
             c.setLocal("i", c.i32_const(0)),
+            c.block(c.loop(
+                c.br_if(1, c.i32_eq(c.getLocal("i"), c.getLocal("numBuckets"))),
+                c.setLocal("count",
+                    c.call(fnName + "_loadI32",
+                        c.getLocal("pBucketCounts"),
+                        c.getLocal("i"),
+                    ),
+                ),
+                c.setLocal("numBits",
+                    c.call(fnName + "_getMsb", c.getLocal("count")),
+                ),
+                c.setLocal("j", c.i32_const(0)),
+                c.block(c.loop(
+                    c.br_if(1, c.i32_eq(c.getLocal("j"), c.getLocal("numBits"))),
+                    c.setLocal("kEnd",
+                        c.i32_and(
+                            c.getLocal("count"),
+                            c.i32_shl(
+                                c.i32_const(1),
+                                c.getLocal("j")
+                            ),
+                        ),
+                    ),
+                    c.setLocal("k", c.i32_const(0)),
+                    c.block(c.loop(
+                        c.br_if(1, c.i32_eq(c.getLocal("k"), c.getLocal("kEnd"))),
+                        c.call(fnName + "_storeI64",
+                            c.getLocal("pMetadata"),
+                            c.call(fnName + "_loadI32",
+                                c.getLocal("pBitOffsetsCopy"),
+                                c.getLocal("j"),
+                            ),
+                            c.call(fnName + "_loadI64",
+                                c.getLocal("pPointSchedule"),
+                                c.getLocal("scheduleIdx"),
+                            ),
+                        ),
+                        c.call(fnName + "_addAssignI32InMemoryUncheck",
+                            c.getLocal("pBitOffsetsCopy"),
+                            c.getLocal("j"),
+                            c.i32_const(1),
+                        ),
+                        c.setLocal("scheduleIdx", c.i32_add(c.getLocal("scheduleIdx"), c.i32_const(1))),
+                        c.setLocal("k", c.i32_add(c.getLocal("k"), c.i32_const(1))),
+                        c.br(0)
+                    )),
+                    c.setLocal("j", c.i32_add(c.getLocal("j"), c.i32_const(1))),
+                    c.br(0)
+                )),
+                c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
+                c.br(0)
+            )),
+            c.i32_store(
+                c.i32_const(0),
+                c.getLocal("pBitOffsetsCopy")
+            ),
+            c.getLocal("maxBucketBits"),
+        );
+    }
+
+    function buildConstructAdditionChains() {
+        const f = module.addFunction(fnName + "_constructAdditionChains");
+        // Pointer to 1d array of point schedules of a specific round
+        // Assuming that point schedules have been sorted by the bucket index
+        // Shape: numPoints
+        f.addParam("pPointSchedule", "i32");
+        // Length of the input point vector
+        f.addParam("numPoints", "i32");
+        // Number of buckets
+        f.addParam("numBuckets", "i32");
+        // Pointer to 1d array of number of points in each bucket for a specific
+        // round. Shape: numBuckets
+        f.addParam("pBucketCounts", "i32");
+        // Pointer to 1d array of the starting index of the i^th bit. Shape: maxBucketBits + 1
+        // For example, if the processed addition chain is
+        //      [(0,0), (3,2),
+        //       (1,0), (2,0), (8,1), (9,1),
+        //       (4,2), (5,2), (6,2), (7,2)]
+        // we have pBitOffset = [0, 2, 6, 10]
+        f.addParam("pBitOffsets", "i32");
+        // Pointer to 1d array of point schedules as the addition chains. Shape:
+        f.addParam("pMetadata", "i32");
+        f.setReturnType("i32");
+        // Max number of points in a bucket
+        f.addLocal("maxCount", "i32");
+        // Bucket bits of the max bucket count
+        // For example, if the max bucket count is 49 (i.e. 0x31), the bucket bit is 5.
+        f.addLocal("maxBucketBits", "i32");
+        // Local copy of pBitOffsets
+        f.addLocal("pBitOffsetsCopy", "i32");
+        // Number of points in a bucket
+        f.addLocal("count", "i32");
+        // Number of bits for a count
+        f.addLocal("numBits", "i32");
+        // Index of point schedules
+        f.addLocal("scheduleIdx", "i32");
+        // Index
+        f.addLocal("i", "i32");
+        f.addLocal("j", "i32");
+        f.addLocal("k", "i32");
+        f.addLocal("kEnd", "i32");
+        const c = f.getCodeBuilder();
+        f.addCode(
+            c.setLocal("maxCount",
+                c.call(fnName + "_maxArrayValue",
+                    c.getLocal("pBucketCounts"),
+                    c.getLocal("numBuckets"),
+                ),
+            ),
+            c.setLocal("maxBucketBits",
+                c.call(fnName + "_getMsb", c.getLocal("maxCount"))
+            ),
+            c.call(fnName + "_countBits",
+                c.getLocal("pBucketCounts"),
+                c.getLocal("numBuckets"),
+                c.getLocal("maxBucketBits"),
+                c.getLocal("pBitOffsets"),
+            ),
+            c.setLocal("pBitOffsetsCopy",
+                c.call(fnName + "_allocateMemory", c.getLocal("maxBucketBits")),
+            ),
+            c.call(fnName + "_copyArray",
+                c.getLocal("pBitOffsets"),
+                c.getLocal("maxBucketBits"),
+                c.getLocal("pBitOffsetsCopy"),
+            ),
+            
+            // scheduleIdx = 0;
+            // for (i=1; i<numBuckets; i++) {
+            //      count = pBucketCounts[i];
+            //      numBits = getMsb(count);
+            //      for (j=0; j<numBits; j++) {
+            //          kEnd = count & (1 << j);
+            //          for (k=0; k<kEnd; k++) {
+            //              pMetadata[pBitOffsetsCopy[j]] = pPointSchedule[scheduleIdx];
+            //              pBitOffsetsCopy[j]++;
+            //              scheduleIdx++;
+            //          }
+            //      }
+            // }
+            c.setLocal("scheduleIdx", c.i32_const(0)),
+            c.setLocal("i", c.i32_const(1)),
             c.block(c.loop(
                 c.br_if(1, c.i32_eq(c.getLocal("i"), c.getLocal("numBuckets"))),
                 c.setLocal("count",
@@ -1177,8 +1319,8 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     //              [p0, p3, p1, p2, p8, p9, p4, p5, p6, p7]
     //              Here, pi is i-th point, and in affine representation (x, y). 
     //              Each point use n8*2 bytes.
-    function buildReorderPoints() {
-        const f = module.addFunction(fnName + "_reorderPoints");
+    function buildReorderPoints_old() {
+        const f = module.addFunction(fnName + "_reorderPoints_old");
         // Pointer to the input point vector
         f.addParam("pPoints", "i32");
         // Pointer to a 1d array of point schedules
@@ -1195,6 +1337,64 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
             //    pointIdx = pPointSchedule[i] >> 32;
             //    pReorderedPoints[i] = pPoints[pointIdx];
             // }
+            c.setLocal("i", c.i32_const(0)),
+            c.block(c.loop(
+                c.br_if(1, c.i32_eq(c.getLocal("i"), c.getLocal("numPoints"))),
+                c.setLocal("pointIdx",
+                    c.i32_wrap_i64(
+                        c.i64_shr_u(
+                            c.call(fnName + "_loadI64",
+                                c.getLocal("pPointSchedule"),
+                                c.getLocal("i"),
+                            ),
+                            c.i64_const(32),
+                        ),
+                    ),
+                ),
+                c.call(prefix + "_copyAffine",
+                    c.i32_add(
+                        c.getLocal("pPoints"),
+                        c.i32_mul(
+                            c.getLocal("pointIdx"),
+                            c.i32_const(n8 * 2)
+                        )
+                    ),
+                    c.i32_add(
+                        c.getLocal("pReorderedPoints"),
+                        c.i32_mul(
+                            c.getLocal("i"),
+                            c.i32_const(n8 * 2)
+                        )
+                    ),
+                ),
+                c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
+                c.br(0)
+            )),
+        );
+    }
+
+    function buildReorderPoints() {
+        const f = module.addFunction(fnName + "_reorderPoints");
+        // Pointer to the input point vector
+        f.addParam("pPoints", "i32");
+        // Pointer to a 1d array of point schedules
+        f.addParam("pPointSchedule", "i32");
+        // Length of the input point vector
+        f.addParam("numPoints", "i32");
+        // Pointer to a 1d array of reordered points
+        f.addParam("pReorderedPoints", "i32");
+        // Number of points in bucket0
+        f.addParam("countBucket0", "i32")
+
+        const c = f.getCodeBuilder();
+        f.addLocal("i", "i32");
+        f.addLocal("pointIdx", "i32");
+        f.addCode(
+            // for (i=0; i<numPoints; i++) {
+            //    pointIdx = pPointSchedule[i] >> 32;
+            //    pReorderedPoints[i] = pPoints[pointIdx];
+            // }
+            c.setLocal("numPoints",c.i32_sub(c.getLocal("numPoints"), c.getLocal("countBucket0"))),
             c.setLocal("i", c.i32_const(0)),
             c.block(c.loop(
                 c.br_if(1, c.i32_eq(c.getLocal("i"), c.getLocal("numPoints"))),
