@@ -659,12 +659,12 @@ describe("Basic tests for batch affine in bls12-381", function () {
             pb.f1m_fromMontgomery(pPointRes + 48 * i, pPointRes + 48 * i);
         }
         let output = pb.get(pPointRes, numPoints * 2, 48);
-        for (let i = 0; i < numPoints; i++) {
-            console.log("i: " + i + ". Output: " + output[2 * i].toString(16) + ", ", output[2 * i + 1].toString(16));
-            // console.log("   ", "Expected: " + expectedOutput[2*i].toString(16) + ", ", expectedOutput[2*i+1].toString(16))
-            // assert.equal(output[2 * i], expectedOutput[2 * i]);
-            // assert.equal(output[2 * i + 1], expectedOutput[2 * i + 1]);
-        }
+        // for (let i = 0; i < numPoints; i++) {
+        //     console.log("i: " + i + ". Output: " + output[2 * i].toString(16) + ", ", output[2 * i + 1].toString(16));
+        //     // console.log("   ", "Expected: " + expectedOutput[2*i].toString(16) + ", ", expectedOutput[2*i+1].toString(16))
+        //     // assert.equal(output[2 * i], expectedOutput[2 * i]);
+        //     // assert.equal(output[2 * i + 1], expectedOutput[2 * i + 1]);
+        // }
 
         // let pointScheduleOutput = pb.get(pPointSchedules, numPoints, 8);
         // let bitOffsetOutput = pb.get(pBitOffsets, maxBucketBits+1, 4);

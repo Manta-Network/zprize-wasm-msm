@@ -1818,6 +1818,164 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         );
     }
 
+    // Input:
+    //    pPointSchedules:
+    //    [(0, BucketIdx_0), (1, BucketIdx_1), ..., (m-1, BucketIdx_{m-1})]
+    //    Here, BucketIdx_i is the index of the i^th bucket with at least 1 point.
+    //    pPointBuckets:
+    //    [p_0, p_1, ..., p_{m-1}]
+    //    Here, p_i stores the single point of the i^th bucket with at least 1 point.
+    // Output:
+    //    pAccumulator:
+    //    pAccumulator = \sum_{i=0}^{m-1} BucketIdx_i * p_i
+    function buildReduceBucketsToSinglePoint() {
+        const f = module.addFunction(fnName + "_reduceBucketsToSinglePoint");
+        // Pointer to a 1-d array of point schedules
+        f.addParam("pPointSchedules", "i32");
+        // Pointer to points in each bucket.
+        f.addParam("pPointBuckets", "i32");
+        // Number of buckets with at least 1 point
+        f.addParam("numNonZeroBuckets", "i32");
+        // A single point accumulator
+        f.addParam("pAccumulator", "i32");
+        // Pointer to running sum
+        f.addParam("pRunningSum", "i32");
+        // Index
+        f.addLocal("i", "i32");
+        // Index
+        f.addLocal("j", "i32");
+        // Gap between two bucket index with at least 1 point
+        f.addLocal("gap", "i32");
+        // Gap - 1
+        f.addLocal("gapMinusOne", "i32");
+        const c = f.getCodeBuilder();
+        f.addCode(
+            c.call(prefix + "_zero", c.getLocal("pAccumulator")),
+            c.call(prefix + "_zero", c.getLocal("pRunningSum")),
+            // for(i=numNonZeroBuckets-1; i>=0; i--) {
+            //    opAdd(*pRunningSum, pPointBuckets[i], *pRunningSum);
+            //    opAdd(*pAccumulator, *pRunningSum, *pAccumulator);
+            //    if(i==0) {
+            //        gap = pPointSchedules[i] & 0x7FFFFFFF;
+            //    } else {
+            //        gap = (pPointSchedules[i] & 0x7FFFFFFF) - (pPointSchedules[i-1] & 0x7FFFFFFF);
+            //    }
+            //    for(j=0; j<gap-1; j++) {
+            //        pAccumulator = pAccumulator + pRunningSum;
+            //    }
+            // }
+            c.setLocal("i", c.i32_sub(c.getLocal("numNonZeroBuckets"), c.i32_const(1))),
+            c.block(c.loop(
+                c.br_if(1, c.i32_eq(c.getLocal("i"), c.i32_const(0))),
+                c.call(opAdd,
+                    c.getLocal("pRunningSum"),
+                    c.i32_add(
+                        c.getLocal("pPointBuckets"),
+                        c.i32_mul(
+                            c.getLocal("i"),
+                            c.i32_const(n8g),
+                        ),
+                    ),
+                    c.getLocal("pRunningSum"),
+                ),
+                c.call(opAdd,
+                    c.getLocal("pAccumulator"),
+                    c.getLocal("pRunningSum"),
+                    c.getLocal("pAccumulator"),
+                ),
+                c.if(c.i32_eq(c.getLocal("i"), c.i32_const(0)),
+                    c.setLocal("gap",
+                        c.i32_wrap_i64(
+                            c.i64_and(
+                                c.call(fnName + "_loadI64",
+                                    c.getLocal("pPointSchedules"),
+                                    c.getLocal("i"),
+                                ),
+                                c.i64_const(0x7FFFFFFF),
+                            ),
+                        ),
+                    ),
+                    c.setLocal("gap",
+                        c.i32_sub(
+                            c.i32_wrap_i64(
+                                c.i64_and(
+                                    c.call(fnName + "_loadI64",
+                                        c.getLocal("pPointSchedules"),
+                                        c.getLocal("i"),
+                                    ),
+                                    c.i64_const(0x7FFFFFFF),
+                                ),
+                            ),
+                            c.i32_wrap_i64(
+                                c.i64_and(
+                                    c.call(fnName + "_loadI64",
+                                        c.getLocal("pPointSchedules"),
+                                        c.i32_sub(
+                                            c.getLocal("i"),
+                                            c.i32_const(1),
+                                        ),
+                                    ),
+                                    c.i64_const(0x7FFFFFFF),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+                c.setLocal("gapMinusOne", c.i32_sub(c.getLocal("gap"), c.i32_const(1))),
+                c.setLocal("j", c.i32_const(0)),
+                c.block(c.loop(
+                    c.br_if(1, c.i32_eq(c.getLocal("j"), c.getLocal("gapMinusOne"))),
+                    c.call(opAdd,
+                        c.getLocal("pAccumulator"),
+                        c.getLocal("pRunningSum"),
+                        c.getLocal("pAccumulator"),
+                    ),
+                    c.setLocal("j", c.i32_add(c.getLocal("j"), c.i32_const(1))),
+                    c.br(0),
+                )),
+                c.setLocal("i", c.i32_sub(c.getLocal("i"), c.i32_const(1))),
+                c.br(0),
+            )),
+        );
+    }
+
+    // Adds the accumulator of the current chunk `pAccumulatorSingleChunk` with the accumulator
+    // of all chunks `pAccumulator`.
+    function buildAccumulateAcrossChunks() {
+        const f = module.addFunction(fnName + "_accumulateAcrossChunks");
+        // Pointer to the accumulator of all chunks
+        f.addParam("pAccumulator", "i32");
+        // Pointer to the accumulator of a single chunk
+        f.addParam("pAccumulatorSingleChunk", "i32");
+        // Index of the current chunk
+        f.addParam("chunkIdx", "i32");
+        // Number of bits in a chunk
+        f.addParam("chunkSize", "i32");
+        // Index
+        f.addLocal("i", "i32");
+        const c = f.getCodeBuilder();
+        f.addCode(
+            // if(chunkIdx > 0) {
+            //     for (int i = 0; i < chunkSize; i++) {
+            //         *pAccumulator *= 2;
+            //     }
+            // }
+            // opAdd(*pAccumulator, *pAccumulatorSingleChunk, *pAccumulator);
+            c.if(c.i32_ne(c.getLocal("chunkIdx"), c.i32_const(0)),
+                [
+                    ...c.setLocal("i", c.i32_const(0)),
+                    ...c.block(c.loop(
+                        c.br_if(1, c.i32_eq(c.getLocal("i"), c.getLocal("chunkSize"))),
+                        c.call(prefix + "_double", c.getLocal("pAccumulator"), c.getLocal("pAccumulator")),
+                        c.setLocal("i", c.i32_sub(c.getLocal("i"), c.i32_const(1))),
+                        c.br(0),
+                    )),
+                ],
+            ),
+            c.call(opAdd, c.getLocal("pAccumulator"), c.getLocal("pAccumulatorSingleChunk"), c.getLocal("pAccumulator")),
+        );
+    }
+
     // Computes MSM over all chunks and sets the output pointed by `pResult`.
     function buildMutiexpChunks() {
         const f = module.addFunction(fnName + "_multiExpChunks");
@@ -1847,15 +2005,13 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addLocal("k", "i32");
         const c = f.getCodeBuilder();
         f.addCode(
-            c.if(
-                c.i32_eqz(c.getLocal("numPoints")),
+            c.if(c.i32_eqz(c.getLocal("numPoints")),
                 [
                     ...c.call(prefix + "_zero", c.getLocal("pResult")),
                     ...c.ret([])
                 ]
             ),
-            c.setLocal(
-                "pOutputBuckets",
+            c.setLocal("pOutputBuckets",
                 c.call(fnName + "_allocateMemory",
                     c.i32_mul(
                         c.getLocal("numBuckets"),
@@ -1863,20 +2019,9 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                     ),
                 ),
             ),
-            c.setLocal(
-                "pAccumulator",
-                c.call(fnName + "_allocateMemory",
-                    c.i32_const(n8g),
-                ),
-            ),
+            c.setLocal("pAccumulator", c.call(fnName + "_allocateMemory", c.i32_const(n8g))),
             c.call(prefix + "_zero", c.getLocal("pAccumulator")),
             c.call(prefix + "_zero", c.getLocal("pResult")),
-            c.setLocal(
-                "pRunningSum",
-                c.call(fnName + "_allocateMemory",
-                    c.i32_const(n8g),
-                ),
-            ),
             // for (int roundIdx = 0; roundIdx < numChunks; roundIdx++) {
             //     reduce_buckets(
             //         pPointSchedule[roundIdx*numPoints],
@@ -1885,17 +2030,19 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
             //         numChunks,
             //         pOutputBuckets,
             //     );
-            //     *pRunningSum = 0;
-            //     for (int k = numBuckets - 1; k >= 0; --k) {
-            //         opAdd(*pRunningSum, pOutputBuckets[k], *pRunningSum);
-            //         opAdd(*pAccumulator, *pRunningSum, *pAccumulator);
-            //     }
-            //     if (roundIdx > 0) {
-            //         for (int k = 0; k < chunkSize; k++) {
-            //             *pResult *= 2;
-            //         }
-            //     }
-            //     opAdd(*pResult", *pAccumulator, *pResult);
+            //     reduceBucketsToSinglePoint(
+            //         pPointSchedules,
+            //         pOutputBuckets,
+            //         numNonZeroBuckets, //TODO
+            //         pAccumulator,
+            //         pRunningSum,
+            //     );
+            //     accumulateAcrossChunks(
+            //         pResult,
+            //         pAccumulator,
+            //         roundIdx,
+            //         chunkSize,
+            //     );
             // }
             c.setLocal("roundIdx", c.i32_const(0)),
             c.block(c.loop(
@@ -1955,25 +2102,6 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                     c.setLocal("k", c.i32_sub(c.getLocal("k"), c.i32_const(1))),
                     c.br(0),
                 )),
-                c.if(
-                    c.i32_gt_s(
-                        c.getLocal("roundIdx"),
-                        c.i32_const(0),
-                    ),
-                    c.setLocal("k", c.getLocal("chunkSize")),
-                    c.block(c.loop(
-                        c.br_if(1, c.i32_eqz(c.getLocal("k"))),
-                        c.call(prefix + "_double", c.getLocal("pResult"), c.getLocal("pResult")),
-                        c.setLocal("k", c.i32_sub(c.getLocal("k"), c.i32_const(1))),
-                        c.br(0),
-                    )),
-                ),
-                c.call(
-                    opAdd,
-                    c.getLocal("pResult"),
-                    c.getLocal("pAccumulator"),
-                    c.getLocal("pResult"),
-                ),
                 c.setLocal("roundIdx", c.i32_add(c.getLocal("roundIdx"), c.i32_const(1))),
                 c.br(0),
             )),
@@ -2340,6 +2468,8 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     buildCopyArray();
     buildGetMSB();
 
+    buildReduceBucketsToSinglePoint();
+    buildAccumulateAcrossChunks();
     buildAddAffinePointsOneRound();
     buildCountBits();
     buildConstructAdditionChains();
@@ -2368,6 +2498,8 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     module.exportFunction(fnName + "_evaluateAdditionChains");
     module.exportFunction(fnName + "_computeSchedule");
     module.exportFunction(fnName + "_reduceBuckets");
+    module.exportFunction(fnName + "_reduceBucketsToSinglePoint");
+    module.exportFunction(fnName + "_accumulateAcrossChunks");
 
     buildTestGetMSB();
     buildTestMaxArrayValue();
