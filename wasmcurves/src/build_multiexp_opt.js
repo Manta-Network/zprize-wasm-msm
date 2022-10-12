@@ -21,9 +21,9 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     const n64g = module.modules[prefix].n64; // prefix g1m
     const n8g = n64g * 8; // 144
 
-    const n8 = 48 // only for our msm implementation 
-    const prefixField = "f1m"// only for our msm implementation 
-
+    const n8 = 48; // only for our msm implementation 
+    const prefixField = "f1m";// only for our msm implementation 
+    opMixedAdd = "g1m_addMixed";
     // Loads an i64 scalar pArr[index].
     function buildLoadI64() {
         const f = module.addFunction(fnName + "_loadI64");
@@ -1846,6 +1846,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addParam("pAccumulator", "i32");
         // Pointer to running sum
         f.addParam("pRunningSum", "i32");
+        f.addParam("debug", "i32");
         // Index
         f.addLocal("i", "i32");
         // Index
@@ -1872,14 +1873,15 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
             // }
             c.setLocal("i", c.i32_sub(c.getLocal("numNonZeroBuckets"), c.i32_const(1))),
             c.block(c.loop(
-                c.br_if(1, c.i32_eq(c.getLocal("i"), c.i32_const(0))),
-                c.call(opAdd,
+                c.br_if(1, c.i32_lt_s(c.getLocal("i"), c.i32_const(0))),
+                // TODO: can't use opAdd here, its output is in projective representation.
+                c.call(opMixedAdd,
                     c.getLocal("pRunningSum"),
                     c.i32_add(
                         c.getLocal("pPointBuckets"),
                         c.i32_mul(
                             c.getLocal("i"),
-                            c.i32_const(n8g),
+                            c.i32_const(n8 * 2),// 48 * 2
                         ),
                     ),
                     c.getLocal("pRunningSum"),
@@ -1930,7 +1932,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                 c.setLocal("gapMinusOne", c.i32_sub(c.getLocal("gap"), c.i32_const(1))),
                 c.setLocal("j", c.i32_const(0)),
                 c.block(c.loop(
-                    c.br_if(1, c.i32_eq(c.getLocal("j"), c.getLocal("gapMinusOne"))),
+                    c.br_if(1, c.i32_ge_s(c.getLocal("j"), c.getLocal("gapMinusOne"))),
                     c.call(opAdd,
                         c.getLocal("pAccumulator"),
                         c.getLocal("pRunningSum"),
@@ -2536,7 +2538,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     buildSinglePointComputeSchedule();
     buildComputeSchedule();
     buildReduceBuckets();
-    buildMutiexpChunks();
+    //buildMutiexpChunks();
     // buildMultiexp();
     module.exportFunction(fnName + "_countBits");
     module.exportFunction(fnName + "_organizeBuckets");
@@ -2550,7 +2552,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     module.exportFunction(fnName + "_reduceBuckets");
     module.exportFunction(fnName + "_reduceBucketsToSinglePoint");
     module.exportFunction(fnName + "_accumulateAcrossChunks");
-    module.exportFunction(fnName + "_multiExpChunks");
+    //module.exportFunction(fnName + "_multiExpChunks");
 
     buildTestGetMSB();
     buildTestMaxArrayValue();

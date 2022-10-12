@@ -657,8 +657,8 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
     function buildAddMixed() {
 
         const f = module.addFunction(prefix + "_addMixed");
-        f.addParam("p1", "i32");
-        f.addParam("p2", "i32");
+        f.addParam("p1", "i32");// projective
+        f.addParam("p2", "i32");// affine
         f.addParam("pr", "i32");
         f.addLocal("z1", "i32");
 
