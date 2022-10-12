@@ -629,6 +629,7 @@ describe("Basic tests for batch affine in bls12-381", function () {
         const pPointPairs1 = pb.alloc(numPoints * n8q * 2);
         const pPointPairs2 = pb.alloc(numPoints * n8q * 2);
         const pPointScheduleAlt = pb.alloc(numPoints * 8);
+        const pPointScheduleRes = pb.alloc(4);
         for (let i = 0; i < numPoints; i++) {
             pb.set(pPoints + 96 * i, inputPoints[i * 2], 48);
             pb.set(pPoints + 96 * i + 48, inputPoints[i * 2 + 1], 48);
@@ -654,6 +655,7 @@ describe("Basic tests for batch affine in bls12-381", function () {
             pPointScheduleAlt,
             pPointPairs1,
             pPointPairs2,
+            pPointScheduleRes,
         );
         for (let i = 0; i < numPoints * 2; i++) {
             pb.f1m_fromMontgomery(pPointRes + 48 * i, pPointRes + 48 * i);
