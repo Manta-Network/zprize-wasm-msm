@@ -2019,7 +2019,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addLocal("k", "i32");
         const c = f.getCodeBuilder();
         f.addCode(
-            c.call(prefix + "_zero", c.getLocal("pResult")),
+            //c.call(prefix + "_zero", c.getLocal("pResult")),// pResult is accumulator
             c.setLocal("pOutputBuckets",
                 c.call(fnName + "_reduceBuckets",
                     c.getLocal("pPoints"),
@@ -2041,8 +2041,8 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                 c.getLocal("pRunningSum"),
             ),
             c.call(fnName + "_accumulateAcrossChunks",
-                c.getLocal("pResult"),
-                c.getLocal("pAccumulator"),
+                c.getLocal("pResult"),//pAccumulator
+                c.getLocal("pAccumulator"),//pAccumulatorSingleChunk
                 c.getLocal("roundIdx"),
                 c.getLocal("chunkSize"),
             ),
@@ -2141,6 +2141,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
             c.setLocal("roundIdx", c.i32_const(0)),
             c.block(c.loop(
                 c.br_if(1, c.i32_eq(c.getLocal("roundIdx"), c.getLocal("numChunks"))),
+                //c.br_if(1, c.i32_eq(c.getLocal("roundIdx"), c.i32_const(4))),
                 c.call(fnName + "_multiExpSingleChunk",
                     c.i32_add(
                         c.getLocal("pPointSchedules"),
@@ -2240,6 +2241,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addLocal("scalarSize", "i32");
         // Number of buckets
         f.addLocal("numBuckets", "i32");
+        f.addLocal("pRoundCounts", "i32");
         const c = f.getCodeBuilder();
         f.addCode(
             c.setLocal(
@@ -2309,7 +2311,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                     ),
                 )
             ),
-            f.call(fnName + "_computeSchedule",
+            c.call(fnName + "_computeSchedule",
                 c.getLocal("pScalars"),
                 c.getLocal("numPoints"),
                 c.getLocal("pPointSchedules"),
@@ -2318,7 +2320,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                 c.getLocal("chunkSize"),
             ),
             // TODO: Sync with Xu
-            c.call(fnName + "_OrganizeBuckets",
+            c.call(fnName + "_organizeBuckets",
                 c.getLocal("pPointSchedules"),
                 c.getLocal("pMetadata"),
                 c.getLocal("numPoints"),
@@ -2562,7 +2564,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     buildComputeSchedule();
     buildReduceBuckets();
     buildMutiexpSingleChunk();
-    //buildMutiexpChunks();
+    buildMutiexpChunks();
     // buildMultiexp();
     module.exportFunction(fnName + "_countBits");
     module.exportFunction(fnName + "_organizeBuckets");
@@ -2577,8 +2579,9 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     module.exportFunction(fnName + "_reduceBucketsToSinglePoint");
     module.exportFunction(fnName + "_accumulateAcrossChunks");
     module.exportFunction(fnName + "_multiExpSingleChunk");
-    //module.exportFunction(fnName + "_multiExpChunks");
-
+    module.exportFunction(fnName + "_multiExpChunks");
+    // module.exportFunction(fnName + "_multiExp");
+    
     buildTestGetMSB();
     buildTestMaxArrayValue();
     buildTestStoreLoadI32();
