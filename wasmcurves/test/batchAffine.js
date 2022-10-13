@@ -712,51 +712,51 @@ describe("Basic tests for batch affine in bls12-381", function () {
         }
     });
 
-    // it("reduceBucketsToSinglePoint is correct.", async () => {
-    //     let pointSchedules = [0x0000000000000001, 0x0000000200000002];
-    //     let pointBuckets = [
-    //         0x1252a4ac3529f8b2b6e8189b95a60b8865f07f9a9b73f98d5df708511d3f68632c4c7d1e2b03e6b1d1e2c01839752adan, 0x2a1bc189e36902d1a49b9965eca3cb818ab5c26dffca63ca9af032870f7bbc615ac65f21bed27bd77dd65f2e90f5358n,
-    //         0xd84464b3966ec5bede84aa487facfca7823af383715078da03b387cc2f5d5597cdd7d025aa07db00a38b953bdeb6e3fn, 0x174a09cd44ccb04c382893c3d197578c85f48cc7c2ae8bbfc7a8cda72ee7ca7833de357666e979a5a9ebac59b5e1d15dn,
-    //     ];
-    //     let numNonZeroBuckets = 2;
-    //     const pPointSchedules = pb.alloc(numNonZeroBuckets * 8);
-    //     const pPointBuckets = pb.alloc(numNonZeroBuckets * n8q * 2);
-    //     const pAccumulator = pb.alloc(n8q * 3);
-    //     const pRunningSum = pb.alloc(n8q * 3);
-    //     for (let i = 0; i < numNonZeroBuckets; i++) {
-    //         pb.set(pPointBuckets + 96 * i, pointBuckets[i * 2], 48);
-    //         pb.set(pPointBuckets + 96 * i + 48, pointBuckets[i * 2 + 1], 48);
-    //         pb.f1m_toMontgomery(pPointBuckets + 96 * i, pPointBuckets + 96 * i);
-    //         pb.f1m_toMontgomery(pPointBuckets + 96 * i + 48, pPointBuckets + 96 * i + 48);
-    //     }
-    //     for (let i = 0; i < numNonZeroBuckets; i++) {
-    //         pb.set(pPointSchedules + 8 * i, pointSchedules[i], 8);
-    //     }
-    //     const pExpectedOutput = pb.alloc(2 * n8q * 3);
-    //     for (let i = 0; i < 2; i++) {
-    //         pb.set(pExpectedOutput + 144 * i, pointBuckets[i * 2], 48);
-    //         pb.set(pExpectedOutput + 144 * i + 48, pointBuckets[i * 2 + 1], 48);
-    //         pb.f1m_toMontgomery(pExpectedOutput + 144 * i, pExpectedOutput + 144 * i);
-    //         pb.f1m_toMontgomery(pExpectedOutput + 144 * i + 48, pExpectedOutput + 144 * i + 48);
-    //         pb.f1m_one(pExpectedOutput + 144 * i + 96, pExpectedOutput + 144 * i + 96);
-    //     }
-    //     const pRes = pb.alloc(n8q * 3);
-    //     pb.g1m_add(pExpectedOutput, pExpectedOutput + n8q * 3, pRes);// p1 + p2
-    //     pb.g1m_add(pRes, pExpectedOutput + n8q * 3, pRes);// p1 + p2 + p2
-    //     pb.g1m_normalize(pRes, pRes);
-    //     let expectedOutput = pb.get(pRes, 2, n8q);
-    //     pb.g1m_multiexp_reduceBucketsToSinglePoint(
-    //         pPointSchedules,
-    //         pPointBuckets,
-    //         numNonZeroBuckets,
-    //         pAccumulator,
-    //         pRunningSum,
-    //     );
-    //     pb.g1m_normalize(pAccumulator, pAccumulator);
-    //     let output = pb.get(pAccumulator, 2, n8q);
-    //     assert.equal(output[0], expectedOutput[0]);
-    //     assert.equal(output[1], expectedOutput[1]);
-    // });
+    it("reduceBucketsToSinglePoint is correct.", async () => {
+        let pointSchedules = [0x0000000000000001, 0x0000000200000002];
+        let pointBuckets = [
+            0x1252a4ac3529f8b2b6e8189b95a60b8865f07f9a9b73f98d5df708511d3f68632c4c7d1e2b03e6b1d1e2c01839752adan, 0x2a1bc189e36902d1a49b9965eca3cb818ab5c26dffca63ca9af032870f7bbc615ac65f21bed27bd77dd65f2e90f5358n,
+            0xd84464b3966ec5bede84aa487facfca7823af383715078da03b387cc2f5d5597cdd7d025aa07db00a38b953bdeb6e3fn, 0x174a09cd44ccb04c382893c3d197578c85f48cc7c2ae8bbfc7a8cda72ee7ca7833de357666e979a5a9ebac59b5e1d15dn,
+        ];
+        let numNonZeroBuckets = 2;
+        const pPointSchedules = pb.alloc(numNonZeroBuckets * 8);
+        const pPointBuckets = pb.alloc(numNonZeroBuckets * n8q * 2);
+        const pAccumulator = pb.alloc(n8q * 3);
+        const pRunningSum = pb.alloc(n8q * 3);
+        for (let i = 0; i < numNonZeroBuckets; i++) {
+            pb.set(pPointBuckets + 96 * i, pointBuckets[i * 2], 48);
+            pb.set(pPointBuckets + 96 * i + 48, pointBuckets[i * 2 + 1], 48);
+            pb.f1m_toMontgomery(pPointBuckets + 96 * i, pPointBuckets + 96 * i);
+            pb.f1m_toMontgomery(pPointBuckets + 96 * i + 48, pPointBuckets + 96 * i + 48);
+        }
+        for (let i = 0; i < numNonZeroBuckets; i++) {
+            pb.set(pPointSchedules + 8 * i, pointSchedules[i], 8);
+        }
+        const pExpectedOutput = pb.alloc(2 * n8q * 3);
+        for (let i = 0; i < 2; i++) {
+            pb.set(pExpectedOutput + 144 * i, pointBuckets[i * 2], 48);
+            pb.set(pExpectedOutput + 144 * i + 48, pointBuckets[i * 2 + 1], 48);
+            pb.f1m_toMontgomery(pExpectedOutput + 144 * i, pExpectedOutput + 144 * i);
+            pb.f1m_toMontgomery(pExpectedOutput + 144 * i + 48, pExpectedOutput + 144 * i + 48);
+            pb.f1m_one(pExpectedOutput + 144 * i + 96, pExpectedOutput + 144 * i + 96);
+        }
+        const pRes = pb.alloc(n8q * 3);
+        pb.g1m_add(pExpectedOutput, pExpectedOutput + n8q * 3, pRes);// p1 + p2
+        pb.g1m_add(pRes, pExpectedOutput + n8q * 3, pRes);// p1 + p2 + p2
+        pb.g1m_normalize(pRes, pRes);
+        let expectedOutput = pb.get(pRes, 2, n8q);
+        pb.g1m_multiexp_reduceBucketsToSinglePoint(
+            pPointSchedules,
+            pPointBuckets,
+            numNonZeroBuckets,
+            pAccumulator,
+            pRunningSum,
+        );
+        pb.g1m_normalize(pAccumulator, pAccumulator);
+        let output = pb.get(pAccumulator, 2, n8q);
+        assert.equal(output[0], expectedOutput[0]);
+        assert.equal(output[1], expectedOutput[1]);
+    });
 
     it("accumulateAcrossChunks is correct.", async () => {
         let inputAccumulator = [
@@ -774,37 +774,28 @@ describe("Basic tests for batch affine in bls12-381", function () {
         let inputChunkIndexArray = [0, 4];
         const numTests = 2;
         const chunkSize = 5;
-        const pAccumulatorProjective = pb.alloc(2 * n8q * 3);
-        const pAccumulatorSingleChunkAffine = pb.alloc(2 * n8q * 2);
-        const pAccumulatorSingleChunkProjective = pb.alloc(2 * n8q * 3);
         const pRes = pb.alloc(n8q * 3);
-        pb.set(pAccumulatorProjective, inputAccumulator[2], 48);
-        pb.set(pAccumulatorProjective + 48, inputAccumulator[3], 48);
-        pb.f1m_toMontgomery(pAccumulatorProjective, pAccumulatorProjective);
-        pb.f1m_toMontgomery(pAccumulatorProjective + 48, pAccumulatorProjective + 48);
-        pb.f1m_one(pAccumulatorProjective + 96, pAccumulatorProjective + 96);
-        pb.set(pAccumulatorSingleChunkProjective, inputAccumulatorSingleChunk[2], 48);
-        pb.set(pAccumulatorSingleChunkProjective + 48, inputAccumulatorSingleChunk[3], 48);
-        pb.f1m_toMontgomery(pAccumulatorSingleChunkProjective, pAccumulatorSingleChunkProjective);
-        pb.f1m_toMontgomery(pAccumulatorSingleChunkProjective + 48, pAccumulatorSingleChunkProjective + 48);
-        pb.f1m_one(pAccumulatorSingleChunkProjective + 96, pAccumulatorSingleChunkProjective + 96);
-        pb.g1m_double(pAccumulatorProjective, pRes);// 2*pAccumulatorProjective
-        pb.g1m_double(pRes, pRes);// 2^2*pAccumulatorProjective
-        pb.g1m_double(pRes, pRes);// 2^3*pAccumulatorProjective
-        pb.g1m_double(pRes, pRes);// 2^4*pAccumulatorProjective
-        pb.g1m_double(pRes, pRes);// 2^5*pAccumulatorProjective
-        pb.g1m_add(pRes, pAccumulatorSingleChunkProjective, pRes);// 2^5*pAccumulatorProjective+pAccumulatorSingleChunkProjective
-        pb.g1m_normalize(pRes, pRes);
-        pb.f1m_fromMontgomery(pRes, pRes);
-        pb.f1m_fromMontgomery(pRes + 48, pRes + 48);
-        // let expectedSecondOutput = pb.get(pRes, 2, n8q);
-        // console.log(expectedSecondOutput[0].toString(16), expectedSecondOutput[1].toString(16));
         let expectedOutput = [
             // First test
             0x572cbea904d67468808c8eb50a9450c9721db309128012543902d0ac358a62ae28f75bb8f1c7c42c39a8c5529bf0f4en, 0x166a9d8cabc673a322fda673779d8e3822ba3ecb8670e461f73bb9021d5fd76a4c56d9d4cd16bd1bba86881979749d28n,
             // Second test
             0x60d5589316a5e16e1d9bb03db45136afb9a3d6e97d350256129ee32a8e33396907dc44d2211762967d88d3e2840f71bn, 0xf7a704c78e5a7707638e8711e923198992fbef5924d12b53d8658ff5ef1c50cf768cb5918e73c39e00f18a006237cd5n,
         ];
+        // Computes expected output.
+        // const _pAccumulatorProjective = copyPoint(inputAccumulator, 1);
+        // const _pAccumulatorSingleChunkProjective = copyPoint(inputAccumulatorSingleChunk, 1);
+        // pb.g1m_double(_pAccumulatorProjective, pRes);// 2*pAccumulatorProjective
+        // pb.g1m_double(pRes, pRes);// 2^2*pAccumulatorProjective
+        // pb.g1m_double(pRes, pRes);// 2^3*pAccumulatorProjective
+        // pb.g1m_double(pRes, pRes);// 2^4*pAccumulatorProjective
+        // pb.g1m_double(pRes, pRes);// 2^5*pAccumulatorProjective
+        // pb.g1m_add(pRes, _pAccumulatorSingleChunkProjective, pRes);// 2^5*pAccumulatorProjective+pAccumulatorSingleChunkProjective
+        // pb.g1m_normalize(pRes, pRes);
+        // pb.f1m_fromMontgomery(pRes, pRes);
+        // pb.f1m_fromMontgomery(pRes + 48, pRes + 48);
+        // let expectedSecondOutput = pb.get(pRes, 2, n8q);
+        // console.log(expectedSecondOutput[0].toString(16), expectedSecondOutput[1].toString(16));
+        const pAccumulatorProjective = pb.alloc(2 * n8q * 3);
         for (let i = 0; i < numTests; i++) {
             pb.set(pAccumulatorProjective, inputAccumulator[i * 2], 48);
             pb.set(pAccumulatorProjective + 48, inputAccumulator[i * 2 + 1], 48);
@@ -815,13 +806,10 @@ describe("Basic tests for batch affine in bls12-381", function () {
             } else {
                 pb.f1m_one(pAccumulatorProjective + 96, pAccumulatorProjective + 96);
             }
-            pb.set(pAccumulatorSingleChunkAffine, inputAccumulatorSingleChunk[i * 2], 48);
-            pb.set(pAccumulatorSingleChunkAffine + 48, inputAccumulatorSingleChunk[i * 2 + 1], 48);
-            pb.f1m_toMontgomery(pAccumulatorSingleChunkAffine, pAccumulatorSingleChunkAffine);
-            pb.f1m_toMontgomery(pAccumulatorSingleChunkAffine + 48, pAccumulatorSingleChunkAffine + 48);
+            const pAccumulatorSingleChunkProjective = copyPoint(inputAccumulatorSingleChunk, i);
             pb.g1m_multiexp_accumulateAcrossChunks(
                 pAccumulatorProjective,
-                pAccumulatorSingleChunkAffine,
+                pAccumulatorSingleChunkProjective,
                 inputChunkIndexArray[i],
                 chunkSize,
             );
@@ -859,7 +847,7 @@ describe("Basic tests for batch affine in bls12-381", function () {
         let numBuckets = 3;
         let maxBucketBits = 3;
         let roundIdx = 0;
-        let expectedOutput = [0x10c25b4aaf2446410b9f76d1dc85c119f8e553e8f95e86c26c41685e4b4ded1d0da4ab6859c1176ff19dec109472d506n, 0x4a0b173092a4e1bfeb9060fb6be24d7b8adedab606a378316381cd15e681f165a984ad76481e0e1b0f02b304eadb380n];
+        let expectedOutput = [0xa44163d9f9776392ce5f29f1ecbcc177f8a91f28927f5890c672433b4a3c9b2a34830842d9396dc561348501e885afbn, 0x11fea8cc549a93debba9fad190faea8987e607ef969c38f1015bbfa5d7a6c5b50e240891d55df5f489def327e03c6e55n];
         const pRes = pb.alloc(n8q * 3);
         // Computes expected result.
         // const p3 = copyPoint(inputPoints, 3);
@@ -876,7 +864,7 @@ describe("Basic tests for batch affine in bls12-381", function () {
         // pb.g1m_double(pRes, pRes); // 2*(p3+p4+p5+p6+p7)
         // pb.g1m_add(pRes, p8, pRes);
         // pb.g1m_add(pRes, p9, pRes);
-        // pb.g1m_normalize(pRes);
+        // pb.g1m_normalize(pRes, pRes);
         // pb.f1m_fromMontgomery(pRes, pRes);
         // pb.f1m_fromMontgomery(pRes + 48, pRes + 48);
         // let expectedOutput = pb.get(pRes, 2, n8q);
@@ -902,7 +890,7 @@ describe("Basic tests for batch affine in bls12-381", function () {
         for (let i = 0; i < numBuckets; i++) {
             pb.set(pBucketCounts + 4 * i, bucketCounts[i], 4);
         }
-        pb.g1m_zero(pAccumulator);
+        pb.g1m_zero(pRes);
         pb.g1m_multiexp_multiExpSingleChunk(
             pPointSchedules,
             pPoints,
@@ -920,18 +908,11 @@ describe("Basic tests for batch affine in bls12-381", function () {
             pPointPairs1,
             pPointPairs2,
         );
-        pb.g1m_normalize(pRes);
+        pb.g1m_normalize(pRes, pRes);
         pb.f1m_fromMontgomery(pRes, pRes);
         pb.f1m_fromMontgomery(pRes + 48, pRes + 48);
         let output = pb.get(pRes, 2, 48);
-        console.log(output[0].toString(16), output[1].toString(16));
-
-
-        // let pointScheduleOutput = pb.get(pPointScheduleAlt, numPoints, 8);
-        // for (let i = 0; i < 2; i++) {
-        //     assert.equal(output[2 * i], expectedOutput[2 * i]);
-        //     assert.equal(output[2 * i + 1], expectedOutput[2 * i + 1]);
-        //     assert.equal(pointScheduleOutput[i], expectedOutputPointSchedules[i]);
-        // }
+        assert.equal(output[0], expectedOutput[0]);
+        assert.equal(output[1], expectedOutput[1]);
     });
 });

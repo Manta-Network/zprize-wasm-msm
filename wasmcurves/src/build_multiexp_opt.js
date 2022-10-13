@@ -1960,7 +1960,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
             //         *pAccumulator *= 2;
             //     }
             // }
-            // opMixedAdd(*pAccumulator, *pAccumulatorSingleChunk, *pAccumulator);
+            // opAdd(*pAccumulator, *pAccumulatorSingleChunk, *pAccumulator);
             c.if(c.i32_ne(c.getLocal("chunkIdx"), c.i32_const(0)),
                 [
                     ...c.setLocal("i", c.i32_const(0)),
@@ -1972,7 +1972,8 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                     )),
                 ],
             ),
-            c.call(opMixedAdd, c.getLocal("pAccumulator"), c.getLocal("pAccumulatorSingleChunk"), c.getLocal("pAccumulator")),
+            // Note: both pAccumulator and pAccumulatorSingleChunk are projective points.
+            c.call(opAdd, c.getLocal("pAccumulator"), c.getLocal("pAccumulatorSingleChunk"), c.getLocal("pAccumulator")),
         );
     }
 
