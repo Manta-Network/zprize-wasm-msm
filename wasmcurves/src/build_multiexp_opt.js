@@ -2172,6 +2172,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                     c.getLocal("numBuckets"),
                     c.getLocal("roundIdx"),
                     c.getLocal("pAccumulator"),
+                    c.getLocal("pResult"),
                     c.getLocal("pRunningSum"),
                     c.getLocal("pBitOffsets"),
                     c.getLocal("pPointScheduleAlt"),
