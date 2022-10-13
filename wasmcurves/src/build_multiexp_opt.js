@@ -1973,8 +1973,81 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                 ],
             ),
             c.call(opMixedAdd, c.getLocal("pAccumulator"), c.getLocal("pAccumulatorSingleChunk"), c.getLocal("pAccumulator")),
-            );
+        );
     }
+
+    // Computes MSM over a single chunk and sets the output pointed by `pResult`.
+    function buildMutiexpSingleChunk() {
+        const f = module.addFunction(fnName + "_multiExpSingleChunk");
+        // Pointer to a 1-d array of point schedules. Shahpe: numPoints
+        f.addParam("pPointSchedules", "i32");
+        // Pointer to the input point vector
+        f.addParam("pPoints", "i32");
+        // Number of buckets with at least 1 point
+        f.addParam("numNonZeroBuckets", "i32");
+        // Pointer to a 1-d array of the number of points in each bucket. Shape: numBuckets
+        f.addParam("pBucketCounts", "i32");
+        // Number of points
+        f.addParam("numPoints", "i32");
+        // Number of bits in a chunk
+        f.addParam("chunkSize", "i32");
+        // Number of buckets
+        f.addParam("numBuckets", "i32");
+        // Round index
+        f.addParam("roundIdx", "i32");
+        // Pointer to an accumulator.
+        f.addParam("pAccumulator", "i32");
+        // Pointer to the resulting G1 point
+        f.addParam("pResult", "i32");
+        // Pointer to running sum. Only for memory reuse.
+        f.addParam("pRunningSum", "i32");
+        // Pointer to a 1-d array of bit offsets. Shape: maxBucketBits+1
+        // Assumption: This has not been initialized. Just for reusing memory.
+        f.addParam("pBitOffsets", "i32");
+        // Pointer to a 1-d array of point schedules for a specific round. This stores
+        // the processed point schedules from `ConstructAdditionChains`. Shape: numPoints
+        // Assumption: pPointScheduleAlt has not been initialized. Just for reusing memory.
+        f.addParam("pPointScheduleAlt", "i32");
+        // Pointer to a 1-d array of G1 points as the scratch space. Lengh: numPoints. Only for memory reuse.
+        f.addParam("pPointPairs1", "i32");
+        // Pointer to a 1-d array of G1 points as the scratch space. Lengh: numPoints. Only for memory reuse.
+        f.addParam("pPointPairs2", "i32");
+        // Pointer to the output buckets.
+        f.addLocal("pOutputBuckets", "i32");
+        // Index
+        f.addLocal("k", "i32");
+        const c = f.getCodeBuilder();
+        f.addCode(
+            c.call(prefix + "_zero", c.getLocal("pResult")),
+            c.setLocal("pOutputBuckets",
+                c.call(fnName + "_reduceBuckets",
+                    c.getLocal("pPoints"),
+                    c.getLocal("pPointSchedules"),
+                    c.getLocal("numPoints"),
+                    c.getLocal("numBuckets"),
+                    c.getLocal("pBucketCounts"),
+                    c.getLocal("pBitOffsets"),
+                    c.getLocal("pPointScheduleAlt"),
+                    c.getLocal("pPointPairs1"),
+                    c.getLocal("pPointPairs2"),
+                ),
+            ),
+            c.call(fnName + "_reduceBucketsToSinglePoint",
+                c.getLocal("pPointScheduleAlt"),
+                c.getLocal("pOutputBuckets"),
+                c.getLocal("numNonZeroBuckets"),
+                c.getLocal("pAccumulator"),
+                c.getLocal("pRunningSum"),
+            ),
+            c.call(fnName + "_accumulateAcrossChunks",
+                c.getLocal("pResult"),
+                c.getLocal("pAccumulator"),
+                c.getLocal("roundIdx"),
+                c.getLocal("chunkSize"),
+            ),
+        );
+    }
+
 
     // Computes MSM over all chunks and sets the output pointed by `pResult`.
     function buildMutiexpChunks() {
@@ -2064,81 +2137,45 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
             c.setLocal("pAccumulator", c.call(fnName + "_allocateMemory", c.i32_const(n8g))),
             c.setLocal("pRunningSum", c.call(fnName + "_allocateMemory", c.i32_const(n8g))),
             c.call(prefix + "_zero", c.getLocal("pResult")),
-            // for (int roundIdx = 0; roundIdx < numChunks; roundIdx++) {
-            //     pOutputBuckets = reduceBuckets(
-            //         pPoints,
-            //         pPointSchedule[roundIdx*numPoints],
-            //         numPoints,
-            //         numBuckets,
-            //         pBucketCounts[roundIdx * numBuckets],
-            //         pBitOffsets,
-            //         pPointScheduleAlt,
-            //         pPointPairs1,
-            //         pPointPairs2,
-            //     );
-            //     reduceBucketsToSinglePoint(
-            //         pPointScheduleAlt,
-            //         pOutputBuckets,
-            //         pNumNonZeroBuckets[roundIdx],
-            //         pAccumulator,
-            //         pRunningSum,
-            //     );
-            //     accumulateAcrossChunks(
-            //         pResult,
-            //         pAccumulator,
-            //         roundIdx,
-            //         chunkSize,
-            //     );
-            // }
             c.setLocal("roundIdx", c.i32_const(0)),
             c.block(c.loop(
                 c.br_if(1, c.i32_eq(c.getLocal("roundIdx"), c.getLocal("numChunks"))),
-                c.setLocal("pOutputBuckets",
-                    c.call(fnName + "_reduceBuckets",
-                        c.getLocal("pPoints"),
-                        c.i32_add(
-                            c.getLocal("pPointSchedules"),
-                            c.i32_shl(
-                                c.i32_mul(
-                                    c.getLocal("roundIdx"),
-                                    c.getLocal("numPoints"),
-                                ),
-                                c.i32_const(3),
+                c.call(fnName + "_multiExpSingleChunk",
+                    c.i32_add(
+                        c.getLocal("pPointSchedules"),
+                        c.i32_shl(
+                            c.i32_mul(
+                                c.getLocal("roundIdx"),
+                                c.getLocal("numPoints"),
                             ),
+                            c.i32_const(3),
                         ),
-                        c.getLocal("numPoints"),
-                        c.getLocal("numBuckets"),
-                        c.i32_add(
-                            c.getLocal("pBucketCounts"),
-                            c.i32_shl(
-                                c.i32_mul(
-                                    c.getLocal("roundIdx"),
-                                    c.getLocal("numBuckets"),
-                                ),
-                                c.i32_const(2),
-                            ),
-                        ),
-                        c.getLocal("pBitOffsets"),
-                        c.getLocal("pPointScheduleAlt"),
-                        c.getLocal("pPointPairs1"),
-                        c.getLocal("pPointPairs2"),
                     ),
-                ),
-                c.call(fnName + "_reduceBucketsToSinglePoint",
-                    c.getLocal("pPointScheduleAlt"),
-                    c.getLocal("pOutputBuckets"),
+                    c.getLocal("pPoints"),
                     c.call(fnName + "_loadI32",
                         c.getLocal("pNumNonZeroBuckets"),
                         c.getLocal("roundIdx"),
                     ),
+                    c.i32_add(
+                        c.getLocal("pBucketCounts"),
+                        c.i32_shl(
+                            c.i32_mul(
+                                c.getLocal("roundIdx"),
+                                c.getLocal("numBuckets"),
+                            ),
+                            c.i32_const(2),
+                        ),
+                    ),
+                    c.getLocal("numPoints"),
+                    c.getLocal("chunkSize"),
+                    c.getLocal("numBuckets"),
+                    c.getLocal("roundIdx"),
                     c.getLocal("pAccumulator"),
                     c.getLocal("pRunningSum"),
-                ),
-                c.call(fnName + "_accumulateAcrossChunks",
-                    c.getLocal("pResult"),
-                    c.getLocal("pAccumulator"),
-                    c.getLocal("roundIdx"),
-                    c.getLocal("chunkSize"),
+                    c.getLocal("pBitOffsets"),
+                    c.getLocal("pPointScheduleAlt"),
+                    c.getLocal("pPointPairs1"),
+                    c.getLocal("pPointPairs2"),
                 ),
                 c.setLocal("roundIdx", c.i32_add(c.getLocal("roundIdx"), c.i32_const(1))),
                 c.br(0),
@@ -2522,6 +2559,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     buildSinglePointComputeSchedule();
     buildComputeSchedule();
     buildReduceBuckets();
+    buildMutiexpSingleChunk();
     //buildMutiexpChunks();
     // buildMultiexp();
     module.exportFunction(fnName + "_countBits");
@@ -2536,6 +2574,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     module.exportFunction(fnName + "_reduceBuckets");
     module.exportFunction(fnName + "_reduceBucketsToSinglePoint");
     module.exportFunction(fnName + "_accumulateAcrossChunks");
+    module.exportFunction(fnName + "_multiExpSingleChunk");
     //module.exportFunction(fnName + "_multiExpChunks");
 
     buildTestGetMSB();
