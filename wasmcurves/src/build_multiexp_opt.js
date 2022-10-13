@@ -1960,20 +1960,20 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
             //         *pAccumulator *= 2;
             //     }
             // }
-            // opAdd(*pAccumulator, *pAccumulatorSingleChunk, *pAccumulator);
+            // opMixedAdd(*pAccumulator, *pAccumulatorSingleChunk, *pAccumulator);
             c.if(c.i32_ne(c.getLocal("chunkIdx"), c.i32_const(0)),
                 [
                     ...c.setLocal("i", c.i32_const(0)),
                     ...c.block(c.loop(
                         c.br_if(1, c.i32_eq(c.getLocal("i"), c.getLocal("chunkSize"))),
                         c.call(prefix + "_double", c.getLocal("pAccumulator"), c.getLocal("pAccumulator")),
-                        c.setLocal("i", c.i32_sub(c.getLocal("i"), c.i32_const(1))),
+                        c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
                         c.br(0),
                     )),
                 ],
             ),
-            c.call(opAdd, c.getLocal("pAccumulator"), c.getLocal("pAccumulatorSingleChunk"), c.getLocal("pAccumulator")),
-        );
+            c.call(opMixedAdd, c.getLocal("pAccumulator"), c.getLocal("pAccumulatorSingleChunk"), c.getLocal("pAccumulator")),
+            );
     }
 
     // Computes MSM over all chunks and sets the output pointed by `pResult`.

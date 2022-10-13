@@ -309,8 +309,6 @@ describe("Basic tests for batch affine in bls12-381", function () {
             pb.f1m_fromMontgomery(y3, y3);
             expectedF1mOutput.push(pb.get(x3, 1, 48));
             expectedF1mOutput.push(pb.get(y3, 1, 48));
-            // console.log(pb.get(x3, 1, 48).toString(16));
-            // console.log(pb.get(y3, 1, 48).toString(16));
         }
 
         // addAffinePointsOneRound results
@@ -329,11 +327,9 @@ describe("Basic tests for batch affine in bls12-381", function () {
         let output = pb.get(pPaires, numPoints * 2, 48);
         for (let i = numPoints * 2 - pointsInRound; i < numPoints * 2; i++) {
             resultTest.push(output[i]);
-            //console.log(output[i].toString(16));
         }
         for (let i = 0; i < (numPoints - pointsInRound) * 2; i++) {
             cleanDataTest.push(output[i]);
-            //console.log(output[i].toString(16));
         }
 
         // G1m add
@@ -362,8 +358,6 @@ describe("Basic tests for batch affine in bls12-381", function () {
         for (let i = (numPoints - pointsInRound) / 2 * 3; i < numPoints / 2 * 3; i += 3) {
             expectedG1mOutput.push(output2[i]);
             expectedG1mOutput.push(output2[i + 1]);
-            // console.log(output2[i].toString(16));
-            // console.log(output2[i+1].toString(16));
         }
 
         // Test whether pPaires equals paire in index [0...pointsInRound] 
@@ -426,7 +420,6 @@ describe("Basic tests for batch affine in bls12-381", function () {
         pb.g1m_multiexp_reorderPoints(pPoints, pPointSchedules, numPoints, countBucket0, pRes);
         let output = pb.get(pRes, numPoints * 2, 48);
         for (let i = 0; i < (numPoints - countBucket0) * 2; i++) {
-            //console.log(output[i].toString(16));
             assert.equal(output[i], expectedOutput[i]);
         }
     });
@@ -670,39 +663,23 @@ describe("Basic tests for batch affine in bls12-381", function () {
 
     it("g1m add is correct.", async () => {
         let inputPoints = [
-            //0
             0x17f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bbn, 0x8b3f481e3aaa0f1a09e30ed741d8ae4fcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e1n,
-            //1
             0x572cbea904d67468808c8eb50a9450c9721db309128012543902d0ac358a62ae28f75bb8f1c7c42c39a8c5529bf0f4en, 0x166a9d8cabc673a322fda673779d8e3822ba3ecb8670e461f73bb9021d5fd76a4c56d9d4cd16bd1bba86881979749d28n,
-            //2
             0x9ece308f9d1f0131765212deca99697b112d61f9be9a5f1f3780a51335b3ff981747a0b2ca2179b96d2c0c9024e5224n, 0x32b80d3a6f5b09f8a84623389c5f80ca69a0cddabc3097f9d9c27310fd43be6e745256c634af45ca3473b0590ae30d1n,
-            //3
             0x10e7791fb972fe014159aa33a98622da3cdc98ff707965e536d8636b5fcc5ac7a91a8c46e59a00dca575af0f18fb13dcn, 0x16ba437edcc6551e30c10512367494bfb6b01cc6681e8a4c3cd2501832ab5c4abc40b4578b85cbaffbf0bcd70d67c6e2n,
-            //4
             0xc9b60d5afcbd5663a8a44b7c5a02f19e9a77ab0a35bd65809bb5c67ec582c897feb04decc694b13e08587f3ff9b5b60n, 0x143be6d078c2b79a7d4f1d1b21486a030ec93f56aa54e1de880db5a66dd833a652a95bee27c824084006cb5644cbd43fn,
-            //5
             0x6e82f6da4520f85c5d27d8f329eccfa05944fd1096b20734c894966d12a9e2a9a9744529d7212d33883113a0cadb909n, 0x17d81038f7d60bee9110d9c0d6d1102fe2d998c957f28e31ec284cc04134df8e47e8f82ff3af2e60a6d9688a4563477cn,
-            //6
             0x1928f3beb93519eecf0145da903b40a4c97dca00b21f12ac0df3be9116ef2ef27b2ae6bcd4c5bc2d54ef5a70627efcb7n, 0x108dadbaa4b636445639d5ae3089b3c43a8a1d47818edd1839d7383959a41c10fdc66849cfa1b08c5a11ec7e28981a1cn,
-            //7
             0x85ae765588126f5e860d019c0e26235f567a9c0c0b2d8ff30f3e8d436b1082596e5e7462d20f5be3764fd473e57f9cfn, 0x19e7dfab8a794b6abb9f84e57739de172a63415273f460d1607fa6a74f0acd97d9671b801dd1fd4f18232dd1259359a1n,
-            //8
             0x19cdf3807146e68e041314ca93e1fee0991224ec2a74beb2866816fd0826ce7b6263ee31e953a86d1b72cc2215a57793n, 0x7481b1f261aabacf45c6e4fc278055441bfaf99f604d1f835c0752ac9742b4522c9f5c77db40989e7da608505d48616n,
-            //9
             0x19cdf3807146e68e041314ca93e1fee0991224ec2a74beb2866816fd0826ce7b6263ee31e953a86d1b72cc2215a57793n, 0x7481b1f261aabacf45c6e4fc278055441bfaf99f604d1f835c0752ac9742b4522c9f5c77db40989e7da608505d48616n,
         ];
-
         let numPoints = 10;
-
-        // console.log("===========Expected results===========")
-
         const pPoints_for_test = pb.alloc(numPoints * n8q * 3);
         const point4_add_point5 = pb.alloc(n8q * 3);
         const point6_add_point7 = pb.alloc(n8q * 3);
-
         const point4567 = pb.alloc(n8q * 3);
         const point4567ForCompared = pb.alloc(n8q * 3);
-
         for (let i = 0; i < numPoints; i++) {
             pb.set(pPoints_for_test + 144 * i, inputPoints[i * 2], 48);
             pb.set(pPoints_for_test + 144 * i + 48, inputPoints[i * 2 + 1], 48);
@@ -714,12 +691,10 @@ describe("Basic tests for batch affine in bls12-381", function () {
         pb.g1m_add(point4567, pPoints_for_test + n8q * 3 * 7, point4567);
         pb.g1m_add(point4567, pPoints_for_test + n8q * 3 * 6, point4567);
         pb.g1m_normalize(point4567, point4567);
-
         pb.g1m_add(pPoints_for_test + n8q * 3 * 4, pPoints_for_test + n8q * 3 * 5, point4_add_point5);
         pb.g1m_add(pPoints_for_test + n8q * 3 * 6, pPoints_for_test + n8q * 3 * 7, point6_add_point7);
         pb.g1m_add(point4_add_point5, point6_add_point7, point4567ForCompared);
         pb.g1m_normalize(point4567ForCompared, point4567ForCompared);
-
         let output1 = pb.get(point4567, 3, 48);
         let output2 = pb.get(point4567ForCompared, 3, 48);
         for (let i = 0; i < 3; i++) {
@@ -771,5 +746,81 @@ describe("Basic tests for batch affine in bls12-381", function () {
         let output = pb.get(pAccumulator, 2, n8q);
         assert.equal(output[0], expectedOutput[0]);
         assert.equal(output[1], expectedOutput[1]);
+    });
+
+    it("accumulateAcrossChunks is correct.", async () => {
+        let inputAccumulator = [
+            // First test
+            0x0, 0x0,
+            // Second test
+            0x17f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bbn, 0x8b3f481e3aaa0f1a09e30ed741d8ae4fcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e1n,
+        ];
+        let inputAccumulatorSingleChunk = [
+            // First test
+            0x572cbea904d67468808c8eb50a9450c9721db309128012543902d0ac358a62ae28f75bb8f1c7c42c39a8c5529bf0f4en, 0x166a9d8cabc673a322fda673779d8e3822ba3ecb8670e461f73bb9021d5fd76a4c56d9d4cd16bd1bba86881979749d28n,
+            // Second test
+            0x9ece308f9d1f0131765212deca99697b112d61f9be9a5f1f3780a51335b3ff981747a0b2ca2179b96d2c0c9024e5224n, 0x32b80d3a6f5b09f8a84623389c5f80ca69a0cddabc3097f9d9c27310fd43be6e745256c634af45ca3473b0590ae30d1n,
+        ];
+        let inputChunkIndexArray = [0, 4];
+        const numTests = 2;
+        const chunkSize = 5;
+        const pAccumulatorProjective = pb.alloc(2 * n8q * 3);
+        const pAccumulatorSingleChunkAffine = pb.alloc(2 * n8q * 2);
+        const pAccumulatorSingleChunkProjective = pb.alloc(2 * n8q * 3);
+        const pRes = pb.alloc(n8q * 3);
+        pb.set(pAccumulatorProjective, inputAccumulator[2], 48);
+        pb.set(pAccumulatorProjective + 48, inputAccumulator[3], 48);
+        pb.f1m_toMontgomery(pAccumulatorProjective, pAccumulatorProjective);
+        pb.f1m_toMontgomery(pAccumulatorProjective + 48, pAccumulatorProjective + 48);
+        pb.f1m_one(pAccumulatorProjective + 96, pAccumulatorProjective + 96);
+        pb.set(pAccumulatorSingleChunkProjective, inputAccumulatorSingleChunk[2], 48);
+        pb.set(pAccumulatorSingleChunkProjective + 48, inputAccumulatorSingleChunk[3], 48);
+        pb.f1m_toMontgomery(pAccumulatorSingleChunkProjective, pAccumulatorSingleChunkProjective);
+        pb.f1m_toMontgomery(pAccumulatorSingleChunkProjective + 48, pAccumulatorSingleChunkProjective + 48);
+        pb.f1m_one(pAccumulatorSingleChunkProjective + 96, pAccumulatorSingleChunkProjective + 96);
+        pb.g1m_double(pAccumulatorProjective, pRes);// 2*pAccumulatorProjective
+        pb.g1m_double(pRes, pRes);// 2^2*pAccumulatorProjective
+        pb.g1m_double(pRes, pRes);// 2^3*pAccumulatorProjective
+        pb.g1m_double(pRes, pRes);// 2^4*pAccumulatorProjective
+        pb.g1m_double(pRes, pRes);// 2^5*pAccumulatorProjective
+        pb.g1m_add(pRes, pAccumulatorSingleChunkProjective, pRes);// 2^5*pAccumulatorProjective+pAccumulatorSingleChunkProjective
+        pb.g1m_normalize(pRes, pRes);
+        pb.f1m_fromMontgomery(pRes, pRes);
+        pb.f1m_fromMontgomery(pRes + 48, pRes + 48);
+        // let expectedSecondOutput = pb.get(pRes, 2, n8q);
+        // console.log(expectedSecondOutput[0].toString(16), expectedSecondOutput[1].toString(16));
+        let expectedOutput = [
+            // First test
+            0x572cbea904d67468808c8eb50a9450c9721db309128012543902d0ac358a62ae28f75bb8f1c7c42c39a8c5529bf0f4en, 0x166a9d8cabc673a322fda673779d8e3822ba3ecb8670e461f73bb9021d5fd76a4c56d9d4cd16bd1bba86881979749d28n,
+            // Second test
+            0x60d5589316a5e16e1d9bb03db45136afb9a3d6e97d350256129ee32a8e33396907dc44d2211762967d88d3e2840f71bn, 0xf7a704c78e5a7707638e8711e923198992fbef5924d12b53d8658ff5ef1c50cf768cb5918e73c39e00f18a006237cd5n,
+        ];
+        for (let i = 0; i < numTests; i++) {
+            pb.set(pAccumulatorProjective, inputAccumulator[i * 2], 48);
+            pb.set(pAccumulatorProjective + 48, inputAccumulator[i * 2 + 1], 48);
+            pb.f1m_toMontgomery(pAccumulatorProjective, pAccumulatorProjective);
+            pb.f1m_toMontgomery(pAccumulatorProjective + 48, pAccumulatorProjective + 48);
+            if (i == 0) {
+                pb.f1m_zero(pAccumulatorProjective + 96, pAccumulatorProjective + 96);
+            } else {
+                pb.f1m_one(pAccumulatorProjective + 96, pAccumulatorProjective + 96);
+            }
+            pb.set(pAccumulatorSingleChunkAffine, inputAccumulatorSingleChunk[i * 2], 48);
+            pb.set(pAccumulatorSingleChunkAffine + 48, inputAccumulatorSingleChunk[i * 2 + 1], 48);
+            pb.f1m_toMontgomery(pAccumulatorSingleChunkAffine, pAccumulatorSingleChunkAffine);
+            pb.f1m_toMontgomery(pAccumulatorSingleChunkAffine + 48, pAccumulatorSingleChunkAffine + 48);
+            pb.g1m_multiexp_accumulateAcrossChunks(
+                pAccumulatorProjective,
+                pAccumulatorSingleChunkAffine,
+                inputChunkIndexArray[i],
+                chunkSize,
+            );
+            pb.g1m_normalize(pAccumulatorProjective, pAccumulatorProjective);
+            pb.f1m_fromMontgomery(pAccumulatorProjective, pAccumulatorProjective);
+            pb.f1m_fromMontgomery(pAccumulatorProjective + 48, pAccumulatorProjective + 48);
+            let output = pb.get(pAccumulatorProjective, 2, n8q);
+            assert.equal(output[0], expectedOutput[i * 2]);
+            assert.equal(output[1], expectedOutput[i * 2 + 1]);
+        }
     });
 });
