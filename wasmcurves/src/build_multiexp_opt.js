@@ -21,6 +21,9 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     const n64g = module.modules[prefix].n64; // prefix g1m
     const n8g = n64g * 8; // 144
 
+    // Fr: 32 bytes = 256 bits
+    const n8r = 32;
+
     const n8 = 48; // only for our msm implementation 
     const prefixField = "f1m";// only for our msm implementation 
     opMixedAdd = "g1m_addMixed";
@@ -451,7 +454,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
             //  }
             c.setLocal("j", c.i32_const(2)),
             c.block(c.loop(
-                c.br_if(1, c.i32_eq(c.getLocal("j"), c.getLocal("maxBucketBitsPlusOne"))),
+                c.br_if(1, c.i32_ge_u(c.getLocal("j"), c.getLocal("maxBucketBitsPlusOne"))),
                 c.call(fnName + "_addAssignI32InMemoryUncheck",
                     c.getLocal("pBitOffsets"),
                     c.getLocal("j"),
@@ -491,7 +494,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addParam("numChunks", "i32");
         // Pointer to a 2-d array of point schedules
         f.addParam("pPointSchedules", "i32");
-        // Pointer to an array of the number of points in each round
+        // Pointer to an array of the number of points in each round. 
         f.addParam("pRoundCounts", "i32");
         // Extracted chunk from the scalar
         f.addLocal("chunk", "i32");
@@ -593,8 +596,8 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     //    Intuition: We pack this information into a 64bit unsigned integer, so that we can more efficiently sort 
     //      these entries. For a given round, we want to sort our entries in increasing bucket index order.
     // `pRoundCounts`:
-    //    a pointer to an array of the number of points in each round. Note that scalar corresponding to a specific
-    //    round may be zero, so this number of points is not the same for all rounds.
+    //    a pointer to an array of the number of points with non-zero bucket index in each round. Note that scalar 
+    //    corresponding to a specific round may be zero, so this number of points is not the same for all rounds.
     //
     // Note:
     //    This implementation supports only scalarSize as a multiple of 4 due to the alignment requirement
@@ -613,7 +616,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addParam("numChunks", "i32");
         // Pointer to a 2-d array of point schedules
         f.addParam("pPointSchedules", "i32");
-        // Pointer to an array of the number of points in each round
+        // Pointer to an array of the number of points in each round. Shape: numChunks
         f.addParam("pRoundCounts", "i32");
         // Point Index
         f.addLocal("pointIdx", "i32");
@@ -649,6 +652,63 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         );
     }
 
+    // Given a point pArr to a 2-d array, returns a 1-d array `pCounts` where the i^th element is
+    //  the number of non-zero elements in the i^th row of pArr.
+    function buildCountNonZero() {
+        const f = module.addFunction(fnName + "_countNonZero");
+        // Pointer to the input array. Shape: numRow * numCol
+        f.addParam("pArr", "i32");
+        // Number of rows
+        f.addParam("numRow", "i32");
+        // Number of columns
+        f.addParam("numCol", "i32");
+        // Pointer to a 1-d array. Shape: numRow
+        f.addParam("pCounts", "i32");
+        // Index
+        f.addLocal("i", "i32");
+        // Index
+        f.addLocal("j", "i32");
+        // Counts
+        f.addLocal("count", "i32");
+        const c = f.getCodeBuilder();
+        f.addCode(
+            c.setLocal("i", c.i32_const(0)),
+            c.block(c.loop(
+                c.br_if(1, c.i32_eq(c.getLocal("i"), c.getLocal("numRow"))),
+                c.setLocal("count", c.i32_const(0)),
+                c.setLocal("j", c.i32_const(0)),
+                c.block(c.loop(
+                    c.br_if(1, c.i32_eq(c.getLocal("j"), c.getLocal("numCol"))),
+                    c.if(
+                        c.i32_ne(
+                            c.call(fnName + "_loadI32",
+                                c.getLocal("pArr"),
+                                c.i32_add(
+                                    c.i32_mul(
+                                        c.getLocal("i"),
+                                        c.getLocal("numCol"),
+                                    ),
+                                    c.getLocal("j"),
+                                ),
+                            ),
+                            c.i32_const(0),
+                        ),
+                        c.setLocal("count", c.i32_add(c.getLocal("count"), c.i32_const(1))),
+                    ),
+                    c.setLocal("j", c.i32_add(c.getLocal("j"), c.i32_const(1))),
+                    c.br(0),
+                )),
+                c.call(fnName + "_storeI32",
+                    c.getLocal("pCounts"),
+                    c.getLocal("i"),
+                    c.getLocal("count"),
+                ),
+                c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
+                c.br(0),
+            )),
+        );
+    }
+
     // Given the pointer `pPointSchedules` to the point schedules of the current round,
     // `numPoints` as the length of the input point vector, `bucketNum` as the number
     // of buckets, this function sorted the point schedules by the bucket index and
@@ -656,11 +716,14 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     // For example:
     //      Input: [(0,0), (1,3), (2,0), (3,1), (4,2), (5,1), (6,3)]. Here, (i,j) 
     //              indicates the i^th point in the j^th buckets.
-    //      Output: sort by bucket index
+    //      Output: 
+    //             pMetadata: sort point schedules by bucket index
     //              [(3,1), (5,1),
     //               (4,2),
     //               (1,3), (6,3)]
-    //      Note that (0, 0) and (2,0) are skipped since bucket 0 does not need any computation.
+    //              Note that (0, 0) and (2,0) are skipped since bucket 0 does not need any computation.
+    //             pBucketCounts:
+    //              [0, 2, 1, 2]
     function buildOrganizeBucketsOneRound() {
         const f = module.addFunction(fnName + "_organizeBucketsOneRound");
         const c = f.getCodeBuilder();
@@ -673,7 +736,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         // Pointer to a 1d array of point schedules that stores the results. Shape: numPoints
         f.addParam("pMetadata", "i32");
         // Pointer to an array of the number of points in each bucket. Shape: numBuckets
-        f.addLocal("pBucketCount", "i32");
+        f.addParam("pBucketCount", "i32");
         // Pointer to an array of starting index of each bucket. Shape: numBuckets+1
         f.addLocal("pBucketOffsets", "i32");
         // Pointer to an array of the bucket index of each point. Shape: numPoints
@@ -685,11 +748,6 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         // Number of points with bucket index 0
         f.addLocal("countBucket0", "i32");
         f.addCode(
-            c.setLocal("pBucketCount",
-                c.call(fnName + "_allocateMemory",
-                    c.i32_shl(c.getLocal("numBuckets"), c.i32_const(2)),
-                ),
-            ),
             c.call(fnName + "_initializeI32",
                 c.getLocal("pBucketCount"),
                 c.getLocal("numBuckets"),
@@ -861,7 +919,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                 c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
                 c.br(0),
             )),
-            c.i32_store(c.i32_const(0), c.getLocal("pBucketCount")),
+            c.i32_store(c.i32_const(0), c.getLocal("pBucketOffsets")),
         );
     }
 
@@ -869,6 +927,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     // `numPoints` as the length of the input point vector, `bucketNum` as the number
     // of buckets, this function sorted the point schedules by the bucket index for
     // each round and stores the results in the 2d array pointed to by `pMetadata`.
+    // In addition, this function initializes pBucketCounts.
     function buildOrganizeBuckets() {
         const f = module.addFunction(fnName + "_organizeBuckets");
         // Pointer to a 2d array of point schedules. Shape: numChunks * numPoints
@@ -882,6 +941,8 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         // Pointer to a 2d array of point schedules for storing the processed results.
         // Shape: numChunks * numPoints
         f.addParam("pMetadata", "i32");
+        // Pointer to a 2-d array of the number of points in each bucket for each chunk. Shape: numChunks * numBuckets
+        f.addParam("pBucketCounts", "i32");
         // Index
         f.addLocal("i", "i32");
         // i*numPoints
@@ -894,6 +955,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
             //          numPoints,
             //          numBuckets,
             //          &pMetadata[i*numPoints],
+            //          &pBucketCounts[i*numBuckets]
             //      );
             // }
             c.setLocal("i", c.i32_const(0)),
@@ -918,6 +980,13 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                     c.i32_add(
                         c.getLocal("pMetadata"),
                         c.getLocal("iMulNumPoints"),
+                    ),
+                    c.i32_add(
+                        c.getLocal("pBucketCounts"),
+                        c.i32_shl(
+                            c.i32_mul(c.getLocal("i"), c.getLocal("numBuckets")),
+                            c.i32_const(2),
+                        ),
                     ),
                 ),
                 c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
@@ -986,15 +1055,8 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addLocal("kEnd", "i32");
         const c = f.getCodeBuilder();
         f.addCode(
-            c.setLocal("maxCount",
-                c.call(fnName + "_maxArrayValue",
-                    c.getLocal("pBucketCounts"),
-                    c.getLocal("numBuckets"),
-                ),
-            ),
-            c.setLocal("maxBucketBits",
-                c.call(fnName + "_getMsb", c.getLocal("maxCount"))
-            ),
+            c.setLocal("maxCount", c.call(fnName + "_maxArrayValue", c.getLocal("pBucketCounts"), c.getLocal("numBuckets"))),
+            c.setLocal("maxBucketBits", c.call(fnName + "_getMsb", c.getLocal("maxCount"))),
             c.call(fnName + "_countBits",
                 c.getLocal("pBucketCounts"),
                 c.getLocal("numBuckets"),
@@ -1656,7 +1718,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                 c.getLocal("pPointPairs1"),
             ),
             c.if(
-                c.i32_eq(c.getLocal("maxBucketBits"), c.i32_const(1)),
+                c.i32_le_u(c.getLocal("maxBucketBits"), c.i32_const(1)),
                 c.ret(c.getLocal("pPointPairs1")),
             ),
             c.setLocal("numPoints",
@@ -2019,7 +2081,6 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addLocal("k", "i32");
         const c = f.getCodeBuilder();
         f.addCode(
-            //c.call(prefix + "_zero", c.getLocal("pResult")),// pResult is accumulator
             c.setLocal("pOutputBuckets",
                 c.call(fnName + "_reduceBuckets",
                     c.getLocal("pPoints"),
@@ -2059,7 +2120,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addParam("pPoints", "i32");
         // Pointer to a 1-d array of the number of buckets with at least 1 point for each chunk. Shape: numChunks
         f.addParam("pNumNonZeroBuckets", "i32");
-        // Pointer to a 2-d aarray of the number of points in each bucket for each chunk. Shape: numChunk * numBuckets
+        // Pointer to a 2-d array of the number of points in each bucket for each chunk. Shape: numChunk * numBuckets
         f.addParam("pBucketCounts", "i32");
         // Number of points
         f.addParam("numPoints", "i32");
@@ -2141,7 +2202,6 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
             c.setLocal("roundIdx", c.i32_const(0)),
             c.block(c.loop(
                 c.br_if(1, c.i32_eq(c.getLocal("roundIdx"), c.getLocal("numChunks"))),
-                //c.br_if(1, c.i32_eq(c.getLocal("roundIdx"), c.i32_const(4))),
                 c.call(fnName + "_multiExpSingleChunk",
                     c.i32_add(
                         c.getLocal("pPointSchedules"),
@@ -2194,7 +2254,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     // in an input scalar and the `chunkSize` as the number of bits in a chunk.
     function buildGetNumChunks() {
         const f = module.addFunction(fnName + "_getNumChunks");
-        // Number of bits in a scalar
+        // Number of bytes in a scalar
         f.addParam("scalarSize", "i32");
         // Number of bits in a chunk
         f.addParam("chunkSize", "i32");
@@ -2203,7 +2263,10 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addCode(
             c.i32_div_u(
                 c.i32_add(
-                    c.getLocal("scalarSize"),
+                    c.i32_shl(
+                        c.getLocal("scalarSize"),
+                        c.i32_const(3),
+                    ),
                     c.i32_sub(
                         c.getLocal("chunkSize"),
                         c.i32_const(1),
@@ -2237,108 +2300,105 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addLocal("numChunks", "i32");
         // Number of bits in a chunk
         f.addLocal("chunkSize", "i32");
-        // Number of bits in a scalar
+        // Number of bytes of the scalar
         f.addLocal("scalarSize", "i32");
         // Number of buckets
         f.addLocal("numBuckets", "i32");
+        // Pointer to an array of the number of points in each round. 
         f.addLocal("pRoundCounts", "i32");
+        // Pointer to a 1-d array of the number of buckets with at least 1 point for each chunk. Shape: numChunks
+        f.addLocal("pNumNonZeroBuckets", "i32");
+        // Pointer to a 2-d array of the number of points in each bucket for each chunk. Shape: numChunks * numBuckets
+        f.addLocal("pBucketCounts", "i32");
         const c = f.getCodeBuilder();
         f.addCode(
-            c.setLocal(
-                "scalarSize",
-                c.i32_const(n8g * 8),
-            ),
-            c.setLocal(
-                "chunkSize",
-                c.call(fnName + "_getOptimalBucketWidth",
-                    c.getLocal("numPoints"),
-                ),
-            ),
-            c.setLocal(
-                "numChunks",
+            c.setLocal("scalarSize", c.i32_const(n8r)),
+            // c.setLocal("chunkSize",
+            //     c.call(fnName + "_getOptimalBucketWidth",
+            //         c.getLocal("numPoints"),
+            //     ),
+            // ),
+            c.setLocal("chunkSize", c.i32_const(5)), // For testing only
+            c.setLocal("numChunks",
                 c.call(fnName + "_getNumChunks",
                     c.getLocal("scalarSize"),
                     c.getLocal("chunkSize"),
                 ),
             ),
-            c.setLocal(
-                "numBuckets",
-                c.call(fnName + "_getNumBuckets",
-                    c.getLocal("numPoints"),
-                ),
-            ),
-            // TODO: 
-            // Allocates a 2-d array for point schedule.
-            c.setLocal("pPointSchedules", c.i32_load(c.i32_const(0))),
-            c.i32_store(
-                c.i32_const(0),
-                c.i32_add(
-                    c.getLocal("pPointSchedules"),
+            // c.setLocal("numBuckets", c.call(fnName + "_getNumBuckets", c.getLocal("numPoints"))),
+            c.setLocal("numBuckets", c.i32_const(32)), // For testing only
+            c.setLocal("pPointSchedules",
+                c.call(fnName + "_allocateMemory",
                     c.i32_shl(
-                        c.i32_mul(
-                            c.getLocal("numChunks"),
-                            c.getLocal("numPoints"),
-                        ),
+                        c.i32_mul(c.getLocal("numChunks"), c.getLocal("numPoints")),
                         c.i32_const(3),
                     ),
                 ),
             ),
-            // Allocates a 2-d array for metadata.
-            // TODO: Merge this with pPointSchedule.
-            c.setLocal("pMetadata", c.i32_load(c.i32_const(0))),
-            c.i32_store(
-                c.i32_const(0),
-                c.i32_add(
-                    c.getLocal("pMetadata"),
+            c.setLocal("pMetadata",
+                c.call(fnName + "_allocateMemory",
                     c.i32_shl(
-                        c.i32_mul(
-                            c.getLocal("numChunks"),
-                            c.getLocal("numPoints"),
-                        ),
+                        c.i32_mul(c.getLocal("numChunks"), c.getLocal("numPoints")),
                         c.i32_const(3),
                     ),
                 ),
             ),
-            // Allocates a 1-d array for round counts.
-            c.setLocal("pRoundCounts", c.i32_load(c.i32_const(0))),
-            c.i32_store(
-                c.i32_const(0),
-                c.i32_add(
-                    c.getLocal("pRoundCounts"),
+            c.setLocal("pRoundCounts",
+                c.call(fnName + "_allocateMemory",
+                    c.i32_shl(c.getLocal("numChunks"), c.i32_const(2)),
+                ),
+            ),
+            c.setLocal("pBucketCounts",
+                c.call(fnName + "_allocateMemory",
                     c.i32_shl(
-                        c.getLocal("numChunks"),
+                        c.i32_mul(c.getLocal("numChunks"), c.getLocal("numBuckets")),
                         c.i32_const(2),
                     ),
-                )
+                ),
+            ),
+            c.setLocal("pNumNonZeroBuckets",
+                c.call(fnName + "_allocateMemory",
+                    c.i32_shl(c.getLocal("numChunks"), c.i32_const(2)),
+                ),
             ),
             c.call(fnName + "_computeSchedule",
                 c.getLocal("pScalars"),
                 c.getLocal("numPoints"),
-                c.getLocal("pPointSchedules"),
-                c.getLocal("pRoundCounts"),
                 c.getLocal("scalarSize"),
                 c.getLocal("chunkSize"),
+                c.getLocal("numChunks"),
+                c.getLocal("pPointSchedules"),
+                c.getLocal("pRoundCounts"),
             ),
-            // TODO: Sync with Xu
             c.call(fnName + "_organizeBuckets",
                 c.getLocal("pPointSchedules"),
-                c.getLocal("pMetadata"),
                 c.getLocal("numPoints"),
+                c.getLocal("numChunks"),
                 c.getLocal("numBuckets"),
+                c.getLocal("pMetadata"),
+                c.getLocal("pBucketCounts"),
+            ),
+            c.call(fnName + "_countNonZero",
+                c.getLocal("pBucketCounts"),
+                c.getLocal("numChunks"),
+                c.getLocal("numBuckets"),
+                c.getLocal("pNumNonZeroBuckets"),
             ),
             c.call(fnName + "_multiExpChunks",
                 c.getLocal("pMetadata"),
                 c.getLocal("pPoints"),
+                c.getLocal("pNumNonZeroBuckets"),
+                c.getLocal("pBucketCounts"),
                 c.getLocal("numPoints"),
                 c.getLocal("chunkSize"),
                 c.getLocal("numChunks"),
+                c.getLocal("numBuckets"),
                 c.getLocal("pResult"),
             ),
-            // Deallocates memory
             c.i32_store(
                 c.i32_const(0),
                 c.getLocal("pPointSchedules"),
-            )
+            ),
         );
     }
 
@@ -2555,7 +2615,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     buildGetChunk();
     buildGetOptimalChunkWidth();
     buildGetNumBuckets();
-    // buildGetNumChunks();
+    buildGetNumChunks();
     buildOrganizeBucketsOneRound();
     buildOrganizeBuckets();
     buildReorderPoints();
@@ -2565,7 +2625,8 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     buildReduceBuckets();
     buildMutiexpSingleChunk();
     buildMutiexpChunks();
-    // buildMultiexp();
+    buildCountNonZero();
+    buildMultiexp();
     module.exportFunction(fnName + "_countBits");
     module.exportFunction(fnName + "_organizeBuckets");
     module.exportFunction(fnName + "_organizeBucketsOneRound");
@@ -2580,8 +2641,9 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     module.exportFunction(fnName + "_accumulateAcrossChunks");
     module.exportFunction(fnName + "_multiExpSingleChunk");
     module.exportFunction(fnName + "_multiExpChunks");
-    // module.exportFunction(fnName + "_multiExp");
-    
+    module.exportFunction(fnName + "_countNonZero");
+    module.exportFunction(fnName + "_multiExp");
+
     buildTestGetMSB();
     buildTestMaxArrayValue();
     buildTestStoreLoadI32();
