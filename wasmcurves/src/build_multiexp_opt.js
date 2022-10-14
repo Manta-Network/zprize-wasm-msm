@@ -2013,17 +2013,19 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addParam("chunkIdx", "i32");
         // Number of bits in a chunk
         f.addParam("chunkSize", "i32");
+        // Number of chunks
+        f.addParam("numChunks", "i32");
         // Index
         f.addLocal("i", "i32");
         const c = f.getCodeBuilder();
         f.addCode(
-            // if(chunkIdx > 0) {
+            // if(chunkIdx != numChunks - 1) {
             //     for (int i = 0; i < chunkSize; i++) {
             //         *pAccumulator *= 2;
             //     }
             // }
             // opAdd(*pAccumulator, *pAccumulatorSingleChunk, *pAccumulator);
-            c.if(c.i32_ne(c.getLocal("chunkIdx"), c.i32_const(0)),
+            c.if(c.i32_ne(c.getLocal("chunkIdx"), c.i32_sub(c.getLocal("numChunks"), c.i32_const(1))),
                 [
                     ...c.setLocal("i", c.i32_const(0)),
                     ...c.block(c.loop(
@@ -2054,6 +2056,8 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addParam("numPoints", "i32");
         // Number of bits in a chunk
         f.addParam("chunkSize", "i32");
+        // Number of chunks
+        f.addParam("numChunks", "i32");
         // Number of buckets
         f.addParam("numBuckets", "i32");
         // Round index
@@ -2106,10 +2110,10 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                 c.getLocal("pAccumulator"),//pAccumulatorSingleChunk
                 c.getLocal("roundIdx"),
                 c.getLocal("chunkSize"),
+                c.getLocal("numChunks"),
             ),
         );
     }
-
 
     // Computes MSM over all chunks and sets the output pointed by `pResult`.
     function buildMutiexpChunks() {
@@ -2199,9 +2203,9 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
             c.setLocal("pAccumulator", c.call(fnName + "_allocateMemory", c.i32_const(n8g))),
             c.setLocal("pRunningSum", c.call(fnName + "_allocateMemory", c.i32_const(n8g))),
             c.call(prefix + "_zero", c.getLocal("pResult")),
-            c.setLocal("roundIdx", c.i32_const(0)),
+            c.setLocal("roundIdx", c.i32_sub(c.getLocal("numChunks"), c.i32_const(1))),
             c.block(c.loop(
-                c.br_if(1, c.i32_eq(c.getLocal("roundIdx"), c.getLocal("numChunks"))),
+                c.br_if(1, c.i32_eq(c.getLocal("roundIdx"), c.i32_const(-1))),
                 c.call(fnName + "_multiExpSingleChunk",
                     c.i32_add(
                         c.getLocal("pPointSchedules"),
@@ -2230,6 +2234,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                     ),
                     c.getLocal("numPoints"),
                     c.getLocal("chunkSize"),
+                    c.getLocal("numChunks"),
                     c.getLocal("numBuckets"),
                     c.getLocal("roundIdx"),
                     c.getLocal("pAccumulator"),
@@ -2240,7 +2245,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                     c.getLocal("pPointPairs1"),
                     c.getLocal("pPointPairs2"),
                 ),
-                c.setLocal("roundIdx", c.i32_add(c.getLocal("roundIdx"), c.i32_const(1))),
+                c.setLocal("roundIdx", c.i32_sub(c.getLocal("roundIdx"), c.i32_const(1))),
                 c.br(0),
             )),
             c.i32_store(

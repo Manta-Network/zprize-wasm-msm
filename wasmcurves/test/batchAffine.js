@@ -827,6 +827,7 @@ describe("Basic tests for batch affine in bls12-381", function () {
                 pAccumulatorSingleChunkProjective,
                 inputChunkIndexArray[i],
                 chunkSize,
+                1,
             );
             pb.g1m_normalize(pAccumulatorProjective, pAccumulatorProjective);
             pb.f1m_fromMontgomery(pAccumulatorProjective, pAccumulatorProjective);
@@ -837,193 +838,212 @@ describe("Basic tests for batch affine in bls12-381", function () {
         }
     });
 
-    // it("multiExpSingleChunk is correct.", async () => {
-    //     let inputPoints = [
-    //         0x17f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bbn, 0x8b3f481e3aaa0f1a09e30ed741d8ae4fcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e1n,
-    //         0x572cbea904d67468808c8eb50a9450c9721db309128012543902d0ac358a62ae28f75bb8f1c7c42c39a8c5529bf0f4en, 0x166a9d8cabc673a322fda673779d8e3822ba3ecb8670e461f73bb9021d5fd76a4c56d9d4cd16bd1bba86881979749d28n,
-    //         0x9ece308f9d1f0131765212deca99697b112d61f9be9a5f1f3780a51335b3ff981747a0b2ca2179b96d2c0c9024e5224n, 0x32b80d3a6f5b09f8a84623389c5f80ca69a0cddabc3097f9d9c27310fd43be6e745256c634af45ca3473b0590ae30d1n,
-    //         0x10e7791fb972fe014159aa33a98622da3cdc98ff707965e536d8636b5fcc5ac7a91a8c46e59a00dca575af0f18fb13dcn, 0x16ba437edcc6551e30c10512367494bfb6b01cc6681e8a4c3cd2501832ab5c4abc40b4578b85cbaffbf0bcd70d67c6e2n,
-    //         0xc9b60d5afcbd5663a8a44b7c5a02f19e9a77ab0a35bd65809bb5c67ec582c897feb04decc694b13e08587f3ff9b5b60n, 0x143be6d078c2b79a7d4f1d1b21486a030ec93f56aa54e1de880db5a66dd833a652a95bee27c824084006cb5644cbd43fn,
-    //         0x6e82f6da4520f85c5d27d8f329eccfa05944fd1096b20734c894966d12a9e2a9a9744529d7212d33883113a0cadb909n, 0x17d81038f7d60bee9110d9c0d6d1102fe2d998c957f28e31ec284cc04134df8e47e8f82ff3af2e60a6d9688a4563477cn,
-    //         0x1928f3beb93519eecf0145da903b40a4c97dca00b21f12ac0df3be9116ef2ef27b2ae6bcd4c5bc2d54ef5a70627efcb7n, 0x108dadbaa4b636445639d5ae3089b3c43a8a1d47818edd1839d7383959a41c10fdc66849cfa1b08c5a11ec7e28981a1cn,
-    //         0x85ae765588126f5e860d019c0e26235f567a9c0c0b2d8ff30f3e8d436b1082596e5e7462d20f5be3764fd473e57f9cfn, 0x19e7dfab8a794b6abb9f84e57739de172a63415273f460d1607fa6a74f0acd97d9671b801dd1fd4f18232dd1259359a1n,
-    //         0x19cdf3807146e68e041314ca93e1fee0991224ec2a74beb2866816fd0826ce7b6263ee31e953a86d1b72cc2215a57793n, 0x7481b1f261aabacf45c6e4fc278055441bfaf99f604d1f835c0752ac9742b4522c9f5c77db40989e7da608505d48616n,
-    //         0x19cdf3807146e68e041314ca93e1fee0991224ec2a74beb2866816fd0826ce7b6263ee31e953a86d1b72cc2215a57793n, 0x7481b1f261aabacf45c6e4fc278055441bfaf99f604d1f835c0752ac9742b4522c9f5c77db40989e7da608505d48616n,
-    //     ];
-    //     let pointSchedules = [
-    //         0x0000000800000001, 0x0000000900000001, 0x0000000300000002, 0x0000000400000002,
-    //         0x0000000500000002, 0x0000000600000002, 0x0000000700000002, 0xffffffffffffffffn,
-    //         0xffffffffffffffffn, 0xffffffffffffffffn,
-    //     ];
-    //     let numNonZeroBuckets = 2;
-    //     let bucketCounts = [0, 2, 5];
-    //     let numPoints = 10;
-    //     let chunkSize = 5;
-    //     let numBuckets = 3;
-    //     let maxBucketBits = 3;
-    //     let roundIdx = 0;
-    //     let expectedOutput = [0xa44163d9f9776392ce5f29f1ecbcc177f8a91f28927f5890c672433b4a3c9b2a34830842d9396dc561348501e885afbn, 0x11fea8cc549a93debba9fad190faea8987e607ef969c38f1015bbfa5d7a6c5b50e240891d55df5f489def327e03c6e55n];
-    //     const pRes = pb.alloc(n8q * 3);
-    //     // Computes expected result.
-    //     // const p3 = copyPoint(inputPoints, 3);
-    //     // const p4 = copyPoint(inputPoints, 4);
-    //     // const p5 = copyPoint(inputPoints, 5);
-    //     // const p6 = copyPoint(inputPoints, 6);
-    //     // const p7 = copyPoint(inputPoints, 7);
-    //     // const p8 = copyPoint(inputPoints, 8);
-    //     // const p9 = copyPoint(inputPoints, 9);
-    //     // pb.g1m_add(p3, p4, pRes);
-    //     // pb.g1m_add(pRes, p5, pRes);
-    //     // pb.g1m_add(pRes, p6, pRes);
-    //     // pb.g1m_add(pRes, p7, pRes);
-    //     // pb.g1m_double(pRes, pRes); // 2*(p3+p4+p5+p6+p7)
-    //     // pb.g1m_add(pRes, p8, pRes);
-    //     // pb.g1m_add(pRes, p9, pRes);
-    //     // pb.g1m_normalize(pRes, pRes);
-    //     // pb.f1m_fromMontgomery(pRes, pRes);
-    //     // pb.f1m_fromMontgomery(pRes + 48, pRes + 48);
-    //     // let expectedOutput = pb.get(pRes, 2, n8q);
-    //     // console.log(expectedOutput[0].toString(16), expectedOutput[1].toString(16));
-    //     const pPointSchedules = pb.alloc(numPoints * 8);
-    //     const pPoints = pb.alloc(numPoints * n8q * 2);
-    //     const pBucketCounts = pb.alloc(numBuckets * 4);
-    //     const pAccumulator = pb.alloc(n8q * 3);
-    //     const pRunningSum = pb.alloc(n8q * 3);
-    //     const pBitOffsets = pb.alloc((maxBucketBits + 1) * 4);
-    //     const pPointScheduleAlt = pb.alloc(numPoints * 8);
-    //     const pPointPairs1 = pb.alloc(numPoints * n8q * 2);
-    //     const pPointPairs2 = pb.alloc(numPoints * n8q * 2);
-    //     for (let i = 0; i < numPoints; i++) {
-    //         pb.set(pPointSchedules + 8 * i, pointSchedules[i], 8);
-    //     }
-    //     for (let i = 0; i < numPoints; i++) {
-    //         pb.set(pPoints + 96 * i, inputPoints[i * 2], 48);
-    //         pb.set(pPoints + 96 * i + 48, inputPoints[i * 2 + 1], 48);
-    //         pb.f1m_toMontgomery(pPoints + 96 * i, pPoints + 96 * i);
-    //         pb.f1m_toMontgomery(pPoints + 96 * i + 48, pPoints + 96 * i + 48);
-    //     }
-    //     for (let i = 0; i < numBuckets; i++) {
-    //         pb.set(pBucketCounts + 4 * i, bucketCounts[i], 4);
-    //     }
-    //     pb.g1m_zero(pRes);
-    //     pb.g1m_multiexp_multiExpSingleChunk(
-    //         pPointSchedules,
-    //         pPoints,
-    //         numNonZeroBuckets,
-    //         pBucketCounts,
-    //         numPoints,
-    //         chunkSize,
-    //         numBuckets,
-    //         roundIdx,
-    //         pAccumulator,
-    //         pRes,
-    //         pRunningSum,
-    //         pBitOffsets,
-    //         pPointScheduleAlt,
-    //         pPointPairs1,
-    //         pPointPairs2,
-    //     );
-    //     pb.g1m_normalize(pRes, pRes);
-    //     pb.f1m_fromMontgomery(pRes, pRes);
-    //     pb.f1m_fromMontgomery(pRes + 48, pRes + 48);
-    //     let output = pb.get(pRes, 2, 48);
-    //     assert.equal(output[0], expectedOutput[0]);
-    //     assert.equal(output[1], expectedOutput[1]);
-    // });
+    it("multiExpSingleChunk is correct.", async () => {
+        let inputPoints = [
+            0x17f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bbn, 0x8b3f481e3aaa0f1a09e30ed741d8ae4fcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e1n,
+            0x572cbea904d67468808c8eb50a9450c9721db309128012543902d0ac358a62ae28f75bb8f1c7c42c39a8c5529bf0f4en, 0x166a9d8cabc673a322fda673779d8e3822ba3ecb8670e461f73bb9021d5fd76a4c56d9d4cd16bd1bba86881979749d28n,
+            0x9ece308f9d1f0131765212deca99697b112d61f9be9a5f1f3780a51335b3ff981747a0b2ca2179b96d2c0c9024e5224n, 0x32b80d3a6f5b09f8a84623389c5f80ca69a0cddabc3097f9d9c27310fd43be6e745256c634af45ca3473b0590ae30d1n,
+            0x10e7791fb972fe014159aa33a98622da3cdc98ff707965e536d8636b5fcc5ac7a91a8c46e59a00dca575af0f18fb13dcn, 0x16ba437edcc6551e30c10512367494bfb6b01cc6681e8a4c3cd2501832ab5c4abc40b4578b85cbaffbf0bcd70d67c6e2n,
+            0xc9b60d5afcbd5663a8a44b7c5a02f19e9a77ab0a35bd65809bb5c67ec582c897feb04decc694b13e08587f3ff9b5b60n, 0x143be6d078c2b79a7d4f1d1b21486a030ec93f56aa54e1de880db5a66dd833a652a95bee27c824084006cb5644cbd43fn,
+            0x6e82f6da4520f85c5d27d8f329eccfa05944fd1096b20734c894966d12a9e2a9a9744529d7212d33883113a0cadb909n, 0x17d81038f7d60bee9110d9c0d6d1102fe2d998c957f28e31ec284cc04134df8e47e8f82ff3af2e60a6d9688a4563477cn,
+            0x1928f3beb93519eecf0145da903b40a4c97dca00b21f12ac0df3be9116ef2ef27b2ae6bcd4c5bc2d54ef5a70627efcb7n, 0x108dadbaa4b636445639d5ae3089b3c43a8a1d47818edd1839d7383959a41c10fdc66849cfa1b08c5a11ec7e28981a1cn,
+            0x85ae765588126f5e860d019c0e26235f567a9c0c0b2d8ff30f3e8d436b1082596e5e7462d20f5be3764fd473e57f9cfn, 0x19e7dfab8a794b6abb9f84e57739de172a63415273f460d1607fa6a74f0acd97d9671b801dd1fd4f18232dd1259359a1n,
+            0x19cdf3807146e68e041314ca93e1fee0991224ec2a74beb2866816fd0826ce7b6263ee31e953a86d1b72cc2215a57793n, 0x7481b1f261aabacf45c6e4fc278055441bfaf99f604d1f835c0752ac9742b4522c9f5c77db40989e7da608505d48616n,
+            0x19cdf3807146e68e041314ca93e1fee0991224ec2a74beb2866816fd0826ce7b6263ee31e953a86d1b72cc2215a57793n, 0x7481b1f261aabacf45c6e4fc278055441bfaf99f604d1f835c0752ac9742b4522c9f5c77db40989e7da608505d48616n,
+        ];
+        let pointSchedules = [
+            0x0000000800000001, 0x0000000900000001, 0x0000000300000002, 0x0000000400000002,
+            0x0000000500000002, 0x0000000600000002, 0x0000000700000002, 0xffffffffffffffffn,
+            0xffffffffffffffffn, 0xffffffffffffffffn,
+        ];
+        let numNonZeroBuckets = 2;
+        let bucketCounts = [0, 2, 5];
+        let numPoints = 10;
+        let chunkSize = 5;
+        let numBuckets = 3;
+        let maxBucketBits = 3;
+        let roundIdx = 0;
+        let expectedOutput = [0xa44163d9f9776392ce5f29f1ecbcc177f8a91f28927f5890c672433b4a3c9b2a34830842d9396dc561348501e885afbn, 0x11fea8cc549a93debba9fad190faea8987e607ef969c38f1015bbfa5d7a6c5b50e240891d55df5f489def327e03c6e55n];
+        const pRes = pb.alloc(n8q * 3);
+        // Computes expected result.
+        // const p3 = copyPoint(inputPoints, 3);
+        // const p4 = copyPoint(inputPoints, 4);
+        // const p5 = copyPoint(inputPoints, 5);
+        // const p6 = copyPoint(inputPoints, 6);
+        // const p7 = copyPoint(inputPoints, 7);
+        // const p8 = copyPoint(inputPoints, 8);
+        // const p9 = copyPoint(inputPoints, 9);
+        // pb.g1m_add(p3, p4, pRes);
+        // pb.g1m_add(pRes, p5, pRes);
+        // pb.g1m_add(pRes, p6, pRes);
+        // pb.g1m_add(pRes, p7, pRes);
+        // pb.g1m_double(pRes, pRes); // 2*(p3+p4+p5+p6+p7)
+        // pb.g1m_add(pRes, p8, pRes);
+        // pb.g1m_add(pRes, p9, pRes);
+        // pb.g1m_normalize(pRes, pRes);
+        // pb.f1m_fromMontgomery(pRes, pRes);
+        // pb.f1m_fromMontgomery(pRes + 48, pRes + 48);
+        // let expectedOutput = pb.get(pRes, 2, n8q);
+        // console.log(expectedOutput[0].toString(16), expectedOutput[1].toString(16));
+        const pPointSchedules = pb.alloc(numPoints * 8);
+        const pPoints = pb.alloc(numPoints * n8q * 2);
+        const pBucketCounts = pb.alloc(numBuckets * 4);
+        const pAccumulator = pb.alloc(n8q * 3);
+        const pRunningSum = pb.alloc(n8q * 3);
+        const pBitOffsets = pb.alloc((maxBucketBits + 1) * 4);
+        const pPointScheduleAlt = pb.alloc(numPoints * 8);
+        const pPointPairs1 = pb.alloc(numPoints * n8q * 2);
+        const pPointPairs2 = pb.alloc(numPoints * n8q * 2);
+        for (let i = 0; i < numPoints; i++) {
+            pb.set(pPointSchedules + 8 * i, pointSchedules[i], 8);
+        }
+        for (let i = 0; i < numPoints; i++) {
+            pb.set(pPoints + 96 * i, inputPoints[i * 2], 48);
+            pb.set(pPoints + 96 * i + 48, inputPoints[i * 2 + 1], 48);
+            pb.f1m_toMontgomery(pPoints + 96 * i, pPoints + 96 * i);
+            pb.f1m_toMontgomery(pPoints + 96 * i + 48, pPoints + 96 * i + 48);
+        }
+        for (let i = 0; i < numBuckets; i++) {
+            pb.set(pBucketCounts + 4 * i, bucketCounts[i], 4);
+        }
+        pb.g1m_zero(pRes);
+        pb.g1m_multiexp_multiExpSingleChunk(
+            pPointSchedules,
+            pPoints,
+            numNonZeroBuckets,
+            pBucketCounts,
+            numPoints,
+            chunkSize,
+            1,
+            numBuckets,
+            roundIdx,
+            pAccumulator,
+            pRes,
+            pRunningSum,
+            pBitOffsets,
+            pPointScheduleAlt,
+            pPointPairs1,
+            pPointPairs2,
+        );
+        pb.g1m_normalize(pRes, pRes);
+        pb.f1m_fromMontgomery(pRes, pRes);
+        pb.f1m_fromMontgomery(pRes + 48, pRes + 48);
+        let output = pb.get(pRes, 2, 48);
+        assert.equal(output[0], expectedOutput[0]);
+        assert.equal(output[1], expectedOutput[1]);
+    });
 
-    // it("multiExpChunks is correct (case 1).", async () => {
-    //     let inputPoints = [
-    //         0x17f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bbn, 0x8b3f481e3aaa0f1a09e30ed741d8ae4fcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e1n,
-    //         0x572cbea904d67468808c8eb50a9450c9721db309128012543902d0ac358a62ae28f75bb8f1c7c42c39a8c5529bf0f4en, 0x166a9d8cabc673a322fda673779d8e3822ba3ecb8670e461f73bb9021d5fd76a4c56d9d4cd16bd1bba86881979749d28n,
-    //         0x9ece308f9d1f0131765212deca99697b112d61f9be9a5f1f3780a51335b3ff981747a0b2ca2179b96d2c0c9024e5224n, 0x32b80d3a6f5b09f8a84623389c5f80ca69a0cddabc3097f9d9c27310fd43be6e745256c634af45ca3473b0590ae30d1n,
-    //         0x10e7791fb972fe014159aa33a98622da3cdc98ff707965e536d8636b5fcc5ac7a91a8c46e59a00dca575af0f18fb13dcn, 0x16ba437edcc6551e30c10512367494bfb6b01cc6681e8a4c3cd2501832ab5c4abc40b4578b85cbaffbf0bcd70d67c6e2n,
-    //         0xc9b60d5afcbd5663a8a44b7c5a02f19e9a77ab0a35bd65809bb5c67ec582c897feb04decc694b13e08587f3ff9b5b60n, 0x143be6d078c2b79a7d4f1d1b21486a030ec93f56aa54e1de880db5a66dd833a652a95bee27c824084006cb5644cbd43fn,
-    //         0x6e82f6da4520f85c5d27d8f329eccfa05944fd1096b20734c894966d12a9e2a9a9744529d7212d33883113a0cadb909n, 0x17d81038f7d60bee9110d9c0d6d1102fe2d998c957f28e31ec284cc04134df8e47e8f82ff3af2e60a6d9688a4563477cn,
-    //         0x1928f3beb93519eecf0145da903b40a4c97dca00b21f12ac0df3be9116ef2ef27b2ae6bcd4c5bc2d54ef5a70627efcb7n, 0x108dadbaa4b636445639d5ae3089b3c43a8a1d47818edd1839d7383959a41c10fdc66849cfa1b08c5a11ec7e28981a1cn,
-    //         0x85ae765588126f5e860d019c0e26235f567a9c0c0b2d8ff30f3e8d436b1082596e5e7462d20f5be3764fd473e57f9cfn, 0x19e7dfab8a794b6abb9f84e57739de172a63415273f460d1607fa6a74f0acd97d9671b801dd1fd4f18232dd1259359a1n,
-    //         0x19cdf3807146e68e041314ca93e1fee0991224ec2a74beb2866816fd0826ce7b6263ee31e953a86d1b72cc2215a57793n, 0x7481b1f261aabacf45c6e4fc278055441bfaf99f604d1f835c0752ac9742b4522c9f5c77db40989e7da608505d48616n,
-    //         0x19cdf3807146e68e041314ca93e1fee0991224ec2a74beb2866816fd0826ce7b6263ee31e953a86d1b72cc2215a57793n, 0x7481b1f261aabacf45c6e4fc278055441bfaf99f604d1f835c0752ac9742b4522c9f5c77db40989e7da608505d48616n,
-    //     ];
-    //     let pointSchedules = [
-    //         [0x0000000800000002, 0x0000000900000002, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn],
-    //         [0x0000000800000002, 0x0000000900000002, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn],
-    //         [0x0000000800000002, 0x0000000900000002, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn],
-    //     ];
-    //     let numNonZeroBuckets = [1, 1, 1];
-    //     let bucketCounts = [
-    //         [0, 0, 2],
-    //         [0, 0, 2],
-    //         [0, 0, 2]
-    //     ];
-    //     let numPoints = 10;
-    //     let chunkSize = 5;
-    //     let numBuckets = 3;
-    //     let expectedOutput = [0x8f98e551e647b5da65f222e728a590a0bb89948d03d44768c2c2b9f87f74a30db23c44009205a1aa81632166f20d284n, 0x1489ffc27fcc09dd72707b3d1d67db85d1777dcc2e27849628f528154daaf5846cf57d55119091bf7237de9732bb45f6n];
-    //     let numChunks = 3;
-    //     const pRes = pb.alloc(n8q * 3);
-    //     // Computes expected result.
-    //     // const p3 = copyPoint(inputPoints, 3);
-    //     // const p4 = copyPoint(inputPoints, 4);
-    //     // const p5 = copyPoint(inputPoints, 5);
-    //     // const p6 = copyPoint(inputPoints, 6);
-    //     // const p7 = copyPoint(inputPoints, 7);
-    //     // const p8 = copyPoint(inputPoints, 8);
-    //     // const p9 = copyPoint(inputPoints, 9);
-    //     // pb.g1m_add(p8, p9, pRes);
-    //     // pb.g1m_double(pRes, pRes); // 2*(p8+p9)
-    //     // const ps = pb.alloc(n8r);
-    //     // pb.set(ps, 1024 + 32 + 1);
-    //     // pb.g1m_timesScalar(pRes, ps, n8r, pRes);
-    //     // pb.g1m_normalize(pRes, pRes);
-    //     // printG1("Expected res", pRes);
+    it("multiExpChunks is correct (case 1).", async () => {
+        let inputPoints = [
+            0x17f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bbn, 0x8b3f481e3aaa0f1a09e30ed741d8ae4fcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e1n,
+            0x572cbea904d67468808c8eb50a9450c9721db309128012543902d0ac358a62ae28f75bb8f1c7c42c39a8c5529bf0f4en, 0x166a9d8cabc673a322fda673779d8e3822ba3ecb8670e461f73bb9021d5fd76a4c56d9d4cd16bd1bba86881979749d28n,
+            0x9ece308f9d1f0131765212deca99697b112d61f9be9a5f1f3780a51335b3ff981747a0b2ca2179b96d2c0c9024e5224n, 0x32b80d3a6f5b09f8a84623389c5f80ca69a0cddabc3097f9d9c27310fd43be6e745256c634af45ca3473b0590ae30d1n,
+            0x10e7791fb972fe014159aa33a98622da3cdc98ff707965e536d8636b5fcc5ac7a91a8c46e59a00dca575af0f18fb13dcn, 0x16ba437edcc6551e30c10512367494bfb6b01cc6681e8a4c3cd2501832ab5c4abc40b4578b85cbaffbf0bcd70d67c6e2n,
+            0xc9b60d5afcbd5663a8a44b7c5a02f19e9a77ab0a35bd65809bb5c67ec582c897feb04decc694b13e08587f3ff9b5b60n, 0x143be6d078c2b79a7d4f1d1b21486a030ec93f56aa54e1de880db5a66dd833a652a95bee27c824084006cb5644cbd43fn,
+            0x6e82f6da4520f85c5d27d8f329eccfa05944fd1096b20734c894966d12a9e2a9a9744529d7212d33883113a0cadb909n, 0x17d81038f7d60bee9110d9c0d6d1102fe2d998c957f28e31ec284cc04134df8e47e8f82ff3af2e60a6d9688a4563477cn,
+            0x1928f3beb93519eecf0145da903b40a4c97dca00b21f12ac0df3be9116ef2ef27b2ae6bcd4c5bc2d54ef5a70627efcb7n, 0x108dadbaa4b636445639d5ae3089b3c43a8a1d47818edd1839d7383959a41c10fdc66849cfa1b08c5a11ec7e28981a1cn,
+            0x85ae765588126f5e860d019c0e26235f567a9c0c0b2d8ff30f3e8d436b1082596e5e7462d20f5be3764fd473e57f9cfn, 0x19e7dfab8a794b6abb9f84e57739de172a63415273f460d1607fa6a74f0acd97d9671b801dd1fd4f18232dd1259359a1n,
+            0x19cdf3807146e68e041314ca93e1fee0991224ec2a74beb2866816fd0826ce7b6263ee31e953a86d1b72cc2215a57793n, 0x7481b1f261aabacf45c6e4fc278055441bfaf99f604d1f835c0752ac9742b4522c9f5c77db40989e7da608505d48616n,
+            0x19cdf3807146e68e041314ca93e1fee0991224ec2a74beb2866816fd0826ce7b6263ee31e953a86d1b72cc2215a57793n, 0x7481b1f261aabacf45c6e4fc278055441bfaf99f604d1f835c0752ac9742b4522c9f5c77db40989e7da608505d48616n,
+        ];
+        // let pointSchedules = [
+        //     [0x0000000800000002, 0x0000000900000002, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn],
+        //     [0x0000000800000002, 0x0000000900000002, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn],
+        //     [0x0000000800000002, 0x0000000900000002, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn],
+        // ];
+        let pointSchedules = [
+            [0x0000000800000001, 0x0000000900000001, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn],
+            [0x0000000800000001, 0x0000000900000001, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn],
+            [0x0000000800000001, 0x0000000900000001, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn, 0xffffffffffffffffn],
+        ];
+        let numNonZeroBuckets = [1, 1, 1];
+        let bucketCounts = [
+            [0, 2, 0],
+            [0, 2, 0],
+            [0, 2, 0]
+        ];
+        let numPoints = 10;
+        let chunkSize = 1;
+        let numBuckets = 3;
+        let expectedOutput = [0x8f98e551e647b5da65f222e728a590a0bb89948d03d44768c2c2b9f87f74a30db23c44009205a1aa81632166f20d284n, 0x1489ffc27fcc09dd72707b3d1d67db85d1777dcc2e27849628f528154daaf5846cf57d55119091bf7237de9732bb45f6n];
+        let numChunks = 3;
+        const pRes = pb.alloc(n8q * 3);
+        // Computes expected result.
+        const p3 = copyPoint(inputPoints, 3);
+        const p4 = copyPoint(inputPoints, 4);
+        const p5 = copyPoint(inputPoints, 5);
+        const p6 = copyPoint(inputPoints, 6);
+        const p7 = copyPoint(inputPoints, 7);
+        const p8 = copyPoint(inputPoints, 8);
+        const p9 = copyPoint(inputPoints, 9);
+        pb.g1m_add(p8, p9, pRes);
+        // pb.g1m_double(pRes, pRes); // 2*(p8+p9)
+        // pb.g1m_normalize(pRes, pRes);
+        // printG1("expected: ", pRes);
 
-    //     const pPointSchedules = pb.alloc(numChunks * numPoints * 8);
-    //     const pPoints = pb.alloc(numPoints * n8q * 2);
-    //     const pBucketCounts = pb.alloc(numChunks * numBuckets * 4);
-    //     const pNumNonZeroBuckets = pb.alloc(numChunks * 4);
-    //     for (let i = 0; i < numPoints; i++) {
-    //         pb.set(pPoints + 96 * i, inputPoints[i * 2], 48);
-    //         pb.set(pPoints + 96 * i + 48, inputPoints[i * 2 + 1], 48);
-    //         pb.f1m_toMontgomery(pPoints + 96 * i, pPoints + 96 * i);
-    //         pb.f1m_toMontgomery(pPoints + 96 * i + 48, pPoints + 96 * i + 48);
-    //     }
-    //     for (let i = 0; i < numChunks; i++) {
-    //         pb.set(pNumNonZeroBuckets + 4 * i, numNonZeroBuckets[i], 4);
-    //     }
-    //     for (let i = 0; i < numChunks; i++) {
-    //         for (let j = 0; j < numPoints; j++) {
-    //             let idx = i * numPoints + j;
-    //             pb.set(pPointSchedules + 8 * idx, pointSchedules[i][j], 8);
-    //         }
-    //     }
-    //     for (let i = 0; i < numChunks; i++) {
-    //         for (let j = 0; j < numBuckets; j++) {
-    //             let idx = i * numBuckets + j;
-    //             pb.set(pBucketCounts + 4 * idx, bucketCounts[i][j], 4);
-    //         }
-    //     }
+        const ps = pb.alloc(n8r);
+        // pb.set(ps, 1024 + 32 + 1);
+        pb.set(ps, 4 + 2 + 1);
+        pb.g1m_timesScalar(pRes, ps, n8r, pRes);
+        pb.g1m_normalize(pRes, pRes);
+        printG1("Expected res", pRes);
 
-    //     pb.g1m_zero(pRes);
-    //     pb.g1m_multiexp_multiExpChunks(
-    //         pPointSchedules,
-    //         pPoints,
-    //         pNumNonZeroBuckets,
-    //         pBucketCounts,
-    //         numPoints,
-    //         chunkSize,
-    //         numChunks,
-    //         numBuckets,
-    //         pRes
-    //     );
-    //     pb.g1m_normalize(pRes, pRes);
-    //     pb.f1m_fromMontgomery(pRes, pRes);
-    //     pb.f1m_fromMontgomery(pRes + 48, pRes + 48);
-    //     let output = pb.get(pRes, 2, 48);
-    //     // console.log(output[0].toString(16));
-    //     // console.log(output[1].toString(16));
-    //     assert.equal(output[0], expectedOutput[0]);
-    //     assert.equal(output[1], expectedOutput[1]);
-    // });
+        // for (let i = 0; i < 40; i++) {
+        //     pb.g1m_add(p8, p9, pRes);
+        //     pb.set(ps, i);
+        //     pb.g1m_timesScalar(pRes, ps, n8r, pRes);
+        //     pb.g1m_normalize(pRes, pRes);
+        //     printG1("i: " + i, pRes);
+        // }
+
+
+
+        const pPointSchedules = pb.alloc(numChunks * numPoints * 8);
+        const pPoints = pb.alloc(numPoints * n8q * 2);
+        const pBucketCounts = pb.alloc(numChunks * numBuckets * 4);
+        const pNumNonZeroBuckets = pb.alloc(numChunks * 4);
+        for (let i = 0; i < numPoints; i++) {
+            pb.set(pPoints + 96 * i, inputPoints[i * 2], 48);
+            pb.set(pPoints + 96 * i + 48, inputPoints[i * 2 + 1], 48);
+            pb.f1m_toMontgomery(pPoints + 96 * i, pPoints + 96 * i);
+            pb.f1m_toMontgomery(pPoints + 96 * i + 48, pPoints + 96 * i + 48);
+        }
+        for (let i = 0; i < numChunks; i++) {
+            pb.set(pNumNonZeroBuckets + 4 * i, numNonZeroBuckets[i], 4);
+        }
+        for (let i = 0; i < numChunks; i++) {
+            for (let j = 0; j < numPoints; j++) {
+                let idx = i * numPoints + j;
+                pb.set(pPointSchedules + 8 * idx, pointSchedules[i][j], 8);
+            }
+        }
+        for (let i = 0; i < numChunks; i++) {
+            for (let j = 0; j < numBuckets; j++) {
+                let idx = i * numBuckets + j;
+                pb.set(pBucketCounts + 4 * idx, bucketCounts[i][j], 4);
+            }
+        }
+
+        pb.g1m_zero(pRes);
+        pb.g1m_multiexp_multiExpChunks(
+            pPointSchedules,
+            pPoints,
+            pNumNonZeroBuckets,
+            pBucketCounts,
+            numPoints,
+            chunkSize,
+            numChunks,
+            numBuckets,
+            pRes
+        );
+        pb.g1m_normalize(pRes, pRes);
+        pb.f1m_fromMontgomery(pRes, pRes);
+        pb.f1m_fromMontgomery(pRes + 48, pRes + 48);
+        let output = pb.get(pRes, 2, 48);
+        console.log("output: ", output[0].toString(16), output[1].toString(16));
+        // assert.equal(output[0], expectedOutput[0]);
+        // assert.equal(output[1], expectedOutput[1]);
+    });
 
     // it("multiExpChunks is correct (case 2).", async () => {
     //     let inputPoints = [
@@ -1147,78 +1167,74 @@ describe("Basic tests for batch affine in bls12-381", function () {
     //     assert.equal(output[1], expectedOutput[1]);
     // });
 
-    it("multiExp is correct (case 1).", async () => {
-        let inputPoints = [
-            0x17f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bbn, 0x8b3f481e3aaa0f1a09e30ed741d8ae4fcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e1n,
-            0x572cbea904d67468808c8eb50a9450c9721db309128012543902d0ac358a62ae28f75bb8f1c7c42c39a8c5529bf0f4en, 0x166a9d8cabc673a322fda673779d8e3822ba3ecb8670e461f73bb9021d5fd76a4c56d9d4cd16bd1bba86881979749d28n,
-            0x9ece308f9d1f0131765212deca99697b112d61f9be9a5f1f3780a51335b3ff981747a0b2ca2179b96d2c0c9024e5224n, 0x32b80d3a6f5b09f8a84623389c5f80ca69a0cddabc3097f9d9c27310fd43be6e745256c634af45ca3473b0590ae30d1n,
-            0x10e7791fb972fe014159aa33a98622da3cdc98ff707965e536d8636b5fcc5ac7a91a8c46e59a00dca575af0f18fb13dcn, 0x16ba437edcc6551e30c10512367494bfb6b01cc6681e8a4c3cd2501832ab5c4abc40b4578b85cbaffbf0bcd70d67c6e2n,
-            0xc9b60d5afcbd5663a8a44b7c5a02f19e9a77ab0a35bd65809bb5c67ec582c897feb04decc694b13e08587f3ff9b5b60n, 0x143be6d078c2b79a7d4f1d1b21486a030ec93f56aa54e1de880db5a66dd833a652a95bee27c824084006cb5644cbd43fn,
-            0x6e82f6da4520f85c5d27d8f329eccfa05944fd1096b20734c894966d12a9e2a9a9744529d7212d33883113a0cadb909n, 0x17d81038f7d60bee9110d9c0d6d1102fe2d998c957f28e31ec284cc04134df8e47e8f82ff3af2e60a6d9688a4563477cn,
-            0x1928f3beb93519eecf0145da903b40a4c97dca00b21f12ac0df3be9116ef2ef27b2ae6bcd4c5bc2d54ef5a70627efcb7n, 0x108dadbaa4b636445639d5ae3089b3c43a8a1d47818edd1839d7383959a41c10fdc66849cfa1b08c5a11ec7e28981a1cn,
-            0x85ae765588126f5e860d019c0e26235f567a9c0c0b2d8ff30f3e8d436b1082596e5e7462d20f5be3764fd473e57f9cfn, 0x19e7dfab8a794b6abb9f84e57739de172a63415273f460d1607fa6a74f0acd97d9671b801dd1fd4f18232dd1259359a1n,
-            0x19cdf3807146e68e041314ca93e1fee0991224ec2a74beb2866816fd0826ce7b6263ee31e953a86d1b72cc2215a57793n, 0x7481b1f261aabacf45c6e4fc278055441bfaf99f604d1f835c0752ac9742b4522c9f5c77db40989e7da608505d48616n,
-            0x19cdf3807146e68e041314ca93e1fee0991224ec2a74beb2866816fd0826ce7b6263ee31e953a86d1b72cc2215a57793n, 0x7481b1f261aabacf45c6e4fc278055441bfaf99f604d1f835c0752ac9742b4522c9f5c77db40989e7da608505d48616n,
-        ];
-        let inputScalars = [
-            0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
-            0x0842, 0x0842,
-        ];
-        let numPoints = 10;
-        let expectedOutput = [0x8f98e551e647b5da65f222e728a590a0bb89948d03d44768c2c2b9f87f74a30db23c44009205a1aa81632166f20d284n, 0x1489ffc27fcc09dd72707b3d1d67db85d1777dcc2e27849628f528154daaf5846cf57d55119091bf7237de9732bb45f6n];
-        const pRes = pb.alloc(n8q * 3);
-        const pPoints = pb.alloc(numPoints * n8q * 2);
-        const pScalars = pb.alloc(numPoints * n8r);
-        for (let i = 0; i < numPoints; i++) {
-            pb.set(pPoints + 96 * i, inputPoints[i * 2], 48);
-            pb.set(pPoints + 96 * i + 48, inputPoints[i * 2 + 1], 48);
-            pb.f1m_toMontgomery(pPoints + 96 * i, pPoints + 96 * i);
-            pb.f1m_toMontgomery(pPoints + 96 * i + 48, pPoints + 96 * i + 48);
-        }
-        for (let i = 0; i < numPoints; i++) {
-            pb.set(pScalars + n8r * i, inputScalars[i], n8r);
-        }
-        // let outputPointer = 
-        pb.g1m_multiexp_multiExp(
-            pPoints,
-            pScalars,
-            numPoints,
-            pRes,
-        );
+    // it("multiExp is correct (case 1).", async () => {
+    //     let inputPoints = [
+    //         0x17f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bbn, 0x8b3f481e3aaa0f1a09e30ed741d8ae4fcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e1n,
+    //         0x572cbea904d67468808c8eb50a9450c9721db309128012543902d0ac358a62ae28f75bb8f1c7c42c39a8c5529bf0f4en, 0x166a9d8cabc673a322fda673779d8e3822ba3ecb8670e461f73bb9021d5fd76a4c56d9d4cd16bd1bba86881979749d28n,
+    //         0x9ece308f9d1f0131765212deca99697b112d61f9be9a5f1f3780a51335b3ff981747a0b2ca2179b96d2c0c9024e5224n, 0x32b80d3a6f5b09f8a84623389c5f80ca69a0cddabc3097f9d9c27310fd43be6e745256c634af45ca3473b0590ae30d1n,
+    //         0x10e7791fb972fe014159aa33a98622da3cdc98ff707965e536d8636b5fcc5ac7a91a8c46e59a00dca575af0f18fb13dcn, 0x16ba437edcc6551e30c10512367494bfb6b01cc6681e8a4c3cd2501832ab5c4abc40b4578b85cbaffbf0bcd70d67c6e2n,
+    //         0xc9b60d5afcbd5663a8a44b7c5a02f19e9a77ab0a35bd65809bb5c67ec582c897feb04decc694b13e08587f3ff9b5b60n, 0x143be6d078c2b79a7d4f1d1b21486a030ec93f56aa54e1de880db5a66dd833a652a95bee27c824084006cb5644cbd43fn,
+    //         0x6e82f6da4520f85c5d27d8f329eccfa05944fd1096b20734c894966d12a9e2a9a9744529d7212d33883113a0cadb909n, 0x17d81038f7d60bee9110d9c0d6d1102fe2d998c957f28e31ec284cc04134df8e47e8f82ff3af2e60a6d9688a4563477cn,
+    //         0x1928f3beb93519eecf0145da903b40a4c97dca00b21f12ac0df3be9116ef2ef27b2ae6bcd4c5bc2d54ef5a70627efcb7n, 0x108dadbaa4b636445639d5ae3089b3c43a8a1d47818edd1839d7383959a41c10fdc66849cfa1b08c5a11ec7e28981a1cn,
+    //         0x85ae765588126f5e860d019c0e26235f567a9c0c0b2d8ff30f3e8d436b1082596e5e7462d20f5be3764fd473e57f9cfn, 0x19e7dfab8a794b6abb9f84e57739de172a63415273f460d1607fa6a74f0acd97d9671b801dd1fd4f18232dd1259359a1n,
+    //         0x19cdf3807146e68e041314ca93e1fee0991224ec2a74beb2866816fd0826ce7b6263ee31e953a86d1b72cc2215a57793n, 0x7481b1f261aabacf45c6e4fc278055441bfaf99f604d1f835c0752ac9742b4522c9f5c77db40989e7da608505d48616n,
+    //         0x19cdf3807146e68e041314ca93e1fee0991224ec2a74beb2866816fd0826ce7b6263ee31e953a86d1b72cc2215a57793n, 0x7481b1f261aabacf45c6e4fc278055441bfaf99f604d1f835c0752ac9742b4522c9f5c77db40989e7da608505d48616n,
+    //     ];
+    //     let inputScalars = [
+    //         0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+    //         0x0842, 0x0842,
+    //     ];
+    //     let numPoints = 10;
+    //     let expectedOutput = [0x8f98e551e647b5da65f222e728a590a0bb89948d03d44768c2c2b9f87f74a30db23c44009205a1aa81632166f20d284n, 0x1489ffc27fcc09dd72707b3d1d67db85d1777dcc2e27849628f528154daaf5846cf57d55119091bf7237de9732bb45f6n];
+    //     const pRes = pb.alloc(n8q * 3);
+    //     const pPoints = pb.alloc(numPoints * n8q * 2);
+    //     const pScalars = pb.alloc(numPoints * n8r);
+    //     for (let i = 0; i < numPoints; i++) {
+    //         pb.set(pPoints + 96 * i, inputPoints[i * 2], 48);
+    //         pb.set(pPoints + 96 * i + 48, inputPoints[i * 2 + 1], 48);
+    //         pb.f1m_toMontgomery(pPoints + 96 * i, pPoints + 96 * i);
+    //         pb.f1m_toMontgomery(pPoints + 96 * i + 48, pPoints + 96 * i + 48);
+    //     }
+    //     for (let i = 0; i < numPoints; i++) {
+    //         pb.set(pScalars + n8r * i, inputScalars[i], n8r);
+    //     }
+    //     let outputPointer = 
+    //     pb.g1m_multiexp_multiExp(
+    //         pPoints,
+    //         pScalars,
+    //         numPoints,
+    //         pRes,
+    //     );
 
-        // console.log(outputPointer);
+    //     // console.log(outputPointer);
 
-        // let numChunks = 52;
-        // // Print pPointSchedules
-        // let output = pb.get(outputPointer, numChunks * numPoints, 8);
-        // for (let i = 0; i<numChunks; i++) {
-        //     for(let j = 0; j< numPoints; j++) {
-        //         console.log("i: ", i, ", j: ", j, ", pPointSchedules: ", output[i*numPoints + j].toString(16));
-        //     }
-        // }
-        // // Print pRoundCounts or pNumNonZeroBuckets
-        // let output = pb.get(outputPointer, numChunks, 4);
-        // for (let i = 0; i < numChunks; i++) {
-        //     console.log("i: ", i, ", pNumNonZeroBuckets: ", output[i].toString(16));
-        // }
-        // // Print pBucketCounts
-        // const numBuckets = 32;
-        // let output = pb.get(outputPointer, numChunks * numBuckets, 4);
-        // for (let i = 0; i<5; i++) {
-        //     for(let j = 0; j< numBuckets; j++) {
-        //         console.log("i: ", i, ", j: ", j, ", pBucketCounts: ", output[i*numBuckets + j].toString(16));
-        //     }
-        // }
-
-
-
-        // console.log(output);
-        pb.g1m_normalize(pRes, pRes);
-        pb.f1m_fromMontgomery(pRes, pRes);
-        pb.f1m_fromMontgomery(pRes + 48, pRes + 48);
-        let output = pb.get(pRes, 2, 48);
-        console.log("multiExp output: ", output[0].toString(16), output[0].toString(16));
-        // assert.equal(output[0], expectedOutput[0]);
-        // assert.equal(output[1], expectedOutput[1]);
-    });
+    //     // let numChunks = 52;
+    //     // // Print pPointSchedules
+    //     // let output = pb.get(outputPointer, numChunks * numPoints, 8);
+    //     // for (let i = 0; i<numChunks; i++) {
+    //     //     for(let j = 0; j< numPoints; j++) {
+    //     //         console.log("i: ", i, ", j: ", j, ", pPointSchedules: ", output[i*numPoints + j].toString(16));
+    //     //     }
+    //     // }
+    //     // // Print pRoundCounts or pNumNonZeroBuckets
+    //     // let output = pb.get(outputPointer, numChunks, 4);
+    //     // for (let i = 0; i < numChunks; i++) {
+    //     //     console.log("i: ", i, ", pRoundCounts: ", output[i].toString(16));
+    //     // }
+    //     // // Print pBucketCounts
+    //     // const numBuckets = 32;
+    //     // let output = pb.get(outputPointer, numChunks * numBuckets, 4);
+    //     // for (let i = 0; i<5; i++) {
+    //     //     for(let j = 0; j< numBuckets; j++) {
+    //     //         console.log("i: ", i, ", j: ", j, ", pBucketCounts: ", output[i*numBuckets + j].toString(16));
+    //     //     }
+    //     // }
+    //     pb.g1m_normalize(pRes, pRes);
+    //     pb.f1m_fromMontgomery(pRes, pRes);
+    //     pb.f1m_fromMontgomery(pRes + 48, pRes + 48);
+    //     let output = pb.get(pRes, 2, 48);
+    //     console.log("multiExp output: ", output[0].toString(16), output[1].toString(16));
+    //     // assert.equal(output[0], expectedOutput[0]);
+    //     // assert.equal(output[1], expectedOutput[1]);
+    // });
 });
