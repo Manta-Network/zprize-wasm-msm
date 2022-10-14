@@ -2318,20 +2318,20 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         const c = f.getCodeBuilder();
         f.addCode(
             c.setLocal("scalarSize", c.i32_const(n8r)),
-            // c.setLocal("chunkSize",
-            //     c.call(fnName + "_getOptimalBucketWidth",
-            //         c.getLocal("numPoints"),
-            //     ),
-            // ),
-            c.setLocal("chunkSize", c.i32_const(5)), // For testing only
+            c.setLocal("chunkSize",
+                c.call(fnName + "_getOptimalBucketWidth",
+                    c.getLocal("numPoints"),
+                ),
+            ),
+            //c.setLocal("chunkSize", c.i32_const(5+1+2+2+1+1+1)), // For testing only
             c.setLocal("numChunks",
                 c.call(fnName + "_getNumChunks",
                     c.getLocal("scalarSize"),
                     c.getLocal("chunkSize"),
                 ),
             ),
-            // c.setLocal("numBuckets", c.call(fnName + "_getNumBuckets", c.getLocal("numPoints"))),
-            c.setLocal("numBuckets", c.i32_const(32)), // For testing only
+            c.setLocal("numBuckets", c.call(fnName + "_getNumBuckets", c.getLocal("numPoints"))),
+            // c.setLocal("numBuckets", c.i32_const(32*2*4*4*2*2*2)), // For testing only
             c.setLocal("pPointSchedules",
                 c.call(fnName + "_allocateMemory",
                     c.i32_shl(

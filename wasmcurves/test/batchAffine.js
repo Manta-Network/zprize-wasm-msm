@@ -1259,4 +1259,59 @@ describe("Basic tests for batch affine in bls12-381", function () {
         assert.equal(output[1], expectedOutput[1]);
     });
 
+    it("Compare our multiExp with wasmcurve.", async () => {
+        
+        const N=1<<16;
+        const pG1 = pb.bls12381.pG1gen;
+
+        const pCalculated = pb.alloc(n8q*3);
+
+        const REPEAT = 10;
+        // Set scalars to 1,2,3
+        const pScalars = pb.alloc(n8r*N);
+        for (let i=0; i<N; i++) {
+            pb.set(pScalars+i*n8r, i+1);
+        }
+
+        // Set points to 1*G, 2*G, 3*G
+        const pPoints = pb.alloc(n8q*2*N);
+        for (let i=0; i<N; i++) {
+            pb.g1m_timesScalarAffine(pG1, pScalars+n8r*i, n8r, pCalculated);
+            pb.g1m_toAffine(pCalculated, pPoints+i*n8q*2);
+        }
+        const pRes = pb.alloc(n8q*3);
+        // Do the multiexp:  1*1*G + 2*2*G + ...
+        console.log("Starting multiExp");
+        let start, end;
+        start = new Date().getTime();
+        for(let i=0;i<REPEAT;i++){
+            pb.g1m_multiexpAffine_wasmcurve(pPoints, pScalars, n8r, N, pCalculated);
+        }
+        end = new Date().getTime();
+        time = end - start;
+        console.log("wasmcurve msm Time (ms): " + time);
+
+
+        start = new Date().getTime();
+        for(let i=0;i<REPEAT;i++){
+            pb.g1m_multiexp_multiExp(
+                pPoints,
+                pScalars,
+                N,
+                pRes,
+            );
+        }
+        end = new Date().getTime();
+        time = end - start;
+        console.log("Our msm Time (ms): " + time);
+        
+        pb.g1m_normalize(pRes,pRes);
+        pb.g1m_normalize(pCalculated,pCalculated);
+
+        let output = pb.get(pRes, 2, 48);
+        let wasmcurveOutput = pb.get(pCalculated, 2, 48);
+        assert.equal(output[0], wasmcurveOutput[0]);
+        assert.equal(output[1], wasmcurveOutput[1]);
+
+    });
 });
