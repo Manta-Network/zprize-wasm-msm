@@ -32,6 +32,7 @@
     "mocha": "^10.0.0"
   },
   "dependencies": {
+    "ffjavascript": "^0.2.56",
     "wasmbuilder": "^0.0.16"
   }
 }

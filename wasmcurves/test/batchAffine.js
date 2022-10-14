@@ -1,4 +1,5 @@
 const assert = require("assert");
+const ChaCha = require("ffjavascript").ChaCha;
 const buildBls12381 = require("../src/bls12381/build_bls12381.js");
 const buildProtoboard = require("wasmbuilder").buildProtoboard;
 
@@ -1189,11 +1190,6 @@ describe("Basic tests for batch affine in bls12-381", function () {
         const pRes = pb.alloc(n8q * 3);
         const pPoints = pb.alloc(numPoints * n8q * 2);
         const pScalars = pb.alloc(numPoints * n8r);
-        const pCalculated = pb.alloc(n8q*3);
-        const pAccumulator = pb.alloc(n8q*3);
-        const pScalarForTest = pb.alloc(n8r);
-        const pPointForTest = pb.alloc(n8q * 3);
-
         for (let i = 0; i < numPoints; i++) {
             pb.set(pPoints + 96 * i, inputPoints[i * 2], 48);
             pb.set(pPoints + 96 * i + 48, inputPoints[i * 2 + 1], 48);
@@ -1203,7 +1199,6 @@ describe("Basic tests for batch affine in bls12-381", function () {
         for (let i = 0; i < numPoints; i++) {
             pb.set(pScalars + n8r * i, inputScalars[i], n8r);
         }
-
         // expected res
         // pb.g1m_zero(pAccumulator);
         // for(let i = 0; i<numPoints;i++){
@@ -1218,17 +1213,12 @@ describe("Basic tests for batch affine in bls12-381", function () {
         // }
         // pb.g1m_normalize(pAccumulator, pAccumulator);
         // printG1("Expected", pAccumulator);
-
-        let outputPointer = 
         pb.g1m_multiexp_multiExp(
             pPoints,
             pScalars,
             numPoints,
             pRes,
         );
-
-        // console.log(outputPointer);
-
         // let numChunks = 52;
         // // Print pPointSchedules
         // let output = pb.get(outputPointer, numChunks * numPoints, 8);
@@ -1260,58 +1250,46 @@ describe("Basic tests for batch affine in bls12-381", function () {
     });
 
     it("Compare our multiExp with wasmcurve.", async () => {
-        
-        const N=1<<16;
+        const N = 1 << 16;
         const pG1 = pb.bls12381.pG1gen;
-
-        const pCalculated = pb.alloc(n8q*3);
-
+        const pCalculated = pb.alloc(n8q * 3);
         const REPEAT = 10;
-        // Set scalars to 1,2,3
-        const pScalars = pb.alloc(n8r*N);
-        for (let i=0; i<N; i++) {
-            pb.set(pScalars+i*n8r, i+1);
+        const pScalars = pb.alloc(n8r * N);
+        const rng = new ChaCha();
+        for (let i = 0; i < N * n8r / 4; i++) {
+            pb.i32[pScalars / 4 + i] = rng.nextU32();
         }
-
-        // Set points to 1*G, 2*G, 3*G
-        const pPoints = pb.alloc(n8q*2*N);
-        for (let i=0; i<N; i++) {
-            pb.g1m_timesScalarAffine(pG1, pScalars+n8r*i, n8r, pCalculated);
-            pb.g1m_toAffine(pCalculated, pPoints+i*n8q*2);
+        const pPointCoefficients = pb.alloc(n8r * N);
+        for (let i = 0; i < N * n8r / 4; i++) {
+            pb.i32[pPointCoefficients / 4 + i] = rng.nextU32();
         }
-        const pRes = pb.alloc(n8q*3);
-        // Do the multiexp:  1*1*G + 2*2*G + ...
+        const pPoints = pb.alloc(n8q * 2 * N);
+        for (let i = 0; i < N; i++) {
+            pb.g1m_timesScalarAffine(pG1, pPointCoefficients + n8r * i, n8r, pCalculated);
+            pb.g1m_toAffine(pCalculated, pPoints + i * n8q * 2);
+        }
         console.log("Starting multiExp");
         let start, end;
         start = new Date().getTime();
-        for(let i=0;i<REPEAT;i++){
+        for (let i = 0; i < REPEAT; i++) {
             pb.g1m_multiexpAffine_wasmcurve(pPoints, pScalars, n8r, N, pCalculated);
         }
         end = new Date().getTime();
         time = end - start;
         console.log("wasmcurve msm Time (ms): " + time);
-
-
+        const pRes = pb.alloc(n8q * 3);
         start = new Date().getTime();
-        for(let i=0;i<REPEAT;i++){
-            pb.g1m_multiexp_multiExp(
-                pPoints,
-                pScalars,
-                N,
-                pRes,
-            );
+        for (let i = 0; i < REPEAT; i++) {
+            pb.g1m_multiexp_multiExp(pPoints, pScalars, N, pRes);
         }
         end = new Date().getTime();
         time = end - start;
         console.log("Our msm Time (ms): " + time);
-        
-        pb.g1m_normalize(pRes,pRes);
-        pb.g1m_normalize(pCalculated,pCalculated);
-
+        pb.g1m_normalize(pRes, pRes);
+        pb.g1m_normalize(pCalculated, pCalculated);
         let output = pb.get(pRes, 2, 48);
         let wasmcurveOutput = pb.get(pCalculated, 2, 48);
         assert.equal(output[0], wasmcurveOutput[0]);
         assert.equal(output[1], wasmcurveOutput[1]);
-
     });
 });
