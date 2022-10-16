@@ -27,6 +27,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     const n8 = 48; // only for our msm implementation 
     const prefixField = "f1m";// only for our msm implementation 
     opMixedAdd = "g1m_addMixed";
+    opAffineAdd = "g1m_addAffine";
     // Loads an i64 scalar pArr[index].
     function buildLoadI64() {
         const f = module.addFunction(fnName + "_loadI64");
@@ -1297,6 +1298,77 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         );
     }
 
+    // This function has the same inputs and outputs as addAffinePointsOneRound.
+    // When pointsInRound is small, finite field inversion in batch affine is slow.
+    // In this case, we use addNaiveOneRound() instead of addAffinePointsOneRound().
+    function buildAddNaiveOneRound() {
+        const f = module.addFunction(fnName + "_addNaiveOneRound");
+        // Number of points
+        f.addParam("numPoints", "i32");
+        // Number of points in the current round. Assumption: an even number
+        f.addParam("pointsInRound", "i32");
+        // Store results in pairs.
+        f.addParam("pPairs", "i32");
+        // Number of point additions
+        f.addLocal("numAdditions", "i32");
+        // Index
+        f.addLocal("i", "i32");
+        // Pointer to the first point
+        f.addLocal("p1", "i32");
+        // Pointer to the second point
+        f.addLocal("p2", "i32");
+        // Pointer to the resulting poin
+        f.addLocal("pr", "i32");
+        // numPoints-2*i
+        f.addLocal("nMinus2TimesI", "i32");
+        const c = f.getCodeBuilder();
+        f.addCode(
+            // numAdditions = pointsInRound/2;
+            // for(i = 1; i <= numAdditions; i++) {
+            //    p1 = pPairs[numPoints-2*i];
+            //    p2 = pPairs[numPoints-2*i+1];
+            //    pr = pPairs[numPoints-i];
+            //    addAffine(p1, p2, pr);
+            // }
+            c.setLocal("numAdditions", c.i32_shr_u(c.getLocal("pointsInRound"), c.i32_const(1))),
+            c.setLocal("i", c.i32_const(1)),
+            c.block(c.loop(
+                c.br_if(1, c.i32_gt_s(c.getLocal("i"), c.getLocal("numAdditions"))),
+                c.setLocal("nMinus2TimesI",
+                    c.i32_sub(
+                        c.getLocal("numPoints"),
+                        c.i32_shl(c.getLocal("i"), c.i32_const(1)),
+                    ),
+                ),
+                c.setLocal("p1",
+                    c.i32_add(
+                        c.getLocal("pPairs"),
+                        c.i32_mul(
+                            c.getLocal("nMinus2TimesI"),
+                            c.i32_const(n8 * 2),
+                        ),
+                    ),
+                ),
+                c.setLocal("p2", c.i32_add(c.getLocal("p1"), c.i32_const(n8 * 2))),
+                c.setLocal("pr",
+                    c.i32_add(
+                        c.getLocal("pPairs"),
+                        c.i32_mul(
+                            c.i32_sub(
+                                c.getLocal("numPoints"),
+                                c.getLocal("i"),
+                            ),
+                            c.i32_const(n8 * 2),
+                        ),
+                    ),
+                ),
+                c.call(opAffineAdd, c.getLocal("p1"), c.getLocal("p2"), c.getLocal("pr")),
+                c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
+                c.br(0),
+            )),
+        );
+    }
+
     // This function adds a bunch of points together using affine addition formulae.
     // For example:
     // Suppose the memory of the point is in the following format:
@@ -1315,7 +1387,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     function buildAddAffinePointsOneRound() {
         const f = module.addFunction(fnName + "_addAffinePointsOneRound");
         f.addParam("n", "i32"); //number of points
-        f.addParam("pointsInRound", "i32")
+        f.addParam("pointsInRound", "i32");
         f.addParam("pPairs", "i32");// store results in paires. memory layout: x1y1(384*2bits) x2y2 x3y3 ...
         // Array
         f.addLocal("pScratchSpace", "i32");// store x2-x1, x4-x3, ... n*n8
@@ -2614,6 +2686,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
 
     buildReduceBucketsToSinglePoint();
     buildAccumulateAcrossChunks();
+    buildAddNaiveOneRound();
     buildAddAffinePointsOneRound();
     buildCountBits();
     buildConstructAdditionChains();
@@ -2639,6 +2712,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     module.exportFunction(fnName + "_singlePointComputeSchedule");
     module.exportFunction(fnName + "_reorderPoints");
     module.exportFunction(fnName + "_addAffinePointsOneRound");
+    module.exportFunction(fnName + "_addNaiveOneRound");
     module.exportFunction(fnName + "_evaluateAdditionChains");
     module.exportFunction(fnName + "_computeSchedule");
     module.exportFunction(fnName + "_reduceBuckets");
