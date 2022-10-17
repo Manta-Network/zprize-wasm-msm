@@ -22,16 +22,17 @@ const buildTimesScalarNAF = require("./build_timesscalarnaf");
 const buildBatchConvertion = require("./build_batchconvertion");
 const buildMultiexp = require("./build_multiexp_opt");
 const buildMultiexpWasmCurve = require("./build_multiexp");
+const buildUtility = require("./build_utility");
 
 module.exports = function buildCurve(module, prefix, prefixField, pB) {
 
 
     const n64 = module.modules[prefixField].n64;
-    const n8 = n64*8;
+    const n8 = n64 * 8;
 
     if (module.modules[prefix]) return prefix;  // already builded
     module.modules[prefix] = {
-        n64: n64*3
+        n64: n64 * 3
     };
 
     function buildIsZero() {
@@ -45,7 +46,7 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
             prefixField + "_isZero",
             c.i32_add(
                 c.getLocal("p1"),
-                c.i32_const(n8*2)
+                c.i32_const(n8 * 2)
             )
         ));
     }
@@ -80,14 +81,14 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
 
         const c = f.getCodeBuilder();
 
-        for (let i=0; i<n64*3; i++) {
+        for (let i = 0; i < n64 * 3; i++) {
             f.addCode(
                 c.i64_store(
                     c.getLocal("pd"),
-                    i*8,
+                    i * 8,
                     c.i64_load(
                         c.getLocal("ps"),
-                        i*8
+                        i * 8
                     )
                 )
             );
@@ -102,14 +103,14 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
 
         const c = f.getCodeBuilder();
 
-        for (let i=0; i<n64*2; i++) {
+        for (let i = 0; i < n64 * 2; i++) {
             f.addCode(
                 c.i64_store(
                     c.getLocal("pd"),
-                    i*8,
+                    i * 8,
                     c.i64_load(
                         c.getLocal("ps"),
-                        i*8
+                        i * 8
                     )
                 )
             );
@@ -141,7 +142,7 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
             prefixField + "_zero",
             c.i32_add(
                 c.getLocal("pr"),
-                c.i32_const(n8*2)
+                c.i32_const(n8 * 2)
             )
         ));
     }
@@ -179,11 +180,11 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
 
         const x1 = c.getLocal("p1");
         const y1 = c.i32_add(c.getLocal("p1"), c.i32_const(n8));
-        f.addCode(c.setLocal("z1", c.i32_add(c.getLocal("p1"), c.i32_const(n8*2))));
+        f.addCode(c.setLocal("z1", c.i32_add(c.getLocal("p1"), c.i32_const(n8 * 2))));
         const z1 = c.getLocal("z1");
         const x2 = c.getLocal("p2");
         const y2 = c.i32_add(c.getLocal("p2"), c.i32_const(n8));
-        f.addCode(c.setLocal("z2", c.i32_add(c.getLocal("p2"), c.i32_const(n8*2))));
+        f.addCode(c.setLocal("z2", c.i32_add(c.getLocal("p2"), c.i32_const(n8 * 2))));
         const z2 = c.getLocal("z2");
 
         const Z1Z1 = c.i32_const(module.alloc(n8));
@@ -199,7 +200,7 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
         f.addCode(
             c.if(
                 c.call(prefix + "_isZero", c.getLocal("p1")),
-                c.ret( c.call(prefix + "_isZero", c.getLocal("p2"))),
+                c.ret(c.call(prefix + "_isZero", c.getLocal("p2"))),
             ),
             c.if(
                 c.call(prefix + "_isZero", c.getLocal("p2")),
@@ -246,7 +247,7 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
 
         const x1 = c.getLocal("p1");
         const y1 = c.i32_add(c.getLocal("p1"), c.i32_const(n8));
-        f.addCode(c.setLocal("z1", c.i32_add(c.getLocal("p1"), c.i32_const(n8*2))));
+        f.addCode(c.setLocal("z1", c.i32_add(c.getLocal("p1"), c.i32_const(n8 * 2))));
         const z1 = c.getLocal("z1");
         const x2 = c.getLocal("p2");
         const y2 = c.i32_add(c.getLocal("p2"), c.i32_const(n8));
@@ -259,7 +260,7 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
         f.addCode(
             c.if(
                 c.call(prefix + "_isZero", c.getLocal("p1")),
-                c.ret( c.call(prefix + "_isZeroAffine", c.getLocal("p2"))),
+                c.ret(c.call(prefix + "_isZeroAffine", c.getLocal("p2"))),
             ),
             c.if(
                 c.call(prefix + "_isZeroAffine", c.getLocal("p2")),
@@ -294,10 +295,10 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
 
         const x = c.getLocal("p1");
         const y = c.i32_add(c.getLocal("p1"), c.i32_const(n8));
-        const z = c.i32_add(c.getLocal("p1"), c.i32_const(n8*2));
+        const z = c.i32_add(c.getLocal("p1"), c.i32_const(n8 * 2));
         const x3 = c.getLocal("pr");
         const y3 = c.i32_add(c.getLocal("pr"), c.i32_const(n8));
-        const z3 = c.i32_add(c.getLocal("pr"), c.i32_const(n8*2));
+        const z3 = c.i32_add(c.getLocal("pr"), c.i32_const(n8 * 2));
 
         const A = c.i32_const(module.alloc(n8));
         const B = c.i32_const(module.alloc(n8));
@@ -367,7 +368,7 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
         const y = c.i32_add(c.getLocal("p1"), c.i32_const(n8));
         const x3 = c.getLocal("pr");
         const y3 = c.i32_add(c.getLocal("pr"), c.i32_const(n8));
-        const z3 = c.i32_add(c.getLocal("pr"), c.i32_const(n8*2));
+        const z3 = c.i32_add(c.getLocal("pr"), c.i32_const(n8 * 2));
 
         const XX = c.i32_const(module.alloc(n8));
         const YY = c.i32_const(module.alloc(n8));
@@ -462,11 +463,11 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
             c.getLocal("p1"),
             c.getLocal("pr")
         ));
-        for (let i=1; i<3; i++) {
+        for (let i = 1; i < 3; i++) {
             f.addCode(c.call(
                 prefixField + "_toMontgomery",
-                c.i32_add(c.getLocal("p1"), c.i32_const(i*n8)),
-                c.i32_add(c.getLocal("pr"), c.i32_const(i*n8))
+                c.i32_add(c.getLocal("p1"), c.i32_const(i * n8)),
+                c.i32_add(c.getLocal("pr"), c.i32_const(i * n8))
             ));
         }
     }
@@ -483,11 +484,11 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
             c.getLocal("p1"),
             c.getLocal("pr")
         ));
-        for (let i=1; i<2; i++) {
+        for (let i = 1; i < 2; i++) {
             f.addCode(c.call(
                 prefixField + "_toMontgomery",
-                c.i32_add(c.getLocal("p1"), c.i32_const(i*n8)),
-                c.i32_add(c.getLocal("pr"), c.i32_const(i*n8))
+                c.i32_add(c.getLocal("p1"), c.i32_const(i * n8)),
+                c.i32_add(c.getLocal("pr"), c.i32_const(i * n8))
             ));
         }
     }
@@ -504,11 +505,11 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
             c.getLocal("p1"),
             c.getLocal("pr")
         ));
-        for (let i=1; i<3; i++) {
+        for (let i = 1; i < 3; i++) {
             f.addCode(c.call(
                 prefixField + "_fromMontgomery",
-                c.i32_add(c.getLocal("p1"), c.i32_const(i*n8)),
-                c.i32_add(c.getLocal("pr"), c.i32_const(i*n8))
+                c.i32_add(c.getLocal("p1"), c.i32_const(i * n8)),
+                c.i32_add(c.getLocal("pr"), c.i32_const(i * n8))
             ));
         }
     }
@@ -526,11 +527,11 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
             c.getLocal("p1"),
             c.getLocal("pr")
         ));
-        for (let i=1; i<2; i++) {
+        for (let i = 1; i < 2; i++) {
             f.addCode(c.call(
                 prefixField + "_fromMontgomery",
-                c.i32_add(c.getLocal("p1"), c.i32_const(i*n8)),
-                c.i32_add(c.getLocal("pr"), c.i32_const(i*n8))
+                c.i32_add(c.getLocal("p1"), c.i32_const(i * n8)),
+                c.i32_add(c.getLocal("pr"), c.i32_const(i * n8))
             ));
         }
     }
@@ -548,15 +549,15 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
 
         const x1 = c.getLocal("p1");
         const y1 = c.i32_add(c.getLocal("p1"), c.i32_const(n8));
-        f.addCode(c.setLocal("z1", c.i32_add(c.getLocal("p1"), c.i32_const(n8*2))));
+        f.addCode(c.setLocal("z1", c.i32_add(c.getLocal("p1"), c.i32_const(n8 * 2))));
         const z1 = c.getLocal("z1");
         const x2 = c.getLocal("p2");
         const y2 = c.i32_add(c.getLocal("p2"), c.i32_const(n8));
-        f.addCode(c.setLocal("z2", c.i32_add(c.getLocal("p2"), c.i32_const(n8*2))));
+        f.addCode(c.setLocal("z2", c.i32_add(c.getLocal("p2"), c.i32_const(n8 * 2))));
         const z2 = c.getLocal("z2");
         const x3 = c.getLocal("pr");
         const y3 = c.i32_add(c.getLocal("pr"), c.i32_const(n8));
-        const z3 = c.i32_add(c.getLocal("pr"), c.i32_const(n8*2));
+        const z3 = c.i32_add(c.getLocal("pr"), c.i32_const(n8 * 2));
 
         const Z1Z1 = c.i32_const(module.alloc(n8));
         const Z2Z2 = c.i32_const(module.alloc(n8));
@@ -667,13 +668,13 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
 
         const x1 = c.getLocal("p1");
         const y1 = c.i32_add(c.getLocal("p1"), c.i32_const(n8));
-        f.addCode(c.setLocal("z1", c.i32_add(c.getLocal("p1"), c.i32_const(n8*2))));
+        f.addCode(c.setLocal("z1", c.i32_add(c.getLocal("p1"), c.i32_const(n8 * 2))));
         const z1 = c.getLocal("z1");
         const x2 = c.getLocal("p2");
         const y2 = c.i32_add(c.getLocal("p2"), c.i32_const(n8));
         const x3 = c.getLocal("pr");
         const y3 = c.i32_add(c.getLocal("pr"), c.i32_const(n8));
-        const z3 = c.i32_add(c.getLocal("pr"), c.i32_const(n8*2));
+        const z3 = c.i32_add(c.getLocal("pr"), c.i32_const(n8 * 2));
 
         const Z1Z1 = c.i32_const(module.alloc(n8));
         const U2 = c.i32_const(module.alloc(n8));
@@ -695,7 +696,7 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
                 c.call(prefix + "_isZero", c.getLocal("p1")),
                 [
                     ...c.call(prefix + "_copyAffine", c.getLocal("p2"), c.getLocal("pr")),
-                    ...c.call(prefixField + "_one", c.i32_add(c.getLocal("pr") , c.i32_const(n8*2))),
+                    ...c.call(prefixField + "_one", c.i32_add(c.getLocal("pr"), c.i32_const(n8 * 2))),
                     ...c.ret([])
                 ]
             ),
@@ -732,8 +733,8 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
             c.call(prefixField + "_sub", U2, x1, H),
             c.call(prefixField + "_sub", S2, y1, S2_minus_y1),
             c.call(prefixField + "_square", H, HH),
-            c.call(prefixField + "_add", HH , HH, I),
-            c.call(prefixField + "_add", I , I, I),
+            c.call(prefixField + "_add", HH, HH, I),
+            c.call(prefixField + "_add", I, I, I),
             c.call(prefixField + "_mul", H, I, J),
             c.call(prefixField + "_add", S2_minus_y1, S2_minus_y1, r),
             c.call(prefixField + "_mul", x1, I, V),
@@ -770,12 +771,12 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
 
         const x1 = c.getLocal("p1");
         const y1 = c.i32_add(c.getLocal("p1"), c.i32_const(n8));
-        f.addCode(c.setLocal("z1", c.i32_add(c.getLocal("p1"), c.i32_const(n8*2))));
+        f.addCode(c.setLocal("z1", c.i32_add(c.getLocal("p1"), c.i32_const(n8 * 2))));
         const x2 = c.getLocal("p2");
         const y2 = c.i32_add(c.getLocal("p2"), c.i32_const(n8));
         const x3 = c.getLocal("pr");
         const y3 = c.i32_add(c.getLocal("pr"), c.i32_const(n8));
-        const z3 = c.i32_add(c.getLocal("pr"), c.i32_const(n8*2));
+        const z3 = c.i32_add(c.getLocal("pr"), c.i32_const(n8 * 2));
 
         const H = c.i32_const(module.alloc(n8));
         const HH = c.i32_const(module.alloc(n8));
@@ -793,7 +794,7 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
                 c.call(prefix + "_isZeroAffine", c.getLocal("p1")),
                 [
                     ...c.call(prefix + "_copyAffine", c.getLocal("p2"), c.getLocal("pr")),
-                    ...c.call(prefixField + "_one", c.i32_add(c.getLocal("pr") , c.i32_const(n8*2))),
+                    ...c.call(prefixField + "_one", c.i32_add(c.getLocal("pr"), c.i32_const(n8 * 2))),
                     ...c.ret([])
                 ]
             ),
@@ -801,7 +802,7 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
                 c.call(prefix + "_isZeroAffine", c.getLocal("p2")),
                 [
                     ...c.call(prefix + "_copyAffine", c.getLocal("p1"), c.getLocal("pr")),
-                    ...c.call(prefixField + "_one", c.i32_add(c.getLocal("pr") , c.i32_const(n8*2))),
+                    ...c.call(prefixField + "_one", c.i32_add(c.getLocal("pr"), c.i32_const(n8 * 2))),
                     ...c.ret([])
                 ]
             ),
@@ -821,8 +822,8 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
             c.call(prefixField + "_sub", x2, x1, H),
             c.call(prefixField + "_sub", y2, y1, y2_minus_y1),
             c.call(prefixField + "_square", H, HH),
-            c.call(prefixField + "_add", HH , HH, I),
-            c.call(prefixField + "_add", I , I, I),
+            c.call(prefixField + "_add", HH, HH, I),
+            c.call(prefixField + "_add", I, I, I),
             c.call(prefixField + "_mul", H, I, J),
             c.call(prefixField + "_add", y2_minus_y1, y2_minus_y1, r),
             c.call(prefixField + "_mul", x1, I, V),
@@ -852,10 +853,10 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
 
         const x = c.getLocal("p1");
         const y = c.i32_add(c.getLocal("p1"), c.i32_const(n8));
-        const z = c.i32_add(c.getLocal("p1"), c.i32_const(n8*2));
+        const z = c.i32_add(c.getLocal("p1"), c.i32_const(n8 * 2));
         const x3 = c.getLocal("pr");
         const y3 = c.i32_add(c.getLocal("pr"), c.i32_const(n8));
-        const z3 = c.i32_add(c.getLocal("pr"), c.i32_const(n8*2));
+        const z3 = c.i32_add(c.getLocal("pr"), c.i32_const(n8 * 2));
 
         f.addCode(
             c.call(prefixField + "_copy", x, x3),
@@ -892,7 +893,7 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
 
         const c = f.getCodeBuilder();
 
-        const AUX = c.i32_const(module.alloc(n8*3));
+        const AUX = c.i32_const(module.alloc(n8 * 3));
 
         f.addCode(
             c.call(prefix + "_neg", c.getLocal("p2"), AUX),
@@ -908,7 +909,7 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
 
         const c = f.getCodeBuilder();
 
-        const AUX = c.i32_const(module.alloc(n8*3));
+        const AUX = c.i32_const(module.alloc(n8 * 3));
 
         f.addCode(
             c.call(prefix + "_negAffine", c.getLocal("p2"), AUX),
@@ -925,7 +926,7 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
 
         const c = f.getCodeBuilder();
 
-        const AUX = c.i32_const(module.alloc(n8*3));
+        const AUX = c.i32_const(module.alloc(n8 * 3));
 
         f.addCode(
             c.call(prefix + "_negAffine", c.getLocal("p2"), AUX),
@@ -943,10 +944,10 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
 
         const x = c.getLocal("p1");
         const y = c.i32_add(c.getLocal("p1"), c.i32_const(n8));
-        const z = c.i32_add(c.getLocal("p1"), c.i32_const(n8*2));
+        const z = c.i32_add(c.getLocal("p1"), c.i32_const(n8 * 2));
         const x3 = c.getLocal("pr");
         const y3 = c.i32_add(c.getLocal("pr"), c.i32_const(n8));
-        const z3 = c.i32_add(c.getLocal("pr"), c.i32_const(n8*2));
+        const z3 = c.i32_add(c.getLocal("pr"), c.i32_const(n8 * 2));
 
 
         const Z_inv = c.i32_const(module.alloc(n8));
@@ -980,7 +981,7 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
 
         const x = c.getLocal("p1");
         const y = c.i32_add(c.getLocal("p1"), c.i32_const(n8));
-        const z = c.i32_add(c.getLocal("p1"), c.i32_const(n8*2));
+        const z = c.i32_add(c.getLocal("p1"), c.i32_const(n8 * 2));
         const x3 = c.getLocal("pr");
         const y3 = c.i32_add(c.getLocal("pr"), c.i32_const(n8));
 
@@ -1019,7 +1020,7 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
         const y = c.i32_add(c.getLocal("p1"), c.i32_const(n8));
         const x3 = c.getLocal("pr");
         const y3 = c.i32_add(c.getLocal("pr"), c.i32_const(n8));
-        const z3 = c.i32_add(c.getLocal("pr"), c.i32_const(n8*2));
+        const z3 = c.i32_add(c.getLocal("pr"), c.i32_const(n8 * 2));
 
         f.addCode(
             c.if(
@@ -1050,7 +1051,7 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
         const tmp = c.i32_const(module.alloc(n8));
 
         f.addCode(
-            c.setLocal("pAux", c.i32_load( c.i32_const(0) )),
+            c.setLocal("pAux", c.i32_load(c.i32_const(0))),
             c.i32_store(
                 c.i32_const(0),
                 c.i32_add(
@@ -1061,8 +1062,8 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
 
             c.call(
                 prefixField + "_batchInverse",
-                c.i32_add(c.getLocal("pIn"), c.i32_const(n8*2)),
-                c.i32_const(n8*3),
+                c.i32_add(c.getLocal("pIn"), c.i32_const(n8 * 2)),
+                c.i32_const(n8 * 3),
                 c.getLocal("n"),
                 c.getLocal("pAux"),
                 c.i32_const(n8)
@@ -1073,7 +1074,7 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
             c.setLocal("itOut", c.getLocal("pOut")),
             c.setLocal("i", c.i32_const(0)),
             c.block(c.loop(
-                c.br_if(1, c.i32_eq ( c.getLocal("i"), c.getLocal("n") )),
+                c.br_if(1, c.i32_eq(c.getLocal("i"), c.getLocal("n"))),
 
                 c.if(
                     c.call(prefixField + "_isZero", c.getLocal("itAux")),
@@ -1083,24 +1084,24 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
                     ],
                     [
                         ...c.call(
-                            prefixField+"_mul",
+                            prefixField + "_mul",
                             c.getLocal("itAux"),
                             c.i32_add(c.getLocal("itIn"), c.i32_const(n8)),
                             tmp,
                         ),
                         ...c.call(
-                            prefixField+"_square",
+                            prefixField + "_square",
                             c.getLocal("itAux"),
                             c.getLocal("itAux")
                         ),
                         ...c.call(
-                            prefixField+"_mul",
+                            prefixField + "_mul",
                             c.getLocal("itAux"),
                             c.getLocal("itIn"),
                             c.getLocal("itOut"),
                         ),
                         ...c.call(
-                            prefixField+"_mul",
+                            prefixField + "_mul",
                             c.getLocal("itAux"),
                             tmp,
                             c.i32_add(c.getLocal("itOut"), c.i32_const(n8)),
@@ -1108,8 +1109,8 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
                     ]
                 ),
 
-                c.setLocal("itIn", c.i32_add(c.getLocal("itIn"), c.i32_const(n8*3))),
-                c.setLocal("itOut", c.i32_add(c.getLocal("itOut"), c.i32_const(n8*2))),
+                c.setLocal("itIn", c.i32_add(c.getLocal("itIn"), c.i32_const(n8 * 3))),
+                c.setLocal("itOut", c.i32_add(c.getLocal("itOut"), c.i32_const(n8 * 2))),
                 c.setLocal("itAux", c.i32_add(c.getLocal("itAux"), c.i32_const(n8))),
                 c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
                 c.br(0)
@@ -1149,7 +1150,7 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
                 c.getLocal("pIn")
             ),
             c.block(c.loop(
-                c.br_if(1, c.i32_lt_s( c.getLocal("itOut"), c.getLocal("pOut") )),
+                c.br_if(1, c.i32_lt_s(c.getLocal("itOut"), c.getLocal("pOut"))),
                 c.i32_store8(
                     c.getLocal("itOut"),
                     c.i32_load8_u(c.getLocal("itIn")),
@@ -1208,7 +1209,7 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
 
         const c = f.getCodeBuilder();
 
-        const pTmp = module.alloc(n8*2);
+        const pTmp = module.alloc(n8 * 2);
         const tmp = c.i32_const(pTmp);
         const tmpX = c.i32_const(pTmp);
         const tmpY = c.i32_const(pTmp + n8);
@@ -1240,7 +1241,7 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
 
         const c = f.getCodeBuilder();
 
-        const pTmp = module.alloc(n8*2);
+        const pTmp = module.alloc(n8 * 2);
         const tmp = c.i32_const(pTmp);
         const tmpX = c.i32_const(pTmp);
         const tmpY = c.i32_const(pTmp + n8);
@@ -1255,7 +1256,7 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
             ),
             c.call(prefix + "__reverseBytes", c.getLocal("pIn"), c.i32_const(n8), tmpX),
             c.call(prefix + "__reverseBytes", c.i32_add(c.getLocal("pIn"), c.i32_const(n8)), c.i32_const(n8), tmpY),
-            c.call(prefix + "_toMontgomeryAffine", tmp,  c.getLocal("pOut"))
+            c.call(prefix + "_toMontgomeryAffine", tmp, c.getLocal("pOut"))
         );
     }
 
@@ -1268,7 +1269,7 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
 
         const c = f.getCodeBuilder();
 
-        const pTmp = module.alloc(n8*2);
+        const pTmp = module.alloc(n8 * 2);
         const tmpX = c.i32_const(pTmp);
         const tmpY = c.i32_const(pTmp + n8);
 
@@ -1298,8 +1299,8 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
             c.call(prefixField + "_toMontgomery", tmpX, c.getLocal("pOut")),
 
             c.call(prefixField + "_square", c.getLocal("pOut"), tmpY),
-            c.call(prefixField + "_mul", c.getLocal("pOut"), tmpY,  tmpY),
-            c.call(prefixField + "_add", tmpY, c.i32_const(pB),  tmpY),
+            c.call(prefixField + "_mul", c.getLocal("pOut"), tmpY, tmpY),
+            c.call(prefixField + "_add", tmpY, c.i32_const(pB), tmpY),
 
             c.call(prefixField + "_sqrt", tmpY, tmpY),
             c.call(prefixField + "_neg", tmpY, tmpX),
@@ -1356,7 +1357,7 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
 
         const c = f.getCodeBuilder();
 
-        const aux = c.i32_const(module.alloc(n8*2));
+        const aux = c.i32_const(module.alloc(n8 * 2));
 
         f.addCode(
             c.call(prefix + "_toAffine", c.getLocal("pIn"), aux),
@@ -1407,19 +1408,22 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
     buildUtoLEM();
     buildCtoLEM();
 
-    buildBatchConvertion(module, prefix + "_batchLEMtoU", prefix + "_LEMtoU", n8*2, n8*2);
-    buildBatchConvertion(module, prefix + "_batchLEMtoC", prefix + "_LEMtoC", n8*2, n8);
-    buildBatchConvertion(module, prefix + "_batchUtoLEM", prefix + "_UtoLEM", n8*2, n8*2);
-    buildBatchConvertion(module, prefix + "_batchCtoLEM", prefix + "_CtoLEM", n8, n8*2, true);
+    buildBatchConvertion(module, prefix + "_batchLEMtoU", prefix + "_LEMtoU", n8 * 2, n8 * 2);
+    buildBatchConvertion(module, prefix + "_batchLEMtoC", prefix + "_LEMtoC", n8 * 2, n8);
+    buildBatchConvertion(module, prefix + "_batchUtoLEM", prefix + "_UtoLEM", n8 * 2, n8 * 2);
+    buildBatchConvertion(module, prefix + "_batchCtoLEM", prefix + "_CtoLEM", n8, n8 * 2, true);
 
-    buildBatchConvertion(module, prefix + "_batchToJacobian", prefix + "_toJacobian", n8*2, n8*3, true);
+    buildBatchConvertion(module, prefix + "_batchToJacobian", prefix + "_toJacobian", n8 * 2, n8 * 3, true);
 
-    buildMultiexp(module, prefix, prefix + "_multiexp", prefix + "_add", n8*3);
-    buildMultiexp(module, prefix, prefix + "_multiexpAffine", prefix + "_addMixed", n8*2);
+    buildUtility(module, prefix + "_utility");
 
-    buildMultiexpWasmCurve(module, prefix, prefix + "_multiexp_wasmcurve", prefix + "_add", n8*3);
-    buildMultiexpWasmCurve(module, prefix, prefix + "_multiexpAffine_wasmcurve", prefix + "_addMixed", n8*2);
-    
+    // TODO: This part seems to be a mess.
+    buildMultiexp(module, prefix, prefix + "_multiexp", prefix + "_add", n8 * 3);
+    buildMultiexp(module, prefix, prefix + "_multiexpAffine", prefix + "_addMixed", n8 * 2);
+
+    buildMultiexpWasmCurve(module, prefix, prefix + "_multiexp_wasmcurve", prefix + "_add", n8 * 3);
+    buildMultiexpWasmCurve(module, prefix, prefix + "_multiexpAffine_wasmcurve", prefix + "_addMixed", n8 * 2);
+
     /*
     buildTimesScalar(
         module,
@@ -1434,7 +1438,7 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
     buildTimesScalarNAF(
         module,
         prefix + "_timesScalar",
-        n8*3,
+        n8 * 3,
         prefix + "_add",
         prefix + "_double",
         prefix + "_sub",
@@ -1445,7 +1449,7 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
     buildTimesScalarNAF(
         module,
         prefix + "_timesScalarAffine",
-        n8*2,
+        n8 * 2,
         prefix + "_addMixed",
         prefix + "_double",
         prefix + "_subMixed",
