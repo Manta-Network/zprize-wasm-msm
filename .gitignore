@@ -1,5 +1,4 @@
-Cargo.lock
 target
-www/node_modules
-www/package-lock.json
-wasmsnark-master/node_modules
+Cargo.lock
+.DS_Store
+src/.DS_Store

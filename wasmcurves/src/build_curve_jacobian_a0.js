@@ -20,7 +20,8 @@
 const buildTimesScalarNAF = require("./build_timesscalarnaf");
 //const buildTimesScalar = require("./build_timesscalar");
 const buildBatchConvertion = require("./build_batchconvertion");
-const buildMultiexp = require("./build_multiexp");
+const buildMultiexp = require("./build_multiexp_opt");
+const buildMultiexpWasmCurve = require("./build_multiexp");
 
 module.exports = function buildCurve(module, prefix, prefixField, pB) {
 
@@ -657,8 +658,8 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
     function buildAddMixed() {
 
         const f = module.addFunction(prefix + "_addMixed");
-        f.addParam("p1", "i32");
-        f.addParam("p2", "i32");
+        f.addParam("p1", "i32");// projective
+        f.addParam("p2", "i32");// affine
         f.addParam("pr", "i32");
         f.addLocal("z1", "i32");
 
@@ -1416,6 +1417,9 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
     buildMultiexp(module, prefix, prefix + "_multiexp", prefix + "_add", n8*3);
     buildMultiexp(module, prefix, prefix + "_multiexpAffine", prefix + "_addMixed", n8*2);
 
+    buildMultiexpWasmCurve(module, prefix, prefix + "_multiexp_wasmcurve", prefix + "_add", n8*3);
+    buildMultiexpWasmCurve(module, prefix, prefix + "_multiexpAffine_wasmcurve", prefix + "_addMixed", n8*2);
+    
     /*
     buildTimesScalar(
         module,

@@ -313,6 +313,7 @@ describe("Basic tests for g1 in bls12-381", function () {
         assert.equal(pb.g1m_isZero(p1), 1);
 
     });
+
     it("It should timesScalar G1", async () => {
 
         const s=10;
@@ -334,6 +335,7 @@ describe("Basic tests for g1 in bls12-381", function () {
 
         assert.equal(pb.g1m_eq(p1, p2), 1);
     });
+
     it("G1n == 0", async () => {
         const pG1 = pb.bls12381.pG1gen;
         const pr = pb.bls12381.pr;
