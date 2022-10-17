@@ -19,7 +19,7 @@ describe("Utility Tests", function () {
         for (let i = 0; i < length; i++) {
             pb.set(pArr + 4 * i, input[i], 4);
         }
-        pb.g1m_multiexp_testLoadStoreI32(pArr, length);
+        pb.g1m_utility_testLoadStoreI32(pArr, length);
         let output = pb.get(pArr, length, 4);
         for (let i = 0; i < length; i++) {
             assert.equal(output[i], expectedOutput[i]);
@@ -34,7 +34,7 @@ describe("Utility Tests", function () {
         for (let i = 0; i < length; i++) {
             pb.set(pArr + 8 * i, input[i], 8);
         }
-        pb.g1m_multiexp_testLoadStoreI64(pArr, length);
+        pb.g1m_utility_testLoadStoreI64(pArr, length);
         let output = pb.get(pArr, length, 8);
         for (let i = 0; i < length; i++) {
             assert.equal(output[i], expectedOutput[i]);
@@ -50,7 +50,7 @@ describe("Utility Tests", function () {
         for (let i = 0; i < length; i++) {
             pb.set(pArr + 4 * i, input[i], 4);
         }
-        pb.g1m_multiexp_testMaxArrayValue(pArr, length, max);
+        pb.g1m_utility_testMaxArrayValue(pArr, length, max);
         let output = pb.get(max, 1, 4);
         assert.equal(output, expectedOutput);
     });
@@ -69,7 +69,7 @@ describe("Utility Tests", function () {
         for (let i = 0; i < numRow * numCol; i++) {
             pb.set(pArr + 4 * i, input[i], 4);
         }
-        pb.g1m_multiexp_countNonZero(pArr, numRow, numCol, pCounts);
+        pb.g1m_utility_countNonZero(pArr, numRow, numCol, pCounts);
         let output = pb.get(pCounts, numRow, 4);
         for (let i = 0; i < numRow; i++) {
             assert.equal(output[i], expectedOutput[i]);
@@ -85,7 +85,7 @@ describe("Utility Tests", function () {
         for (let i = 0; i < length; i++) {
             pb.set(pArr + 4 * i, input[i], 4);
         }
-        pb.g1m_multiexp_testGetMsb(pArr, length, pMsb);
+        pb.g1m_utility_testGetMsb(pArr, length, pMsb);
         let output = pb.get(pMsb, length, 4);
         for (let i = 0; i < length; i++) {
             assert.equal(output[i], expectedOutput[i]);
