@@ -1,115 +1,84 @@
-// Init
-
-// Function1
-// DecomposeScalar
-// k -> k1, k2
-
-// Function2
-// Endomorphism
-// (x,y) -> (beta*x, y)
-
-// Function3
-// Test on single scalar multiplication
 const utils = require("./utils.js");
 
+// Supports only BLS12-381.
 module.exports = function buildGLV(module, prefix, fnName) {
-
     const n8r = 32;
     const n8q = 48;
-    const intField = "int";
     const f1mField = "f1m";
     const g1mField = "g1m";
 
-    const u = 100000; 
-    const pu = module.alloc(n8r, utils.bigInt2BytesLE(u, n8r * 2));
+    const u0 = 1;
+    const u1 = -228988810152649578064853576960394133503n;
+    const v0 = 228988810152649578064853576960394133504n;
+    const v1 = 1;
+    const negV1 = -1;
+    const negOne = -1;
+    const zero = 0;
+    const beta = 793479390729215512621379701633421447060886740281060493010456487427281649075476305620758731620350n;
+    const divisor = -52435875175126190479447740508185965837690552500527637822603658699938581184513n; // v0*u1 - v1*u0
+    const pU0 = c.i32_const(module.alloc(64, utils.bigInt2BytesLE(u0, 64)));
+    const pU1 = c.i32_const(module.alloc(64, utils.bigInt2BytesLE(u1, 64)));
+    const pV0 = c.i32_const(module.alloc(64, utils.bigInt2BytesLE(v0, 64)));
+    const pV1 = c.i32_const(module.alloc(64, utils.bigInt2BytesLE(v1, 64)));
+    const pNegV1 = c.i32_const(module.alloc(64, utils.bigInt2BytesLE(negV1, 64)));
+    const pNegOne = c.i32_const(module.alloc(64, utils.bigInt2BytesLE(negOne, 64)));
+    const pZero = c.i32_const(module.alloc(64, utils.bigInt2BytesLE(zero, 64)));
+    const pBeta = c.i32_const(module.alloc(64, utils.bigInt2BytesLE(beta, 64)));
+    const pDivisor = c.i32_const(module.alloc(64, utils.bigInt2BytesLE(divisor, 64)));
+    const pScratchSpace = c.i32_const(module.alloc(64));
+    const pScratchSpace1 = c.i32_const(module.alloc(64));
+    const pQ1 = c.i32_const(module.alloc(64));
+    const pQ2 = c.i32_const(module.alloc(64));
+    const pK1 = c.i32_const(module.alloc(64));
+    const pK2 = c.i32_const(module.alloc(64));
 
-    const v = 1; 
-    const pv = module.alloc(n8r, utils.bigInt2BytesLE(v, n8r * 2));
-
-    
-
-    const beta = 1; 
-    const pbeta = module.alloc(n8q, utils.bigInt2BytesLE(beta, n8q));
-
-    const k1 = c.i32_const(module.alloc(n8r * 2));
-    const k2 = c.i32_const(module.alloc(n8r * 2));
-
-    function buildDecomposeScalar(){
+    // Given a pointer `pScalar` to a 256-bit scalar stored in 512-bit, decomposes into two 128-bit scalars pointed by `pScalarRes`.
+    function buildDecomposeScalar() {
         const f = module.addFunction(fnName + "_decomposeScalar");
         const c = f.getCodeBuilder();
+        // Pointer to a 256-bit scalar stored in 512-bit memory
         f.addParam("pScalar", "i32");
-        f.addParam("numScalars", "i32");
+        // Pointer to two 128-bit scalars
         f.addParam("pScalarRes", "i32");
-
-        f.addLocal("i", "i32");
-        f.addLocal("itScalar", "i32");
-        f.addLocal("itScalarRes", "i32");
-
-        const pq1 = c.i32_const(module.alloc(n8r * 2));
-        const pq2 = c.i32_const(module.alloc(n8r * 2));
-        const q1_mul_v0 = c.i32_const(module.alloc(n8r * 2));
-        const q2_mul_u0 = c.i32_const(module.alloc(n8r * 2));
-        const q1_mul_v1 = c.i32_const(module.alloc(n8r * 2));
-        const q2_mul_u1 = c.i32_const(module.alloc(n8r * 2));
-
-        const x2 = c.i32_const(module.alloc(n8r * 2)); 
-
         f.addcode(
-            c.setLocal("itScalar", c.getLocal("pScalar")),
-            c.setLocal("itScalarRes", c.getLocal("pScalarRes")),
-            c.block(c.loop(
-                c.br_if(1, c.i32_eq(c.getLocal("i"), c.getLocal("numScalars"))),
-                
-                //  
-                c.call(intField + "_mul", c.getLocal("itScalar"),  c.getLocal("placehoder1"), pq2), 
-                c.call(intField + "_mul", c.getLocal("itScalar"),  c.getLocal("placehoder2"), pq2), 
-                
-                c.call(intField + "_mul", pq1, c.i32_const(v0), q1_mul_v0),
-                c.call(intField + "_mul", pq2, c.i32_const(u0), q2_mul_u0),
-                c.call(intField + "_mul", pq1, c.i32_const(v1), q1_mul_v1),
-                c.call(intField + "_mul", pq2, c.i32_const(u1), q2_mul_u1),
-
-                c.call(intField + ""),
-
-
-
-                c.setLocal("itScalar", c.i32_add(c.getLocal("itScalar"), c.i32_const(n8r))),
-                c.setLocal("itScalarRes", c.i32_add(c.getLocal("itScalarRes"), c.i32_const(n8r * 2))),
-                c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
-                c.br(0)
-            )),
+            // let q1 = (u1 * pScalar) / ((v0 * u1) - (v1 * u0));
+            c.call(prefix + "_int512_mul", c.getLocal("pScalar"), pU1, pScratchSpace),
+            c.call(prefix + "_int512_div", pScratchSpace, pDivisor, pQ1),
+            // let q2 = (-v1 * pScalar) / ((v0 * u1) - (v1 * u0));
+            c.call(prefix + "_int512_mul", c.getLocal("pScalar"), pNegV1, pScratchSpace),
+            c.call(prefix + "_int512_div", pScratchSpace, pDivisor, pQ2),
+            // let pK1 = pScalar - &q1 * v0 - &q2 * u0;
+            c.call(prefix + "_int512_mul", pQ1, pV0, pScratchSpace),
+            c.call(prefix + "_int512_sub", c.getLocal("pScalar"), pScratchSpace, pK1),
+            c.call(prefix + "_int512_mul", pQ2, pU0, pScratchSpace),
+            c.call(prefix + "_int512_sub", pK1, pScratchSpace, pK1),
+            // let pK2 = - (q1 * v.1 + q2 * u.1);
+            c.call(intField + "_mul", pQ1, pV1, pScratchSpace),
+            c.call(intField + "_mul", pQ2, pU1, pScratchSpace1),
+            c.call(intField + "_add", pScratchSpace, pScratchSpace1, pK2),
+            c.call(intField + "_sub", pZero, pK2, pK2),
+            // pScalarRes = [pK1[0], pK1[1], pK2[0], pK2[1]]
+            c.call(prefix + "_utility_storeI64", c.getLocal("pScalarRes"), c.i32_const(0), c.call(prefix + "_utility_loadI64", pK1, c.i32_const(0))),
+            c.call(prefix + "_utility_storeI64", c.getLocal("pScalarRes"), c.i32_const(1), c.call(prefix + "_utility_loadI64", pK1, c.i32_const(1))),
+            c.call(prefix + "_utility_storeI64", c.getLocal("pScalarRes"), c.i32_const(2), c.call(prefix + "_utility_loadI64", pK2, c.i32_const(0))),
+            c.call(prefix + "_utility_storeI64", c.getLocal("pScalarRes"), c.i32_const(3), c.call(prefix + "_utility_loadI64", pK2, c.i32_const(1))),
         );
-
     }
 
-
-    function buildEndomorphism(){
+    // Given a point P = (x, y) at `pPoint`, computes a new point Q = (beta*x, y) and stores at `pPointRes`.
+    function buildEndomorphism() {
         const f = module.addFunction(fnName + "_endomorphism");
         const c = f.getCodeBuilder();
         f.addParam("pPoint", "i32");
-        f.addParam("numPoints", "i32");
         f.addParam("pPointRes", "i32");
-
-        f.addLocal("i", "i32");
-        f.addLocal("itPoint", "i32");
-        f.addLocal("itPointRes", "i32");
-
         f.addcode(
-            c.setLocal("itPoint", c.getLocal("pScalar")),
-            c.setLocal("itPointRes", c.getLocal("pPointRes")),
-            c.block(c.loop(
-                c.br_if(1, c.i32_eq(c.getLocal("i"), c.getLocal("numPoints"))),
-
-                c.call(g1mField + "_copyAffine", c.getLocal("itPoint"), c.getLocal("itPointRes")),
-                c.call(f1mField + "_mul", c.i32_add(c.getLocal("itPoint"), c.i32_const(n8q * 2)), c.i32_const(pbeta), c.i32_add(c.getLocal("itPointRes"), c.i32_const(n8q * 2))),
-                c.call(f1mField + "_copy", c.i32_add(c.getLocal("itPoint"), c.i32_const(n8q * 3)), c.i32_add(c.getLocal("itPointRes"), c.i32_const(n8q * 3))),
-                
-                c.setLocal("itPoint", c.i32_add(c.getLocal("itPoint"), c.i32_const(n8q * 4))),
-                c.setLocal("itPointRes", c.i32_add(c.getLocal("itPointRes"), c.i32_const(n8q * 4))),
-                c.setLocal("i", c.i32_add(c.getLocal("i"), c.i32_const(1))),
-                c.br(0)
-            )),
+            c.call(f1mField + "_mul", c.getLocal("pPoint"), pBeta, c.getLocal("pPointRes")),
+            c.call(f1mField + "_copy", c.i32_add(c.getLocal("pPoint"), c.i32_const(n8q)), c.i32_add(c.getLocal("pPointRes"), c.i32_const(n8q))),
         );
-
     }
+
+    buildDecomposeScalar();
+    buildEndomorphism();
+    module.exportFunction(fnName + "_decomposeScalar");
+    module.exportFunction(fnName + "_endomorphism");
 };

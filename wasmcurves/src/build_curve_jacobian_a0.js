@@ -23,6 +23,7 @@ const buildBatchConvertion = require("./build_batchconvertion");
 const buildMultiexp = require("./build_multiexp_opt");
 const buildMultiexpWasmCurve = require("./build_multiexp");
 const buildUtility = require("./build_utility");
+const buildInt = require("./build_int");
 
 module.exports = function buildCurve(module, prefix, prefixField, pB) {
 
@@ -1416,6 +1417,9 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
     buildBatchConvertion(module, prefix + "_batchToJacobian", prefix + "_toJacobian", n8 * 2, n8 * 3, true);
 
     buildUtility(module, prefix + "_utility");
+
+    buildInt(module, 8, prefix + "_int512");
+    buildGLV(module, prefix, prefix + "_glv");
 
     // TODO: This part seems to be a mess.
     buildMultiexp(module, prefix, prefix + "_multiexp", prefix + "_add", n8 * 3);
