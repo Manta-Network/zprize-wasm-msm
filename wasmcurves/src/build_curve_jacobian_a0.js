@@ -24,6 +24,7 @@ const buildMultiexp = require("./build_multiexp_opt");
 const buildMultiexpWasmCurve = require("./build_multiexp");
 const buildUtility = require("./build_utility");
 const buildInt = require("./build_int");
+const buildGLV = require("./build_glv");
 
 module.exports = function buildCurve(module, prefix, prefixField, pB) {
 
