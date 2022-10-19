@@ -17,40 +17,40 @@ describe("GLV Tests", function () {
         }, 1);
     });
 
-    // Note: wasmcurve cannot set negative numbers over 32, we use a workaround method to generate negtives
     it("isPositive is correct.", async () => {
-        const oneHandred = 100; 
-        const pOneHandred = pb.alloc(64);
-        pb.set(pOneHandred, oneHandred, 64);
-        const inputs = [0, 1, 100, 500, 9003405095674209932115908784230457051068760537362306482987933690960811974463n];        
+        const oneHandred = 100;
+        const pOneHundred = pb.alloc(64);
+        pb.set(pOneHundred, oneHandred, 64);
+        // Note: wasmcurve cannot set negative numbers over 32, we use a workaround method to generate negtives.
+        // The actual i^th inputs should be 100-inputs[i].
+        const inputs = [0, 1, 100, 500, 9003405095674209932115908784230457051068760537362306482987933690960811974463n];
         const expectedOutput = [1, 1, 1, 0, 0];
         const pScalar = pb.alloc(64);
         const subtractor = pb.alloc(64);
         for (let i = 0; i < inputs.length; i++) {
             pb.set(subtractor, inputs[i], 64);
-            pb.g1m_int512_sub(pOneHandred, subtractor, pScalar);
+            pb.g1m_int512_sub(pOneHundred, subtractor, pScalar);
             let output = pb.g1m_glv_isPositive(pScalar);
-            //console.log("i: ", i, ", pScalar: ", pb.get(pScalar, 1, 64), ", is_positive: ", output, ", expected_output: ", expectedOutput[i]);
             assert.equal(expectedOutput[i], output);
         }
     });
 
-    // it("decomposeScalar is correct.", async () => {
-    //     const scalar = 9003405095674209932115908784230457051068760537362306482987933690960811974463n;
-    //     const pScalar = pb.alloc(64);
-    //     pb.set(pScalar, scalar, 64);
-    //     console.log("pScalar: ", pb.get(pScalar, 1, 64));
-
-    //     const pScalarRes = pb.alloc(64);
-    //     pb.g1m_glv_decomposeScalar(pScalar, pScalarRes);
-    //     console.log("pScalarRes: ", pb.get(pScalarRes, 1, 64));
-
-    //     // let output = pb.get(pScalarRes, 2, n8r / 2);
-    //     // for (let i = 0; i < 2; i++) {
-    //     //     console.log("i: ", output[i]);
-    //     //     // assert.equal(output[i], expectedOutput[i]);
-    //     // }
-    // });
+    it("decomposeScalar is correct.", async () => {
+        const scalar = 9003405095674209932115908784230457051068760537362306482987933690960811974463n;
+        const expectedOutput = [
+            86900781371527243792514624323931922239n,
+            39318100695279906693562908013718409681n,
+        ];
+        const pScalar = pb.alloc(64);
+        pb.set(pScalar, scalar, 64);
+        const pScalarRes = pb.alloc(64);
+        let sign = pb.g1m_glv_decomposeScalar(pScalar, pScalarRes);
+        let output = pb.get(pScalarRes, 2, 16);
+        for (let i = 0; i < 2; i++) {
+            assert.equal(output[i], expectedOutput[i]);
+        }
+        assert.equal(sign, 1);
+    });
 
     it("endomorphism is correct.", async () => {
 
@@ -63,25 +63,3 @@ describe("GLV Tests", function () {
         // k*P = k1*P + k2*Q
     });
 });
-
-//  k: 9003405095674209932115908784230457051068760537362306482987933690960811974463, 
-//  divisor: 52435875175126190479447740508185965837690552500527637822603658699938581184513, 
-//  u1_k: 9003405095674209932115908784230457051068760537362306482987933690960811974463, 
-//  q1: 0, 
-//  minus_v1_k: 2061679020180739469047023531468293329388578619704058061474721230945262427065206778081527246556275829431699448733889, 
-//  q2: 39318100695279906693562908013718409681, 
-//  q1_v0: 0, 
-//  q2_u0: 9003405095674209932115908784230457050981859755990779239195419066636880052224, 
-//  q1_v1: 0, 
-//  q2_u1: 39318100695279906693562908013718409681, 
-//  k1_minus_q1_v0: 9003405095674209932115908784230457051068760537362306482987933690960811974463, 
-//  k1: 86900781371527243792514624323931922239, 
-//  k2: -39318100695279906693562908013718409681
-
-
-// -39318100695279906693562908013718409681
-//
-
-
-
-// 13407807929942597099574024998205846127479365820592393377722594172552127497222326270094883060734540096997396000528874603279033680036565765127819995331063257n

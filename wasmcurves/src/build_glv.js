@@ -87,19 +87,14 @@ module.exports = function buildGLV(module, prefix, fnName) {
             c.call(prefix + "_int512_div", c.getLocal("pScratchSpace"), c.i32_const(pDivisor), c.getLocal("pQ2"), c.getLocal("pQr")),
             // pK1 = pScalar - &q1 * v0 - &q2 * u0;
             c.call(prefix + "_int512_mul", c.getLocal("pQ1"), c.i32_const(pV0), c.getLocal("pScratchSpace")),
-            c.setLocal("remainder", c.call(prefix + "_int512_sub", c.getLocal("pScalar"), c.getLocal("pScratchSpace"), c.getLocal("pK1"))),
+            c.drop(c.call(prefix + "_int512_sub", c.getLocal("pScalar"), c.getLocal("pScratchSpace"), c.getLocal("pK1"))),
             c.call(prefix + "_int512_mul", c.getLocal("pQ2"), c.i32_const(pU0), c.getLocal("pScratchSpace")),
-            c.setLocal("remainder", c.call(prefix + "_int512_sub", c.getLocal("pK1"), c.getLocal("pScratchSpace"), c.getLocal("pK1"))),
-            // pK2 = - (q1 * v.1 + q2 * u.1);
+            c.drop(c.call(prefix + "_int512_sub", c.getLocal("pK1"), c.getLocal("pScratchSpace"), c.getLocal("pK1"))),
+            // pK2 = 0 - q1 * v.1 - q2 * u.1;
             c.call(prefix + "_int512_mul", c.getLocal("pQ1"), c.i32_const(pV1), c.getLocal("pScratchSpace")),
             c.call(prefix + "_int512_mul", c.getLocal("pQ2"), c.i32_const(pU1), c.getLocal("pScratchSpace1")),
-            c.setLocal("remainder",
-                c.call(prefix + "_int512_sub",
-                    c.i32_const(pZero),
-                    c.call(prefix + "_int512_add", c.getLocal("pScratchSpace"), c.getLocal("pScratchSpace1"), c.i32_const(pZero)),
-                    c.getLocal("pK2"),
-                ),
-            ),
+            c.drop(c.call(prefix + "_int512_sub", c.i32_const(pZero), c.getLocal("pScratchSpace"), c.getLocal("pK2"))),
+            c.drop(c.call(prefix + "_int512_sub", c.getLocal("pK2"), c.getLocal("pScratchSpace1"), c.getLocal("pK2"))),
             // if pK1 > 0:
             //    sign = sign || 1
             // else:
@@ -108,30 +103,22 @@ module.exports = function buildGLV(module, prefix, fnName) {
             //    sign = sign || 2
             // else:
             //    pK2 = 0 - pK2
-
-
-            // c.if(
-            //     c.call(prefix + "_int512_gte", c.getLocal("")),
-
-            // ),
-
-
-            // c.call(prefix + "_utility_storeI64", c.getLocal("pScalarRes"), c.i32_const(0), c.call(prefix + "_utility_loadI64", c.getLocal("pK1"), c.i32_const(0))),
-            // c.call(prefix + "_utility_storeI64", c.getLocal("pScalarRes"), c.i32_const(1), c.call(prefix + "_utility_loadI64", c.getLocal("pK1"), c.i32_const(1))),
-            // c.call(prefix + "_utility_storeI64", c.getLocal("pScalarRes"), c.i32_const(2), c.call(prefix + "_utility_loadI64", c.getLocal("pK1"), c.i32_const(2))),
-            // c.call(prefix + "_utility_storeI64", c.getLocal("pScalarRes"), c.i32_const(3), c.call(prefix + "_utility_loadI64", c.getLocal("pK1"), c.i32_const(3))),
-            // c.call(prefix + "_utility_storeI64", c.getLocal("pScalarRes"), c.i32_const(4), c.call(prefix + "_utility_loadI64", c.getLocal("pK1"), c.i32_const(4))),
-            // c.call(prefix + "_utility_storeI64", c.getLocal("pScalarRes"), c.i32_const(5), c.call(prefix + "_utility_loadI64", c.getLocal("pK1"), c.i32_const(5))),
-            // c.call(prefix + "_utility_storeI64", c.getLocal("pScalarRes"), c.i32_const(6), c.call(prefix + "_utility_loadI64", c.getLocal("pK1"), c.i32_const(6))),
-            // c.call(prefix + "_utility_storeI64", c.getLocal("pScalarRes"), c.i32_const(7), c.call(prefix + "_utility_loadI64", c.getLocal("pK1"), c.i32_const(7))),
-
-
+            c.setLocal("sign", c.i32_const(0)),
+            c.if(c.call(fnName + "_isPositive", c.getLocal("pK1")),
+                c.setLocal("sign", c.i32_or(c.getLocal("sign"), c.i32_const(1))),
+                c.drop(c.call(prefix + "_int512_sub", c.i32_const(pZero), c.getLocal("pK1"), c.getLocal("pK1"))),
+            ),
+            c.if(c.call(fnName + "_isPositive", c.getLocal("pK2")),
+                c.setLocal("sign", c.i32_or(c.getLocal("sign"), c.i32_const(2))),
+                c.drop(c.call(prefix + "_int512_sub", c.i32_const(pZero), c.getLocal("pK2"), c.getLocal("pK2"))),
+            ),
             // pScalarRes = [pK1[0], pK1[1], pK2[0], pK2[1]]
-            // c.call(prefix + "_utility_storeI64", c.getLocal("pScalarRes"), c.i32_const(0), c.call(prefix + "_utility_loadI64", c.getLocal("pK1"), c.i32_const(0))),
-            // c.call(prefix + "_utility_storeI64", c.getLocal("pScalarRes"), c.i32_const(1), c.call(prefix + "_utility_loadI64", c.getLocal("pK1"), c.i32_const(1))),
-            // c.call(prefix + "_utility_storeI64", c.getLocal("pScalarRes"), c.i32_const(2), c.call(prefix + "_utility_loadI64", c.getLocal("pK2"), c.i32_const(0))),
-            // c.call(prefix + "_utility_storeI64", c.getLocal("pScalarRes"), c.i32_const(3), c.call(prefix + "_utility_loadI64", c.getLocal("pK2"), c.i32_const(1))),
+            c.call(prefix + "_utility_storeI64", c.getLocal("pScalarRes"), c.i32_const(0), c.call(prefix + "_utility_loadI64", c.getLocal("pK1"), c.i32_const(0))),
+            c.call(prefix + "_utility_storeI64", c.getLocal("pScalarRes"), c.i32_const(1), c.call(prefix + "_utility_loadI64", c.getLocal("pK1"), c.i32_const(1))),
+            c.call(prefix + "_utility_storeI64", c.getLocal("pScalarRes"), c.i32_const(2), c.call(prefix + "_utility_loadI64", c.getLocal("pK2"), c.i32_const(0))),
+            c.call(prefix + "_utility_storeI64", c.getLocal("pScalarRes"), c.i32_const(3), c.call(prefix + "_utility_loadI64", c.getLocal("pK2"), c.i32_const(1))),
             c.i32_store(c.i32_const(0), c.getLocal("pScratchSpace")),
+            c.getLocal("sign"),
         );
     }
 
@@ -148,9 +135,9 @@ module.exports = function buildGLV(module, prefix, fnName) {
     // }
 
     buildIsPositive();
-    // buildDecomposeScalar();
+    buildDecomposeScalar();
     // buildEndomorphism();
     module.exportFunction(fnName + "_isPositive");
-    // module.exportFunction(fnName + "_decomposeScalar");
+    module.exportFunction(fnName + "_decomposeScalar");
     // module.exportFunction(fnName + "_endomorphism");
 };
