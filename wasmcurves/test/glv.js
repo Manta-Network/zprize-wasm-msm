@@ -17,29 +17,43 @@ describe("GLV Tests", function () {
         }, 1);
     });
 
-    it("decomposeScalar is correct.", async () => {
-        const scalar = 9003405095674209932115908784230457051068760537362306482987933690960811974463n;
-        const pScalar = pb.alloc(64);
-        pb.set(pScalar, scalar, 64);
-        console.log("pScalar: ", pb.get(pScalar, 1, 64));
+    // it("isPositive is correct.", async () => {
+    //     const inputs = [0, 1, -1, 500, -9003405095674209932115908784230457051068760537362306482987933690960811974463n];        
+    //     const expectedOutput = [1, 1, 0, 1, 0];
+    //     const pScalar = pb.alloc(64);
+    //     for (let i = 0; i < inputs.length; i++) {
+    //         pb.set(pScalar, inputs[i], 64);
+    //         let output = pb.g1m_glv_isPositive(pScalar);
+    //         console.log("i: ", i, ", pScalar: ", pb.get(pScalar, 1, 64), ", is_positive: ", output, ", expected_output: ", expectedOutput[i]);
+    //     }
+    // });
 
-        const pScalarRes = pb.alloc(64);
-        pb.g1m_glv_decomposeScalar(pScalar, pScalarRes);
-        console.log("pScalarRes: ", pb.get(pScalarRes, 1, 64));
+    // it("decomposeScalar is correct.", async () => {
+    //     const scalar = 9003405095674209932115908784230457051068760537362306482987933690960811974463n;
+    //     const pScalar = pb.alloc(64);
+    //     pb.set(pScalar, scalar, 64);
+    //     console.log("pScalar: ", pb.get(pScalar, 1, 64));
 
-        // let output = pb.get(pScalarRes, 2, n8r / 2);
-        // for (let i = 0; i < 2; i++) {
-        //     console.log("i: ", output[i]);
-        //     // assert.equal(output[i], expectedOutput[i]);
-        // }
-    });
+    //     const pScalarRes = pb.alloc(64);
+    //     pb.g1m_glv_decomposeScalar(pScalar, pScalarRes);
+    //     console.log("pScalarRes: ", pb.get(pScalarRes, 1, 64));
+
+    //     // let output = pb.get(pScalarRes, 2, n8r / 2);
+    //     // for (let i = 0; i < 2; i++) {
+    //     //     console.log("i: ", output[i]);
+    //     //     // assert.equal(output[i], expectedOutput[i]);
+    //     // }
+    // });
 
     it("endomorphism is correct.", async () => {
 
     });
 
     it("scalarMul is correct.", async () => {
-
+        // k, P
+        // k -> k1, k2
+        // P -> P, Q
+        // k*P = k1*P + k2*Q
     });
 });
 

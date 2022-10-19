@@ -24,6 +24,24 @@ module.exports = function buildGLV(module, prefix, fnName) {
     const pBeta = module.alloc(64, utils.bigInt2BytesLE(beta, 64));
     const pDivisor = module.alloc(64, utils.bigInt2BytesLE(divisor, 64));
 
+    // // Checks if a 512-bit scalar is positive or not.
+    // // Assuming little endian.
+    // function buildIsPositive() {
+    //     const f = module.addFunction(fnName + "_isPositive");
+    //     // Pointer to a 512-bit scalar
+    //     f.addParam("pScalar", "i32");
+    //     // Returns 1 for positive and 0 for negative.
+    //     f.setReturnType("i32");
+    //     // Value at the highest int32 memory of pScalar
+    //     f.addLocal("highestInt32", "i32");
+    //     const c = f.getCodeBuilder();
+    //     f.addCode(
+    //         c.call(prefix + "_utility_loadI32", c.getLocal("pScalar"), c.i32_const(15))
+    //         // c.setLocal("highestInt32", c.call(prefix + "_utility_loadI32", c.getLocal("pScalar"), c.i32_const(15))),
+    //         // c.i32_shr_u(c.i32_and(c.getLocal("highestInt32"), c.i32_const(0x10000000)), c.i32_const(7)),
+    //     );
+    // }
+
     // Given a pointer `pScalar` to a 256-bit scalar stored in 512-bit, decomposes into two 128-bit scalars pointed by `pScalarRes`.
     function buildDecomposeScalar() {
         const f = module.addFunction(fnName + "_decomposeScalar");
@@ -49,6 +67,8 @@ module.exports = function buildGLV(module, prefix, fnName) {
         f.addLocal("pQr", "i32");
         // Remainder
         f.addLocal("remainder", "i32");
+        // Sign
+        f.addLocal("sign", "i32");
         const c = f.getCodeBuilder();
         f.addCode(
             c.setLocal("pScratchSpace", c.call(prefix + "_utility_allocateMemory", c.i32_const(64))),
@@ -78,10 +98,20 @@ module.exports = function buildGLV(module, prefix, fnName) {
                     c.getLocal("pK2"),
                 ),
             ),
-            c.if(
-                c.call(prefix + "_int512_gte", c.getLocal("pK1")),
+            // if pK1 > 0:
+            //    sign = sign || 1
+            // else:
+            //    pK1 = 0 - pK1
+            // if pK2 > 0:
+            //    sign = sign || 2
+            // else:
+            //    pK2 = 0 - pK2
 
-            ),
+
+            // c.if(
+            //     c.call(prefix + "_int512_gte", c.getLocal("")),
+
+            // ),
 
 
             // c.call(prefix + "_utility_storeI64", c.getLocal("pScalarRes"), c.i32_const(0), c.call(prefix + "_utility_loadI64", c.getLocal("pK1"), c.i32_const(0))),
