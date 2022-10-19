@@ -80,21 +80,21 @@ module.exports = function buildGLV(module, prefix, fnName) {
             c.setLocal("pK1", c.call(prefix + "_utility_allocateMemory", c.i32_const(64))),
             c.setLocal("pK2", c.call(prefix + "_utility_allocateMemory", c.i32_const(64))),
             // q1 = (u1 * pScalar) / ((v0 * u1) - (v1 * u0));
-            c.call(prefix + "_int512_mul", c.getLocal("pScalar"), c.i32_const(pU1), c.getLocal("pScratchSpace")),
-            c.call(prefix + "_int512_div", c.getLocal("pScratchSpace"), c.i32_const(pDivisor), c.getLocal("pQ1"), c.getLocal("pQr")),
+            // Since u1 = 1, we have q1 = pScalar / ((v0 * u1) - (v1 * u0));
+            c.call(prefix + "_int512_div", c.getLocal("pScalar"), c.i32_const(pDivisor), c.getLocal("pQ1"), c.getLocal("pQr")),
             // q2 = (-v1 * pScalar) / ((v0 * u1) - (v1 * u0));
             c.call(prefix + "_int512_mul", c.getLocal("pScalar"), c.i32_const(pNegV1), c.getLocal("pScratchSpace")),
             c.call(prefix + "_int512_div", c.getLocal("pScratchSpace"), c.i32_const(pDivisor), c.getLocal("pQ2"), c.getLocal("pQr")),
             // pK1 = pScalar - &q1 * v0 - &q2 * u0;
-            c.call(prefix + "_int512_mul", c.getLocal("pQ1"), c.i32_const(pV0), c.getLocal("pScratchSpace")),
-            c.drop(c.call(prefix + "_int512_sub", c.getLocal("pScalar"), c.getLocal("pScratchSpace"), c.getLocal("pK1"))),
+            // Since v0 is 1, we have pK1 = pScalar - &q1 - &q2 * u0;
+            c.drop(c.call(prefix + "_int512_sub", c.getLocal("pScalar"), c.getLocal("pQ1"), c.getLocal("pK1"))),
             c.call(prefix + "_int512_mul", c.getLocal("pQ2"), c.i32_const(pU0), c.getLocal("pScratchSpace")),
             c.drop(c.call(prefix + "_int512_sub", c.getLocal("pK1"), c.getLocal("pScratchSpace"), c.getLocal("pK1"))),
             // pK2 = 0 - q1 * v.1 - q2 * u.1;
+            // since u.1 = 1, we have pK2 = 0 - q1 * v.1 - q2;
             c.call(prefix + "_int512_mul", c.getLocal("pQ1"), c.i32_const(pV1), c.getLocal("pScratchSpace")),
-            c.call(prefix + "_int512_mul", c.getLocal("pQ2"), c.i32_const(pU1), c.getLocal("pScratchSpace1")),
             c.drop(c.call(prefix + "_int512_sub", c.i32_const(pZero), c.getLocal("pScratchSpace"), c.getLocal("pK2"))),
-            c.drop(c.call(prefix + "_int512_sub", c.getLocal("pK2"), c.getLocal("pScratchSpace1"), c.getLocal("pK2"))),
+            c.drop(c.call(prefix + "_int512_sub", c.getLocal("pK2"), c.getLocal("pQ2"), c.getLocal("pK2"))),
             // if pK1 > 0:
             //    sign = sign || 1
             // else:
@@ -122,22 +122,27 @@ module.exports = function buildGLV(module, prefix, fnName) {
         );
     }
 
-    // // Given a point P = (x, y) at `pPoint`, computes a new point Q = (beta*x, y) and stores at `pPointRes`.
-    // function buildEndomorphism() {
-    //     const f = module.addFunction(fnName + "_endomorphism");
-    //     f.addParam("pPoint", "i32");
-    //     f.addParam("pPointRes", "i32");
-    //     const c = f.getCodeBuilder();
-    //     f.addCode(
-    //         c.call(f1mField + "_mul", c.getLocal("pPoint"), c.i32_const(pBeta), c.getLocal("pPointRes")),
-    //         c.call(f1mField + "_copy", c.i32_add(c.getLocal("pPoint"), c.i32_const(n8q)), c.i32_add(c.getLocal("pPointRes"), c.i32_const(n8q))),
-    //     );
-    // }
+    // Given a point P = (x, y) at `pPoint` and a 1-bit `isPositive`, computes a new point Q = (beta*x, y) and further converts to (beta*x, -y) if isPositive is 0.
+    // The resulting point is stored at `pPointRes`.
+    function buildEndomorphism() {
+        const f = module.addFunction(fnName + "_endomorphism");
+        f.addParam("pPoint", "i32");
+        f.addParam("sign", "i32");
+        f.addParam("pPointRes", "i32");
+        const c = f.getCodeBuilder();
+        f.addCode(
+            c.call(f1mField + "_mul", c.getLocal("pPoint"), c.i32_const(pBeta), c.getLocal("pPointRes")),
+            c.if(c.getLocal("sign"),
+                c.call(f1mField + "_copy", c.i32_add(c.getLocal("pPoint"), c.i32_const(n8q)), c.i32_add(c.getLocal("pPointRes"), c.i32_const(n8q))),
+                c.call(f1mField + "_neg", c.i32_add(c.getLocal("pPoint"), c.i32_const(n8q)), c.i32_add(c.getLocal("pPointRes"), c.i32_const(n8q))),
+            ),
+        );
+    }
 
     buildIsPositive();
     buildDecomposeScalar();
-    // buildEndomorphism();
+    buildEndomorphism();
     module.exportFunction(fnName + "_isPositive");
     module.exportFunction(fnName + "_decomposeScalar");
-    // module.exportFunction(fnName + "_endomorphism");
+    module.exportFunction(fnName + "_endomorphism");
 };
