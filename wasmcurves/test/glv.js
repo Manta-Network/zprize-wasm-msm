@@ -17,16 +17,23 @@ describe("GLV Tests", function () {
         }, 1);
     });
 
-    // it("isPositive is correct.", async () => {
-    //     const inputs = [0, 1, -1, 500, -9003405095674209932115908784230457051068760537362306482987933690960811974463n];        
-    //     const expectedOutput = [1, 1, 0, 1, 0];
-    //     const pScalar = pb.alloc(64);
-    //     for (let i = 0; i < inputs.length; i++) {
-    //         pb.set(pScalar, inputs[i], 64);
-    //         let output = pb.g1m_glv_isPositive(pScalar);
-    //         console.log("i: ", i, ", pScalar: ", pb.get(pScalar, 1, 64), ", is_positive: ", output, ", expected_output: ", expectedOutput[i]);
-    //     }
-    // });
+    // Note: wasmcurve cannot set negative numbers over 32, we use a workaround method to generate negtives
+    it("isPositive is correct.", async () => {
+        const oneHandred = 100; 
+        const pOneHandred = pb.alloc(64);
+        pb.set(pOneHandred, oneHandred, 64);
+        const inputs = [0, 1, 100, 500, 9003405095674209932115908784230457051068760537362306482987933690960811974463n];        
+        const expectedOutput = [1, 1, 1, 0, 0];
+        const pScalar = pb.alloc(64);
+        const subtractor = pb.alloc(64);
+        for (let i = 0; i < inputs.length; i++) {
+            pb.set(subtractor, inputs[i], 64);
+            pb.g1m_int512_sub(pOneHandred, subtractor, pScalar);
+            let output = pb.g1m_glv_isPositive(pScalar);
+            //console.log("i: ", i, ", pScalar: ", pb.get(pScalar, 1, 64), ", is_positive: ", output, ", expected_output: ", expectedOutput[i]);
+            assert.equal(expectedOutput[i], output);
+        }
+    });
 
     // it("decomposeScalar is correct.", async () => {
     //     const scalar = 9003405095674209932115908784230457051068760537362306482987933690960811974463n;

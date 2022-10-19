@@ -24,23 +24,25 @@ module.exports = function buildGLV(module, prefix, fnName) {
     const pBeta = module.alloc(64, utils.bigInt2BytesLE(beta, 64));
     const pDivisor = module.alloc(64, utils.bigInt2BytesLE(divisor, 64));
 
-    // // Checks if a 512-bit scalar is positive or not.
-    // // Assuming little endian.
-    // function buildIsPositive() {
-    //     const f = module.addFunction(fnName + "_isPositive");
-    //     // Pointer to a 512-bit scalar
-    //     f.addParam("pScalar", "i32");
-    //     // Returns 1 for positive and 0 for negative.
-    //     f.setReturnType("i32");
-    //     // Value at the highest int32 memory of pScalar
-    //     f.addLocal("highestInt32", "i32");
-    //     const c = f.getCodeBuilder();
-    //     f.addCode(
-    //         c.call(prefix + "_utility_loadI32", c.getLocal("pScalar"), c.i32_const(15))
-    //         // c.setLocal("highestInt32", c.call(prefix + "_utility_loadI32", c.getLocal("pScalar"), c.i32_const(15))),
-    //         // c.i32_shr_u(c.i32_and(c.getLocal("highestInt32"), c.i32_const(0x10000000)), c.i32_const(7)),
-    //     );
-    // }
+    // Checks if a 512-bit scalar is positive or not.
+    // Assuming 0 is positve since it should not affect msm.
+    function buildIsPositive() {
+        const f = module.addFunction(fnName + "_isPositive");
+        // Pointer to a 512-bit scalar
+        f.addParam("pScalar", "i32");
+        // Returns 1 for positive and 0 for negative.
+        f.setReturnType("i32");
+        // Value at the highest int32 memory of pScalar
+        f.addLocal("highestInt32", "i32");
+        const c = f.getCodeBuilder();
+        f.addCode(
+            c.setLocal("highestInt32", c.call(prefix + "_utility_loadI32", c.getLocal("pScalar"), c.i32_const(15))),
+            c.i32_xor(
+                c.i32_shr_u(c.i32_and(c.getLocal("highestInt32"), c.i32_const(0x80000000)), c.i32_const(31)),
+                c.i32_const(0x1)
+            ),
+        );
+    }
 
     // Given a pointer `pScalar` to a 256-bit scalar stored in 512-bit, decomposes into two 128-bit scalars pointed by `pScalarRes`.
     function buildDecomposeScalar() {
