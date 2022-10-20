@@ -1863,12 +1863,6 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addLocal("k", "i32");
         const c = f.getCodeBuilder();
         f.addCode(
-            c.if(c.i32_eqz(c.getLocal("numPoints")),
-                [
-                    ...c.call(prefix + "_zero", c.getLocal("pResult")),
-                    ...c.ret([])
-                ]
-            ),
             c.setLocal("pBitOffsets",
                 c.call(prefix + "_utility_allocateMemory",
                     c.i32_shl(
@@ -2021,6 +2015,12 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addLocal("pBucketCounts", "i32");
         const c = f.getCodeBuilder();
         f.addCode(
+            c.if(c.i32_eqz(c.getLocal("numPoints")),
+                [
+                    ...c.call(prefix + "_zero", c.getLocal("pResult")),
+                    ...c.ret([])
+                ]
+            ),
             c.setLocal("scalarSize", c.i32_const(n8r)),
             c.setLocal("chunkSize",
                 c.call(fnName + "_getOptimalBucketWidth",
