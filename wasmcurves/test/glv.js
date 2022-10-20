@@ -1,5 +1,6 @@
 const assert = require("assert");
 const buildBls12381 = require("../src/bls12381/build_bls12381.js");
+const ChaCha = require("ffjavascript").ChaCha;
 const buildProtoboard = require("wasmbuilder").buildProtoboard;
 
 describe("GLV Tests", function () {
@@ -54,7 +55,7 @@ describe("GLV Tests", function () {
         ];
         const pScalar = pb.alloc(32);
         pb.set(pScalar, scalar, 32);
-        const pScalarRes = pb.alloc(32*2);
+        const pScalarRes = pb.alloc(32 * 2);
         let sign = pb.g1m_glv_decomposeScalar(pScalar, pScalarRes);
         let output = pb.get(pScalarRes, 2, 32);
         for (let i = 0; i < 2; i++) {
@@ -137,8 +138,6 @@ describe("GLV Tests", function () {
             2114, 0,
             2114, 0,
         ];
-        let expectedMSMOutput = [
-        ];
         const pRes = pb.alloc(n8q * 3);
         const pPoints = pb.alloc(numPoints * n8q * 2);
         const pScalars = pb.alloc(numPoints * n8r);
@@ -157,7 +156,7 @@ describe("GLV Tests", function () {
         pb.g1m_multiexp_multiExp(
             pPreprocessedPoints,
             pPreprocessedScalars,
-            numPoints*2,
+            numPoints * 2,
             pRes,
         );
         pb.g1m_normalize(pRes, pRes);
@@ -165,7 +164,7 @@ describe("GLV Tests", function () {
         for (let i = 0; i < 2 * numPoints; i++) {
             assert.equal(expectedScalarOutput[i], scalarOutput[i]);
         }
-        
+
         // Computes expected output
         const pAccumulator = pb.alloc(n8q * 3);
         const pPointForTest = pb.alloc(n8q * 3);
@@ -189,8 +188,67 @@ describe("GLV Tests", function () {
         for (let i = 0; i < 2; i++) {
             assert.equal(output[i], expectedOutput[i]);
         }
-
-
-
     });
+
+    // // Use this code for benchmark. We comment it out since it takes several minutes to run.
+    // it("Benchmark.", async () => {
+    //     const scale = 18;
+    //     const N = 1 << scale;
+    //     console.log("Number of Points: 2^", scale);
+    //     const pG1 = pb.bls12381.pG1gen;
+    //     const pCalculated = pb.alloc(n8q * 3);
+    //     const REPEAT = 10;
+    //     const pScalars = pb.alloc(n8r * N);
+    //     const rng = new ChaCha();
+    //     for (let i = 0; i < N * n8r / 4; i++) {
+    //         pb.i32[pScalars / 4 + i] = rng.nextU32();
+    //     }
+    //     const pPointCoefficients = pb.alloc(n8r * N);
+    //     for (let i = 0; i < N * n8r / 4; i++) {
+    //         pb.i32[pPointCoefficients / 4 + i] = rng.nextU32();
+    //     }
+    //     const pPoints = pb.alloc(n8q * 2 * N);
+    //     for (let i = 0; i < N; i++) {
+    //         pb.g1m_timesScalarAffine(pG1, pPointCoefficients + n8r * i, n8r, pCalculated);
+    //         pb.g1m_toAffine(pCalculated, pPoints + i * n8q * 2);
+    //     }
+    //     const pPreprocessedPoints = pb.alloc(N * n8q * 2 * 2);
+    //     const pPreprocessedScalars = pb.alloc(N * n8r * 2);
+    //     console.log("Starting multiExp");
+    //     let start, end;
+    //     start = new Date().getTime();
+    //     for (let i = 0; i < REPEAT; i++) {
+    //         pb.g1m_multiexpAffine_wasmcurve(pPoints, pScalars, n8r, N, pCalculated);
+    //     }
+    //     end = new Date().getTime();
+    //     time = end - start;
+    //     console.log("wasmcurve msm Time (ms): " + time);
+    //     const pRes = pb.alloc(n8q * 3);
+    //     start = new Date().getTime();
+    //     for (let i = 0; i < REPEAT; i++) {
+    //         pb.g1m_multiexp_multiExp(pPoints, pScalars, N, pRes);
+    //     }
+    //     end = new Date().getTime();
+    //     time = end - start;
+    //     console.log("multiexp+batchAffine msm Time (ms): " + time);
+    //     const pResWithGLV = pb.alloc(n8q * 3);
+    //     start = new Date().getTime();
+    //     for (let i = 0; i < REPEAT; i++) {
+    //         pb.g1m_glv_preprocessEndomorphism(pPoints, pScalars, N, pPreprocessedPoints, pPreprocessedScalars);
+    //         pb.g1m_multiexp_multiExp(pPreprocessedPoints, pPreprocessedScalars, N * 2, pResWithGLV);
+    //     }
+    //     end = new Date().getTime();
+    //     time = end - start;
+    //     console.log("multiexp+batchAffine+GLV msm Time (ms): " + time);
+    //     pb.g1m_normalize(pRes, pRes);
+    //     pb.g1m_normalize(pCalculated, pCalculated);
+    //     pb.g1m_normalize(pResWithGLV, pResWithGLV);
+    //     let output = pb.get(pRes, 2, 48);
+    //     let wasmcurveOutput = pb.get(pCalculated, 2, 48);
+    //     let outputWithGLV = pb.get(pResWithGLV, 2, 48);
+    //     assert.equal(output[0], wasmcurveOutput[0]);
+    //     assert.equal(output[1], wasmcurveOutput[1]);
+    //     assert.equal(output[0], outputWithGLV[0]);
+    //     assert.equal(output[1], outputWithGLV[1]);
+    // });
 });
