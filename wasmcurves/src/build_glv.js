@@ -7,6 +7,11 @@ module.exports = function buildGLV(module, prefix, fnName) {
     const f1mField = "f1m";
     const g1mField = "g1m";
 
+    function toMontgomery(a) {
+        return BigInt(a) * (1n << BigInt(n8q*8)) % q;
+    }
+    const q = 0x1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaabn;
+
     const v0 = 1;
     const v1 = -228988810152649578064853576960394133503n;
     const u0 = 228988810152649578064853576960394133504n;
@@ -21,7 +26,7 @@ module.exports = function buildGLV(module, prefix, fnName) {
     const pV1 = module.alloc(64, utils.bigInt2BytesLE(v1, 64));
     const pNegV1 = module.alloc(64, utils.bigInt2BytesLE(negV1, 64));
     const pZero = module.alloc(64, utils.bigInt2BytesLE(zero, 64));
-    const pBeta = module.alloc(64, utils.bigInt2BytesLE(beta, 64));
+    const pBeta = module.alloc(64, utils.bigInt2BytesLE(toMontgomery(beta), 64));
     const pDivisor = module.alloc(64, utils.bigInt2BytesLE(divisor, 64));
 
     // Checks if a 512-bit scalar is positive or not.

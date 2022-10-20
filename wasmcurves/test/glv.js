@@ -14,7 +14,7 @@ describe("GLV Tests", function () {
     before(async () => {
         pb = await buildProtoboard((module) => {
             buildBls12381(module);
-        }, 1);
+        }, n8q);
     });
 
     // Prints the hex representation of a single coordinates in a point
@@ -79,7 +79,7 @@ describe("GLV Tests", function () {
         pb.f1m_toMontgomery(pPoints + 48, pPoints + 48);
         pb.g1m_timesScalar(pPoints, pScalar, n8r, pExpectedOutput);
         pb.g1m_normalize(pExpectedOutput, pExpectedOutput);
-        printG1("Expected: ", pExpectedOutput);
+        // printG1("Expected: ", pExpectedOutput);
 
         const pScalar512 = pb.alloc(64);
         pb.set(pScalar512, scalar, 64);
@@ -89,15 +89,24 @@ describe("GLV Tests", function () {
         const pAccumulator = pb.alloc(n8q * 3);
         const pCalculated = pb.alloc(n8q * 3);
         let sign = pb.g1m_glv_decomposeScalar(pScalar512, pScalarSplit);
-        console.log("sign: ", sign);
-        console.log("sign&1: ", sign&1);
-        console.log("sign&2: ", sign&2);
+        // console.log("sign: ", sign);
+        // console.log("sign&1: ", sign&1);
+        // console.log("sign&2: ", sign&2);
         pb.g1m_glv_endomorphism(pPoints, sign&1, pConvertedPoint);
-        pb.g1m_timesScalar(pConvertedPoint, pScalarSplit, n8r/2, pAccumulator);
+        pb.f1m_one(pConvertedPoint + 96);
+        pb.g1m_timesScalar(pPoints, pScalarSplit, n8r/2, pAccumulator);
         pb.g1m_glv_endomorphism(pPoints, sign&2, pConvertedPoint);
+        pb.f1m_one(pConvertedPoint + 96);
         pb.g1m_timesScalar(pConvertedPoint, pScalarSplit+n8r/2, n8r/2, pCalculated);
         pb.g1m_add(pAccumulator, pCalculated, pAccumulator);
         pb.g1m_normalize(pAccumulator, pAccumulator);
-        printG1("Output: ", pAccumulator);
+        // printG1("Output: ", pAccumulator);
+
+        let output = pb.get(pAccumulator, 2, 48);
+        let expectedOutput = pb.get(pExpectedOutput, 2, 48);
+        for (let i = 0; i < 2; i++) {
+            assert.equal(output[i], expectedOutput[i]);
+        }
     });
+
 });
