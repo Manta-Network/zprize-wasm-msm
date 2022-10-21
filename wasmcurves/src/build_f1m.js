@@ -439,6 +439,185 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
         );
     }
 
+    function buildFastMul() {
+        const f = module.addFunction(prefix+"_fastMul");
+        f.addParam("x", "i32");
+        f.addParam("y", "i32");
+        f.addParam("r", "i32");
+
+        f.addLocal("np32", "i64");
+
+        for (let i=0;i<n32; i++) {
+            f.addLocal("x"+i, "i64");
+            f.addLocal("y"+i, "i64");
+            // f.addLocal("m"+i, "i64");
+            f.addLocal("q"+i, "i64");
+            f.addLocal("t"+i, "i64");
+        }
+        f.addLocal("A_t0", "i64");
+        f.addLocal("A_tj", "i64");
+        f.addLocal("A", "i64");
+        f.addLocal("m", "i64");
+        f.addLocal("C", "i64");
+        f.addLocal("C_t_jMinusOne", "i64");
+
+        const c = f.getCodeBuilder();
+
+        const loadX = [];
+        const loadY = [];
+        const loadQ = [];
+        function mulij(i, j) {
+            let X,Y;
+            if (!loadX[i]) {
+                X = c.teeLocal("x"+i, c.i64_load32_u( c.getLocal("x"), i*4));
+                loadX[i] = true;
+            } else {
+                X = c.getLocal("x"+i);
+            }
+            if (!loadY[j]) {
+                Y = c.teeLocal("y"+j, c.i64_load32_u( c.getLocal("y"), j*4));
+                loadY[j] = true;
+            } else {
+                Y = c.getLocal("y"+j);
+            }
+
+            return c.i64_mul( X, Y );
+        }
+
+        function mulqm(i) {
+            let Q,M;
+            if (!loadQ[i]) {
+                Q = c.teeLocal("q"+i, c.i64_load32_u(c.i32_const(0), pq+i*4 ));
+                loadQ[i] = true;
+            } else {
+                Q = c.getLocal("q"+i);
+            }
+            M = c.getLocal("m");
+
+            return c.i64_mul( Q, M );
+        }
+
+        const np32 = Number(0x100000000n - modInv(q, 0x100000000n));
+
+        f.addCode(c.setLocal("np32", c.i64_const(np32)));
+
+        // for i=0 to N-1
+        for(let i=0; i<n32; i++){
+            // (A,t[0]) := t[0] + a[0]*b[i] 
+            f.addCode(
+                c.setLocal(
+                    "t0",
+                    c.i64_and(
+                        c.teeLocal(
+                            "A_t0",
+                            c.i64_add(c.getLocal("t0"), mulij(0,i))
+                        ),
+                        c.i64_const(0xFFFFFFFF)
+                    )
+                ),
+                c.setLocal(
+                    "A",
+                    c.i64_shr_u(c.getLocal("A_t0"), c.i64_const(32))
+                )
+            );
+            // m := t[0]*q'[0] mod W
+            f.addCode(
+                c.setLocal(
+                    "m",
+                    c.i64_and(
+                        c.i64_const(0xFFFFFFFF),
+                        c.i64_mul(
+                            c.getLocal("t0"),
+                            c.getLocal("np32")
+                        )
+                    )
+                )
+            );
+            // C,_ := t[0] + m*q[0]
+            f.addCode(
+                c.setLocal(
+                    "C",
+                    c.i64_shr_u(
+                        c.i64_add(
+                            c.getLocal("t0"),
+                            mulqm(0)
+                        ),
+                        c.i64_const(32)
+                    )
+                )
+            );
+            for(let j=1; j<n32 ;j++){
+                // (A,t[j])  := t[j] + a[j]*b[i] + A
+                f.addCode(
+                    c.setLocal(
+                        "t"+j,
+                        c.i64_and(
+                            c.i64_const(0xFFFFFFFF),
+                            c.teeLocal(
+                                "A_tj",
+                                c.i64_add(
+                                    c.getLocal("A"),
+                                    c.i64_add(
+                                        c.getLocal("t"+j),
+                                        mulij(j,i)
+                                    )
+                                )
+                            ),
+                        )
+                    ),
+                    c.setLocal(
+                        "A",
+                        c.i64_shr_u(c.getLocal("A_tj"), c.i64_const(32))
+                    )
+                );
+                // (C,t[j-1]) := t[j] + m*q[j] + C
+                f.addCode(
+                    c.setLocal(
+                        "t"+(j-1),
+                        c.i64_and(
+                            c.i64_const(0xFFFFFFFF),
+                            c.teeLocal(
+                                "C_t_jMinusOne",
+                                c.i64_add(
+                                    c.getLocal("t"+j),
+                                    c.i64_add(
+                                        mulqm(j),
+                                        c.getLocal("C")
+                                    )
+                                )
+                            )
+                        )
+                    ),
+                    c.setLocal(
+                        "C",
+                        c.i64_shr_u(c.getLocal("C_t_jMinusOne"), c.i64_const(32))
+                    )
+                );
+                // t[N-1] = C + A
+                f.addCode(
+                    c.setLocal(
+                        "t"+(n32-1),
+                        c.i64_add(
+                            c.getLocal("A"),
+                            c.getLocal("C")
+                        )
+                    )
+                );
+            }
+        }
+
+        for(let i=0;i<n32;i++){
+            f.addCode(
+                c.i64_store32(
+                    c.getLocal("r"),
+                    i*4,
+                    c.getLocal("t"+i)
+                )
+            );
+        }
+
+    }
+
 
     function buildSquare() {
 
@@ -1011,7 +1190,7 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
     buildInverse();
     buildOne();
     buildLoad();
-    buildTimesScalar();
+    buildTimesScalar();    
     buildBatchInverse(module, prefix);
     buildBatchConvertion(module, prefix + "_batchToMontgomery", prefix + "_toMontgomery", n8, n8);
     buildBatchConvertion(module, prefix + "_batchFromMontgomery", prefix + "_fromMontgomery", n8, n8);
@@ -1056,6 +1235,9 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
     module.exportFunction(prefix + "_batchToMontgomery");
     module.exportFunction(prefix + "_batchFromMontgomery");
     // console.log(module.functionIdxByName);
+
+    buildFastMul();
+    module.exportFunction(prefix + "_fastMul");
 
     return prefix;
 };
