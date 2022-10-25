@@ -27,7 +27,7 @@ const { bitLength, modInv, modPow, isPrime, isOdd, square } = require("./bigint.
 
 module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
     const q = BigInt(_q);
-    const n64 = Math.floor((bitLength(q - 1n) - 1)/64) +1;
+    const n64 = Math.floor((bitLength(q - 1n) - 1)/64) +1; // Number of 8-byte words in a field element
     const n32 = n64*2;
     const n8 = n64*8;
 
@@ -35,6 +35,8 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
     if (module.modules[prefix]) return prefix;  // already builded
 
     const intPrefix = buildInt(module, n64, _intPrefix);
+
+    // A pointer to the multi-word modulus q stored in memory
     const pq = module.alloc(n8, utils.bigInt2BytesLE(q, n8));
 
     const pR2 = module.alloc(utils.bigInt2BytesLE(square(1n << BigInt(n64*64)) % q, n8));
@@ -235,7 +237,7 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
     }
 
 
-
+    /*
     function buildMul() {
 
         const f = module.addFunction(prefix+"_mul");
@@ -438,7 +440,341 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
             )
         );
     }
+    */
 
+    /**
+     * CIOS mul
+     * Algo credit: https://hackmd.io/@gnark/modular_multiplication
+     *              ^NOTE: the trick described here and used in this code requires that B <= (D-1) / 2 - 1 
+     *               where B is the highest word of q. It is not correct for arbitrary field orders.
+     * 
+     * Basic idea of CIOS (example with 4-word field elements):
+        |              +------+------+------+------+------+                  |  -+
+        |              |      |  x0  |  x1  |  x2  |  x3  |                  |   |
+        |              +------+---------------------------+                  |   |
+        v step 0       |  y0  | x0y0 + x1y0 + x2y0 + x3y0 --> reduce mod W   |   |
+        |              +------+----------------------------                  |   |
+        | step 1       |  y1  | x0y1 + x1y1 + x2y1 + x3y1 --> reduce mod W   |   +--> acccumulate in t
+        |              +------+----------------------------                  |   |
+        v ...          |  y2  | x0y2 + x1y2 + x2y2 + x3y2 --> reduce mod W   |   |
+        |              +------+----------------------------                  |   |
+        | step n32-1   |  y3  | x0y3 + x1y3 + x2y3 + x3y3 --> reduce mod W   |   |
+        |              +------+----------------------------  |____________|  |  -+
+        v                                                          |         v
+                                  Do this with Montgomery -------->|         if t > q then subtract q
+     */
+    function buildMul() {
+        const f = module.addFunction(prefix+"_mul");
+        f.addParam("x", "i32"); // pointer
+        f.addParam("y", "i32"); // pointer
+        f.addParam("r", "i32"); // pointer to write result to
+
+        // Carry variables
+        f.addLocal("C", "i64");
+        f.addLocal("A", "i64");
+
+        // np32 is the Montgomery constant mu for modulus q and radix W=2^32 (the word size)
+        // See page 4 of https://eprint.iacr.org/2017/1057.pdf
+        f.addLocal("np32", "i64");
+
+        // t * mu (mod W) for a given t, changes with each outer loop iteration
+        f.addLocal("m", "i64");
+
+        // This will store the result of the local comparison t >= q
+        f.addLocal("b", "i32");
+
+        // Carry variable for the local subtraction t - q
+        f.addLocal("sc", "i64");
+
+        // Create local variables to cache memory reads
+        // 
+        // Create the array entries of t that store the intermediate results of the accumulation
+        // We need this here, but not for FIPS, since in FIPS each iteration computes a different word of the 
+        // result, which won't be touched again during the loop, and can be written straight to memory.
+        for (let i=0;i<n32; i++) {
+            f.addLocal("x"+i, "i64");
+            f.addLocal("y"+i, "i64");
+            f.addLocal("q"+i, "i64");
+            f.addLocal("t"+i, "i64");
+        }
+
+        const c = f.getCodeBuilder();
+
+        // np32 = mu = -q^(-1) (mod W)
+        const np32 = Number(0x100000000n - modInv(q, 0x100000000n));
+        f.addCode(c.setLocal("np32", c.i64_const(np32)));
+
+        const loadX = [];
+        const loadY = [];
+        const loadQ = [];
+        function mulij(i, j) {
+            let X,Y;
+            if (!loadX[i]) {
+                X = c.teeLocal("x"+i, c.i64_load32_u( c.getLocal("x"), i*4));
+                loadX[i] = true;
+            } else {
+                X = c.getLocal("x"+i);
+            }
+            if (!loadY[j]) {
+                Y = c.teeLocal("y"+j, c.i64_load32_u( c.getLocal("y"), j*4));
+                loadY[j] = true;
+            } else {
+                Y = c.getLocal("y"+j);
+            }
+
+            return c.i64_mul( X, Y );
+        }
+
+        function mulqm(i) {
+            let Q,M;
+            if (!loadQ[i]) {
+                Q = c.teeLocal("q"+i, c.i64_load32_u(c.i32_const(0), pq+i*4 ));
+                loadQ[i] = true;
+            } else {
+                Q = c.getLocal("q"+i);
+            }
+            M = c.getLocal("m");
+
+            return c.i64_mul( Q, M );
+        }
+
+        // Consumes an i64 and stores the high and low 32-bit words in separate local i64 variables
+        // The top word of lo will still be dirty (saves an extra read/write), remember to mod W if needed
+        // 
+        // example:
+        // hi: "a" (i64)
+        // lo: "b" (i64)
+        // top of code: 0xAABB_CCDD_1122_3344
+        // --> 0x0000_0000_AABB_CCDD stored in "a"
+        // --> 0xAABB_CCCDD_1122_3344 stored in "b"
+        function splitAssign(hi, lo, code) {
+            return c.setLocal(
+                hi,
+                c.i64_shr_u(
+                    c.teeLocal(lo, code),
+                    c.i64_const(32)
+                )
+            );
+        }
+
+        // Where W is the word size, 2^32
+        function modW(code) {
+            return c.i64_and(
+                code,
+                c.i64_const(0xFFFFFFFF)
+            );
+        }
+
+        // Get t_i mod W (gets rid of dirty high word)
+        function get_t(i) {
+            return modW(
+                c.getLocal("t"+i)
+            );
+        }
+
+        for (let i=0; i<n32; i++) {
+            // (A,t[0]) := t[0] + x[0]*y[i]
+            f.addCode(
+                splitAssign(
+                    "A",
+                    "t0",
+                    c.i64_add(
+                        get_t(0),
+                        mulij(0, i)
+                    )
+                )
+            );
+
+            // m := t[0]*mu mod W
+            f.addCode(
+                c.setLocal(
+                    "m",
+                    modW(
+                        c.i64_mul(
+                            // It'd be fine to leave the top word dirty here since it's mod W anyway, performance difference is negligble though
+                            get_t(0),
+                            c.getLocal("np32")
+                        )
+                    )
+                )
+            );
+
+            // C,_ := t[0] + m*q[0]
+            // Assign the higher word of the addition to C
+            f.addCode(
+                c.setLocal(
+                    "C",
+                    c.i64_shr_u(
+                        c.i64_add(
+                            get_t(0), // Not fine to leave top word dirty (can overflow)
+                            mulqm(0)
+                        ),
+                        c.i64_const(32)
+                    )
+                )
+            );
+            
+            // Combine the row accumulation and reduction into one loop
+            for (let j=1; j<n32; j++) {
+                // (A,t[j])  := t[j] + x[j]*y[i] + A
+                f.addCode(
+                    splitAssign(
+                        "A",
+                        "t"+j,
+                        c.i64_add(
+                            get_t(j),
+                            c.i64_add(
+                                c.getLocal("A"),
+                                mulij(j, i)
+                            )
+                        )
+                    )
+                );
+
+                // (C,t[j-1]) := t[j] + m*q[j] + C
+                f.addCode(
+                    splitAssign(
+                        "C",
+                        "t"+(j-1),
+                        c.i64_add(
+                            get_t(j),
+                            c.i64_add(
+                                c.getLocal("C"),
+                                mulqm(j)
+                            )
+                        )
+                    )
+                );
+            }
+
+            // t[N-1] = C + A
+            f.addCode(
+                c.setLocal(
+                    "t"+(n32-1),
+                    c.i64_add(
+                        c.getLocal("C"),
+                        c.getLocal("A")
+                    )
+                )
+            );
+        }
+
+        // Do the conditional subtraction on t *before* writing it to memory, rather than doing it on r. We can do this since 
+        // all of q is already loaded locally into the q_i's from earlier. This saves 2*n32 reads and n32 writes to memory.
+
+        // Store the result of x >= y in a local variable, where x and y are each represented
+        // by n local i64 variables x0, x2, ..., xn-1 and y0, y2, ..., yn-1. The actual word size 
+        // is used is i32 - the xi's can have dirty high words,  the yi's should not (for perf)
+        function gteLocal(x, y, result, n=n32-1) {
+            // Base case - just compare two words
+            if (n==0) {
+                return c.setLocal(
+                    result,
+                    c.i64_ge_u(
+                        modW(c.getLocal(x + 0)),
+                        c.getLocal(y + 0)
+                    )
+                );
+            }
+
+            // Compare the most significant word of x and y
+            return c.if(
+                c.i64_lt_u(
+                    modW(c.getLocal(x + n)),
+                    c.getLocal(y + n)
+                ),
+                c.setLocal(
+                    result,
+                    c.i32_const(0)
+                ),
+                c.if(
+                    c.i64_gt_u(
+                        modW(c.getLocal(x + n)),
+                        c.getLocal(y + n)
+                    ),
+                    c.setLocal(
+                        result,
+                        c.i32_const(1)
+                    ),
+                    // Recurse if the most significant words are equal
+                    gteLocal(x, y, result, n-1)
+                )
+            );
+        }
+
+        // Subtract y from x in place, i.e. set x = x - y, where x and y are each represented
+        // by n local i64 variables x1, x2, ..., xn and y1, y2, ..., yn
+        function subLocal(x, y) {
+            let code = [];
+            code = code.concat(
+                c.setLocal(
+                    "sc",
+                    c.i64_sub(
+                        modW(c.getLocal(x + 0)),
+                        c.getLocal(y + 0)
+                    )
+                )
+            );
+
+            code = code.concat(
+                c.setLocal(
+                    x + 0,
+                    modW(c.getLocal("sc"))
+                )
+            );
+
+            for (let i=1; i<n32; i++) {
+                code = code.concat(
+                    c.setLocal(
+                        "sc",
+                        c.i64_add(
+                            c.i64_sub(
+                                modW(c.getLocal(x + i)),
+                                c.getLocal(y + i)
+                            ),
+                            c.i64_shr_s(
+                                c.getLocal("sc"),
+                                c.i64_const(32)
+                            )
+                        )
+                    )
+                );
+
+                code = code.concat(
+                    c.setLocal(
+                        x + i,
+                        modW(c.getLocal("sc"))
+                    )
+                );
+            }
+
+            return code;
+        }
+
+        // Store the result of t >= q in b
+        f.addCode(
+            gteLocal("t", "q", "b")
+        );
+
+        // Subtract out q if result is over
+        f.addCode(
+            c.if(
+                c.getLocal("b"),
+                subLocal("t", "q")
+            )
+        );
+
+        // Write the t_i's to r in memory
+        for (let i=0; i<n32; i++) {
+            f.addCode(
+                c.i64_store32(
+                    c.getLocal("r"),
+                    i*4,
+                    c.getLocal("t"+i)
+                )
+            );
+        }
+    }
 
     function buildSquare() {
 
