@@ -192,7 +192,7 @@ describe("GLV Tests", function () {
 
     // // Use this code for benchmark. We comment it out since it takes several minutes to run.
     it("Benchmark.", async () => {
-        const scale = 14;
+        const scale = 18;
         const N = 1 << scale;
         console.log("Number of Points: 2^", scale);
         const pG1 = pb.bls12381.pG1gen;

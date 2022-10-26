@@ -38,8 +38,8 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.setReturnType("i32");
         const pTSizes = module.alloc([ // TODO: This may be tuned.
             17, 17, 17, 17, 17, 17, 17, 17,
-            17, 17, 16, 16, 15, 14, 13, 13,
-            12, 11, 10, 9, 8, 7, 7, 6,
+            17, 17, 16, 16, 14, 13, 12, 12,
+            11, 11, 10, 9, 8, 7, 7, 6,
             5, 4, 3, 2, 1, 1, 1, 1
         ]);
         const c = f.getCodeBuilder();
