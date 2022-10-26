@@ -13,7 +13,7 @@ describe("Basic tests for Zq", () => {
         let start,end,time;
 
         const q = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;        
-        const A = 0xFFFFFFFFFFFFFFFFFFFFn;
+        const A = 11888242871839275222246405745257275088548364400416034343698204186575808495617n;
 
         const pbF1m = await buildProtoboard((module) => {
             buildF1m(module, q);
@@ -28,7 +28,7 @@ describe("Basic tests for Zq", () => {
         pbF1m.set(pA, A);
 
         start = new Date().getTime();
-        pbF1m.test_f1m_mul(pA, pA, pC, 70000);
+        pbF1m.test_f1m_mul(pA, pA, pC, 700000);
         end = new Date().getTime();
         time = end - start;
 
@@ -37,7 +37,7 @@ describe("Basic tests for Zq", () => {
         console.log("Mul Time (ms): " + time);
 
         start = new Date().getTime();
-        pbF1m.test_f1m_fastMul(pA, pA, pD,70000);
+        pbF1m.test_f1m_fastMul(pA, pA, pD,700000);
         end = new Date().getTime();
         time = end - start;
 
