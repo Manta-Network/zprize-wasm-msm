@@ -41,7 +41,8 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
             17, 17, 16, 16, 14, 13, 12, 12,
             11, 11, 10, 9, 8, 7, 7, 6,
             5, 4, 3, 2, 1, 1, 1, 1
-        ]);        const c = f.getCodeBuilder();
+        ]);
+        const c = f.getCodeBuilder();
         f.addCode(
             c.i32_load8_u(c.i32_clz(c.getLocal("num")), pTSizes),
         );
