@@ -1192,14 +1192,8 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                     // m = 3x^2+a / 2y1.  
                     // a==0 in BLS12381
                     [
-                        // ...c.call(
-                        //     prefixField + "_square",
-                        //     c.getLocal("x1"),
-                        //     X1_square
-                        // ),
                         ...c.call(
-                            prefixField + "_mul",
-                            c.getLocal("x1"),
+                            prefixField + "_square",
                             c.getLocal("x1"),
                             X1_square
                         ),
@@ -1236,7 +1230,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                 ),
                 // store x3  
                 // x3 = m^2 - x1 - x2
-                c.call(prefixField + "_mul", M, M, M_square),
+                c.call(prefixField + "_square", M, M_square),
                 c.call(prefixField + "_sub", M_square, c.getLocal("x2"), c.getLocal("itRes")),
                 // store y3
                 // y3 = m * (x1 - x3) - y1

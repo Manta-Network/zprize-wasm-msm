@@ -192,7 +192,7 @@ describe("GLV Tests", function () {
 
     // // Use this code for benchmark. We comment it out since it takes several minutes to run.
     it("Benchmark.", async () => {
-        const scale = 18;
+        const scale = 14;
         const N = 1 << scale;
         console.log("Number of Points: 2^", scale);
         const pG1 = pb.bls12381.pG1gen;
@@ -216,21 +216,21 @@ describe("GLV Tests", function () {
         const pPreprocessedScalars = pb.alloc(N * n8r * 2);
         console.log("Starting multiExp");
         let start, end;
-        // start = new Date().getTime();
-        // for (let i = 0; i < REPEAT; i++) {
-        //     pb.g1m_multiexpAffine_wasmcurve(pPoints, pScalars, n8r, N, pCalculated);
-        // }
-        // end = new Date().getTime();
-        // time = end - start;
-        // console.log("wasmcurve msm Time (ms): " + time);
-        // const pRes = pb.alloc(n8q * 3);
-        // start = new Date().getTime();
-        // for (let i = 0; i < REPEAT; i++) {
-        //     pb.g1m_multiexp_multiExp(pPoints, pScalars, N, pRes);
-        // }
-        // end = new Date().getTime();
-        // time = end - start;
-        // console.log("multiexp+batchAffine msm Time (ms): " + time);
+        start = new Date().getTime();
+        for (let i = 0; i < REPEAT; i++) {
+            pb.g1m_multiexpAffine_wasmcurve(pPoints, pScalars, n8r, N, pCalculated);
+        }
+        end = new Date().getTime();
+        time = end - start;
+        console.log("wasmcurve msm Time (ms): " + time);
+        const pRes = pb.alloc(n8q * 3);
+        start = new Date().getTime();
+        for (let i = 0; i < REPEAT; i++) {
+            pb.g1m_multiexp_multiExp(pPoints, pScalars, N, pRes);
+        }
+        end = new Date().getTime();
+        time = end - start;
+        console.log("multiexp+batchAffine msm Time (ms): " + time);
         const pResWithGLV = pb.alloc(n8q * 3);
         start = new Date().getTime();
         for (let i = 0; i < REPEAT; i++) {

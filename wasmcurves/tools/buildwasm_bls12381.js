@@ -21,7 +21,7 @@ function buildWasm() {
             exports.pG1b = ${moduleBuilder.modules.bls12381.pG1b};
             exports.pG2gen = ${moduleBuilder.modules.bls12381.pG2gen};
             exports.pG2zero = ${moduleBuilder.modules.bls12381.pG2zero};
-            exports.pG2b = ${moduleBuilder.modules.bls12381.pG2b};
+            exports.pG2b = ${moduleBuilder.modules.bls12381.pG2b}; 
             exports.pOneT = ${moduleBuilder.modules.bls12381.pOneT};
             exports.prePSize = ${moduleBuilder.modules.bls12381.prePSize};
             exports.preQSize = ${moduleBuilder.modules.bls12381.preQSize};

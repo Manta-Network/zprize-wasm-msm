@@ -962,7 +962,8 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
                 c.call(prefix + "_zero", c.getLocal("pr")),
                 [
                     ...c.call(prefixField + "_inverse", z, Z_inv),
-                    ...c.call(prefixField + "_square", Z_inv, Z2_inv),
+                    //...c.call(prefixField + "_square", Z_inv, Z2_inv),
+                    ...c.call(prefixField + "_mul", Z_inv, Z_inv, Z2_inv),
                     ...c.call(prefixField + "_mul", Z_inv, Z2_inv, Z3_inv),
                     ...c.call(prefixField + "_mul", x, Z2_inv, x3),
                     ...c.call(prefixField + "_mul", y, Z3_inv, y3),
