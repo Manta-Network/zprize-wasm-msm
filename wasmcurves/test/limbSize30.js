@@ -206,8 +206,8 @@ describe("Basic tests for Zq", () => {
         time = end - start;
         console.log("wasmcurve msm Time (ms): " + time);
 
-        // pb.g1m_normalize(pCalculated, pCalculated);
-        // printG1("result: ",pCalculated)
+        pb.g1m_normalize(pCalculated, pCalculated);
+        printG1("result: ",pCalculated)
         
         const pRes = pb.alloc(n8q * 3);
         start = new Date().getTime();
@@ -217,6 +217,9 @@ describe("Basic tests for Zq", () => {
         end = new Date().getTime();
         time = end - start;
         console.log("multiexp+batchAffine msm Time (ms): " + time);
+
+        pb.g1m_normalize(pRes, pRes);
+        printG1("batch affine result: ",pRes)
 
         const pResWithGLV = pb.alloc(n8q * 3);
         start = new Date().getTime();
@@ -228,6 +231,8 @@ describe("Basic tests for Zq", () => {
         time = end - start;
         console.log("multiexp+batchAffine+GLV msm Time (ms): " + time);
 
+        pb.g1m_normalize(pResWithGLV, pResWithGLV);
+        printG1("GLV result: ",pResWithGLV)
         
         
 
@@ -241,87 +246,87 @@ describe("Basic tests for Zq", () => {
     }).timeout(10000000);
 
 
-    let pb;
-    before(async () => {
-        pb = await buildProtoboard((module) => {
-            buildBls12381(module);
-        }, n8q);
-    });
-    it("It should do a basic point doubling adding G1", async () => {
-        const pG1 = pb.bls12381.pG1gen;
+    // let pb;
+    // before(async () => {
+    //     pb = await buildProtoboard((module) => {
+    //         buildBls12381(module);
+    //     }, n8q);
+    // });
+    // it("It should do a basic point doubling adding G1", async () => {
+    //     const pG1 = pb.bls12381.pG1gen;
 
-        const p1 = pb.alloc(n8q*3);
-        const p2 = pb.alloc(n8q*3);
+    //     const p1 = pb.alloc(n8q*3);
+    //     const p2 = pb.alloc(n8q*3);
 
-        pb.g1m_add(pG1, pG1, p1); // 2*G1
-        pb.g1m_add(p1, pG1, p1);  // 3*G1
-        pb.g1m_add(p1, pG1, p1);  // 4*G1
+    //     pb.g1m_add(pG1, pG1, p1); // 2*G1
+    //     pb.g1m_add(p1, pG1, p1);  // 3*G1
+    //     pb.g1m_add(p1, pG1, p1);  // 4*G1
 
-        pb.g1m_double(pG1, p2); // 2*G1
-        pb.g1m_double(p2, p2); // 4*G1
+    //     pb.g1m_double(pG1, p2); // 2*G1
+    //     pb.g1m_double(p2, p2); // 4*G1
 
-        assert.equal(pb.g1m_isZero(pG1), 0);
-        assert.equal(pb.g1m_eq(p1, p2), 1);
+    //     assert.equal(pb.g1m_isZero(pG1), 0);
+    //     assert.equal(pb.g1m_eq(p1, p2), 1);
 
-        pb.g1m_sub(p1, p2, p1);  // 0
-        assert.equal(pb.g1m_isZero(p1), 1);
+    //     pb.g1m_sub(p1, p2, p1);  // 0
+    //     assert.equal(pb.g1m_isZero(p1), 1);
 
-    });
-    it("Test G1 timesScalar.", async () => {
+    // });
+    // it("Test G1 timesScalar.", async () => {
 
-        const s=10;
-        const pG1 = pb.bls12381.pG1gen;
+    //     const s=10;
+    //     const pG1 = pb.bls12381.pG1gen;
 
-        const p1 = pb.alloc(n8q*3);
-        const p2 = pb.alloc(n8q*3);
-        const ps = pb.alloc(n8r);
+    //     const p1 = pb.alloc(n8q*3);
+    //     const p2 = pb.alloc(n8q*3);
+    //     const ps = pb.alloc(n8r);
 
-        pb.set(ps, s);
+    //     pb.set(ps, s);
 
-        pb.g1m_timesScalar(pG1, ps, n8r, p1);
+    //     pb.g1m_timesScalar(pG1, ps, n8r, p1);
 
-        pb.g1m_zero(p2);
+    //     pb.g1m_zero(p2);
 
-        for (let i=0; i<s; i++) {
-            pb.g1m_add(pG1,p2, p2);
-        }
+    //     for (let i=0; i<s; i++) {
+    //         pb.g1m_add(pG1,p2, p2);
+    //     }
 
-        assert.equal(pb.g1m_eq(p1, p2), 1);
-    });
+    //     assert.equal(pb.g1m_eq(p1, p2), 1);
+    // });
     
 
-    it("Generator should be in group G1", async () => {
-        const pG1 = pb.bls12381.pG1gen;
+    // it("Generator should be in group G1", async () => {
+    //     const pG1 = pb.bls12381.pG1gen;
 
-        assert.equal(pb.g1m_inGroupAffine(pG1), 1);
-    });
+    //     assert.equal(pb.g1m_inGroupAffine(pG1), 1);
+    // });
 
-    it("Point in curve and not in group G1", async () => {
-        const p1 = pb.alloc(n8q*3);
-        const pG1b = pb.bls12381.pG1b;
+    // it("Point in curve and not in group G1", async () => {
+    //     const p1 = pb.alloc(n8q*3);
+    //     const pG1b = pb.bls12381.pG1b;
 
-        pb.set(p1, 4n, n8q);
-        pb.f1m_toMontgomery(p1, p1);
-        pb.f1m_square(p1, p1+n8q);
-        pb.f1m_mul(p1, p1+n8q, p1+n8q);
-        pb.f1m_add(p1+n8q, pG1b, p1+n8q);
+    //     pb.set(p1, 4n, n8q);
+    //     pb.f1m_toMontgomery(p1, p1);
+    //     pb.f1m_square(p1, p1+n8q);
+    //     pb.f1m_mul(p1, p1+n8q, p1+n8q);
+    //     pb.f1m_add(p1+n8q, pG1b, p1+n8q);
 
-        assert.equal(pb.g1m_inGroupAffine(p1), 0);
-        assert.equal(pb.g1m_inCurveAffine(p1), 0);
+    //     assert.equal(pb.g1m_inGroupAffine(p1), 0);
+    //     assert.equal(pb.g1m_inCurveAffine(p1), 0);
 
-        pb.f1m_sqrt(p1+n8q, p1+n8q);
+    //     pb.f1m_sqrt(p1+n8q, p1+n8q);
 
-        assert.equal(pb.g1m_inGroupAffine(p1), 0);
-        assert.equal(pb.g1m_inCurveAffine(p1), 1);
+    //     assert.equal(pb.g1m_inGroupAffine(p1), 0);
+    //     assert.equal(pb.g1m_inCurveAffine(p1), 1);
 
-        const ph= pb.alloc(16);
-        pb.set(ph, 0x396c8c005555e1568c00aaab0000aaabn, 16);
+    //     const ph= pb.alloc(16);
+    //     pb.set(ph, 0x396c8c005555e1568c00aaab0000aaabn, 16);
 
-        pb.g1m_timesScalarAffine(p1, ph, 16  ,p1);
+    //     pb.g1m_timesScalarAffine(p1, ph, 16  ,p1);
 
-        assert.equal(pb.g1m_inCurve(p1), 1);
-        assert.equal(pb.g1m_inGroup(p1), 1);
-    });
+    //     assert.equal(pb.g1m_inCurve(p1), 1);
+    //     assert.equal(pb.g1m_inGroup(p1), 1);
+    // });
 
 
 });

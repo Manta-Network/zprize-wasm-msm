@@ -185,6 +185,7 @@ describe("Basic tests for g1 in bn128", () => {
 
         assert(pb.g1m_eq(pExpected, pCalculated));
         assert(pb.g1m_eq(pExpected, pRes));
+        assert(pb.g1m_eq(pExpected, pResWithGLV));
 
     });
 
