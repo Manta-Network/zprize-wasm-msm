@@ -26,7 +26,7 @@ const buildUtility = require("./build_utility");
 const buildInt = require("./build_int");
 const buildGLV = require("./build_glv");
 
-module.exports = function buildCurve(module, prefix, prefixField, pB) {
+module.exports = function buildCurve(module, prefix, prefixField, pB, ec_type) {
 
 
     const n64 = module.modules[prefixField].n64;
@@ -1421,7 +1421,7 @@ module.exports = function buildCurve(module, prefix, prefixField, pB) {
     buildUtility(module, prefix + "_utility");
 
     buildInt(module, 8, prefix + "_int512");
-    buildGLV(module, prefix, prefix + "_glv");
+    buildGLV(module, prefix, prefix + "_glv", ec_type);
 
     // TODO: This part seems to be a mess.
     buildMultiexp(module, prefix, prefix + "_multiexp", prefix + "_add", n8 * 3);

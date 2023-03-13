@@ -175,7 +175,6 @@ describe("Basic tests for g1 in bn128", () => {
         printG1("batchAffine: ",pRes);
 
 
-        // wrong parameter in glv for bn254
         pb.g1m_glv_preprocessEndomorphism(pPoints, pScalars, N, pPreprocessedPoints, pPreprocessedScalars);
         pb.g1m_multiexp_multiExp(pPreprocessedPoints, pPreprocessedScalars, N * 2, pResWithGLV);
         pb.g1m_normalize(pResWithGLV, pResWithGLV);

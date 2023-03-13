@@ -93,7 +93,7 @@ module.exports = function buildBLS12381(module, _prefix) {
 
 
     function toMontgomery(a) {
-        return BigInt(a) * (1n << BigInt(13*30)) % q;
+        return BigInt(a) * (1n << BigInt(f1size*8)) % q;
     }
 
     const G1gen = [

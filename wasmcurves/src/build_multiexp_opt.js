@@ -23,7 +23,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     // Fr: 32 bytes = 256 bits
     const n8r = 32;
 
-    const n8 = 32; // only for bn254 msm implementation
+    const n8 = n8g / 3; 
     const prefixField = "f1m";
     opMixedAdd = "g1m_addMixed";
     opAffineAdd = "g1m_addAffine";
