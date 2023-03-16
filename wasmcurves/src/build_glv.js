@@ -1,6 +1,5 @@
 const utils = require("./utils.js");
 
-// Supports only BN254.
 module.exports = function buildGLV(module, prefix, fnName, ec_type) {
     var n8r = 32;
     if (ec_type == 1){
