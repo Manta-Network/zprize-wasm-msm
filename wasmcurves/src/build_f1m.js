@@ -233,6 +233,7 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
     }
 
 
+
     
     // function buildMul() {
     //     const f = module.addFunction(prefix+"_mul");
@@ -433,6 +434,7 @@ module.exports = function buildF1m(module, _q, _prefix, _intPrefix) {
         v                                                          |         v
                                   Do this with Montgomery -------->|         if t > q then subtract q
      */
+
     function buildMul() {
         const f = module.addFunction(prefix+"_mul");
         f.addParam("x", "i32"); // pointer

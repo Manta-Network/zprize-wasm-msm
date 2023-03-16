@@ -35,7 +35,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.addParam("num", "i32");
         // Returns the optimal number of bits in each scalar chunk
         f.setReturnType("i32");
-        const pTSizes = module.alloc([ // TODO: This may be tuned.
+        const pTSizes = module.alloc([
             17, 17, 17, 17, 17, 17, 17, 17,
             17, 17, 16, 16, 14, 13, 12, 12,
             11, 11, 10, 9, 8, 7, 7, 6,
@@ -2032,7 +2032,6 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                     c.getLocal("numPoints"),
                 ),
             ),
-            //c.setLocal("chunkSize", c.i32_const(5+1+2+2+1+1+1)), // For testing only
             c.setLocal("numChunks",
                 c.call(fnName + "_getNumChunks",
                     c.getLocal("scalarSize"),
@@ -2040,7 +2039,6 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                 ),
             ),
             c.setLocal("numBuckets", c.call(fnName + "_getNumBuckets", c.getLocal("numPoints"))),
-            // c.setLocal("numBuckets", c.i32_const(32*2*4*4*2*2*2)), // For testing only
             c.setLocal("pPointSchedules",
                 c.call(prefix + "_utility_allocateMemory",
                     c.i32_shl(
