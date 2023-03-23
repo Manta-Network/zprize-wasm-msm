@@ -26,7 +26,6 @@ module.exports = function buildGLV(module, prefix, fnName, ec_type) {
         var beta = 793479390729215512621379701633421447060886740281060493010456487427281649075476305620758731620350n;
         var divisor = 52435875175126190479447740508185965837690552500527637822603658699938581184513n; // v0*u1 - v1*u0
     }
-    
     const f1mField = "f1m";
     const g1mField = "g1m";
 
@@ -76,6 +75,10 @@ module.exports = function buildGLV(module, prefix, fnName, ec_type) {
         f.addLocal("pScratchSpace", "i32");
         // Pointer to a 512-bit scratch space.
         f.addLocal("pScratchSpace1", "i32");
+        // Pointer to a 512-bit scratch space.
+        f.addLocal("pScratchSpace2", "i32");
+        // Pointer to a 512-bit scratch space.
+        f.addLocal("pScratchSpace3", "i32");
         // Pointer to a 512-bit q1.
         f.addLocal("pQ1", "i32");
         // Pointer to a 512-bit q2.
@@ -98,6 +101,8 @@ module.exports = function buildGLV(module, prefix, fnName, ec_type) {
         f.addCode(
             c.setLocal("pScratchSpace", c.call(prefix + "_utility_allocateMemory", c.i32_const(64))),
             c.setLocal("pScratchSpace1", c.call(prefix + "_utility_allocateMemory", c.i32_const(64))),
+            c.setLocal("pScratchSpace2", c.call(prefix + "_utility_allocateMemory", c.i32_const(64))),
+            c.setLocal("pScratchSpace3", c.call(prefix + "_utility_allocateMemory", c.i32_const(64))),
             c.setLocal("pQ1", c.call(prefix + "_utility_allocateMemory", c.i32_const(64))),
             c.setLocal("pQ2", c.call(prefix + "_utility_allocateMemory", c.i32_const(64))),
             c.setLocal("pK1", c.call(prefix + "_utility_allocateMemory", c.i32_const(64))),
@@ -117,20 +122,30 @@ module.exports = function buildGLV(module, prefix, fnName, ec_type) {
             )),
             // q1 = (u1 * pScalar) / ((v0 * u1) - (v1 * u0));
             // Since u1 = 1, we have q1 = pScalar / ((v0 * u1) - (v1 * u0));
-            c.call(prefix + "_int512_div", c.getLocal("pScalar512"), c.i32_const(pDivisor), c.getLocal("pQ1"), c.getLocal("pQr")),
+            //c.call(prefix + "_int512_div", c.getLocal("pScalar512"), c.i32_const(pDivisor), c.getLocal("pQ1"), c.getLocal("pQr")),
+            c.call(prefix + "_int512_mul", c.getLocal("pScalar512"), c.i32_const(pU1), c.getLocal("pScratchSpace2")),
+            c.call(prefix + "_int512_div", c.getLocal("pScratchSpace2"), c.i32_const(pDivisor), c.getLocal("pQ1"), c.getLocal("pQr")),
+            
             // q2 = (-v1 * pScalar) / ((v0 * u1) - (v1 * u0));
             c.call(prefix + "_int512_mul", c.getLocal("pScalar512"), c.i32_const(pNegV1), c.getLocal("pScratchSpace")),
             c.call(prefix + "_int512_div", c.getLocal("pScratchSpace"), c.i32_const(pDivisor), c.getLocal("pQ2"), c.getLocal("pQr")),
             // pK1 = pScalar - &q1 * v0 - &q2 * u0;
             // Since v0 is 1, we have pK1 = pScalar - &q1 - &q2 * u0;
-            c.drop(c.call(prefix + "_int512_sub", c.getLocal("pScalar512"), c.getLocal("pQ1"), c.getLocal("pK1"))),
+            //c.drop(c.call(prefix + "_int512_sub", c.getLocal("pScalar512"), c.getLocal("pQ1"), c.getLocal("pK1"))),
+            c.call(prefix + "_int512_mul", c.getLocal("pQ1"), c.i32_const(pV0), c.getLocal("pScratchSpace1")),
+            c.drop(c.call(prefix + "_int512_sub", c.getLocal("pScalar512"), c.getLocal("pScratchSpace1"), c.getLocal("pK1"))),
+
             c.call(prefix + "_int512_mul", c.getLocal("pQ2"), c.i32_const(pU0), c.getLocal("pScratchSpace")),
             c.drop(c.call(prefix + "_int512_sub", c.getLocal("pK1"), c.getLocal("pScratchSpace"), c.getLocal("pK1"))),
             // pK2 = 0 - q1 * v.1 - q2 * u.1;
             // since u.1 = 1, we have pK2 = 0 - q1 * v.1 - q2;
             c.call(prefix + "_int512_mul", c.getLocal("pQ1"), c.i32_const(pV1), c.getLocal("pScratchSpace")),
             c.drop(c.call(prefix + "_int512_sub", c.i32_const(pZero), c.getLocal("pScratchSpace"), c.getLocal("pK2"))),
-            c.drop(c.call(prefix + "_int512_sub", c.getLocal("pK2"), c.getLocal("pQ2"), c.getLocal("pK2"))),
+            
+            //c.drop(c.call(prefix + "_int512_sub", c.getLocal("pK2"), c.getLocal("pQ2"), c.getLocal("pK2"))),
+            c.call(prefix + "_int512_mul", c.getLocal("pQ2"), c.i32_const(pU1), c.getLocal("pScratchSpace3")),
+            c.drop(c.call(prefix + "_int512_sub", c.getLocal("pK2"), c.getLocal("pScratchSpace3"), c.getLocal("pK2"))),
+            
             // if pK1 > 0:
             //    sign = sign || 1
             // else:

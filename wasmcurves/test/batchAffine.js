@@ -376,7 +376,7 @@ describe("Basic tests for batch affine in bls12-381", function () {
             pb.g1m_add(g1minput + 2 * i * 144, g1minput + 2 * i * 144 + 144, expectedOutput + i * 144)
             pb.g1m_normalize(expectedOutput + i * 144, expectedOutput + i * 144)
         }
-        for (let i = 0; i < numPoints; i++) {
+        for (let i = 0; i < numPoints / 2; i++) {
             pb.f1m_fromMontgomery(expectedOutput + 144 * i, expectedOutput + 144 * i);
             pb.f1m_fromMontgomery(expectedOutput + 144 * i + 48, expectedOutput + 144 * i + 48);
             pb.f1m_fromMontgomery(expectedOutput + 144 * i + 96, expectedOutput + 144 * i + 96);
