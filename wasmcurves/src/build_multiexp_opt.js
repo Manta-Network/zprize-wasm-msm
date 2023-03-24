@@ -19,13 +19,12 @@
 
 module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     const n64g = module.modules[prefix].n64; // prefix g1m
-    const n8g = n64g * 8; // 144
-
+    const n8g = n64g * 8; 
     // Fr: 32 bytes = 256 bits
     const n8r = 32;
 
-    const n8 = 48; // only for our msm implementation 
-    const prefixField = "f1m";// only for our msm implementation 
+    const n8 = n8g / 3; 
+    const prefixField = "f1m";
     opMixedAdd = "g1m_addMixed";
     opAffineAdd = "g1m_addAffine";
 
@@ -42,6 +41,12 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
             11, 11, 10, 9, 8, 7, 7, 6,
             5, 4, 3, 2, 1, 1, 1, 1
         ]);
+        // const pTSizes = module.alloc([
+        //     17, 17, 17, 17,   17, 17, 17, 17,
+        //     17, 17, 16, 16,   15, 14, 13, 13,
+        //     12, 11, 10,  9,    8,  7,  7,  6,
+        //     5 ,  4,  3,  2,    1,  1,  1,  1
+        // ]);
         const c = f.getCodeBuilder();
         f.addCode(
             c.i32_load8_u(c.i32_clz(c.getLocal("num")), pTSizes),
@@ -1049,6 +1054,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         const X1_MINUS_X3 = c.i32_const(module.alloc(n8));
         const X1_MINUS_X3_MUL_M = c.i32_const(module.alloc(n8));
         const M_square = c.i32_const(module.alloc(n8));
+        const x1_equal_x2 = c.i32_const(module.alloc(n8));
         f.addCode(
             // alloc memory
             c.setLocal("pScratchSpace", c.i32_load(c.i32_const(0))),
@@ -1181,10 +1187,12 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                 c.setLocal("y1", c.i32_add(c.getLocal("itPairs"), c.i32_const(n8))),//y1
                 c.setLocal("x2", c.i32_add(c.getLocal("itPairs"), c.i32_const(n8 * 2))),//x1+x2
                 c.setLocal("y2", c.i32_add(c.getLocal("itPairs"), c.i32_const(n8 * 3))),//y2-y1
+                c.call(prefixField + "_sub", c.getLocal("x2"), c.getLocal("x1"), x1_equal_x2),
+                c.call(prefixField + "_sub", x1_equal_x2, c.getLocal("x1"), x1_equal_x2),
                 c.if(
-                    c.call(prefixField + "_isZero", c.getLocal("y2")),
+                    c.call(prefixField + "_isZero", x1_equal_x2),
                     // m = 3x^2+a / 2y1.  
-                    // a==0 in BLS12381
+                    // a==0 in BLS12381 and BN254
                     [
                         ...c.call(
                             prefixField + "_square",
@@ -1639,7 +1647,7 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                         c.getLocal("pPointBuckets"),
                         c.i32_mul(
                             c.getLocal("i"),
-                            c.i32_const(n8 * 2),// 48 * 2
+                            c.i32_const(n8 * 2),
                         ),
                     ),
                     c.getLocal("pRunningSum"),

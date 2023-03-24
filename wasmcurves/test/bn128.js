@@ -490,7 +490,7 @@ describe("Basic tests for g1 in bn128", () => {
         }
 
         // Do yhe multiexp:  1*1*G + 2*2*G + ...
-        pb.g1m_multiexpAffine(pPoints, pScalars, n8, N, pCalculated);
+        pb.g1m_multiexpAffine_wasmcurve(pPoints, pScalars, n8, N, pCalculated);
 
         assert(pb.g1m_eq(pExpected, pCalculated));
 

@@ -34,7 +34,7 @@ module.exports = function buildBN128(module, _prefix) {
     buildF1(module, r, "fr", "frm");
 
     const pG1b = module.alloc(utils.bigInt2BytesLE( toMontgomery(3n), f1size ));
-    const g1mPrefix = buildCurve(module, "g1m", "f1m", pG1b);
+    const g1mPrefix = buildCurve(module, "g1m", "f1m", pG1b, 1);
 
     buildFFT(module, "frm", "frm", "frm", "frm_mul");
 
@@ -46,7 +46,7 @@ module.exports = function buildBN128(module, _prefix) {
         ...utils.bigInt2BytesLE( toMontgomery(19485874751759354771024239261021720505790618469301721065564631296452457478373n), f1size ),
         ...utils.bigInt2BytesLE( toMontgomery(266929791119991161246907387137283842545076965332900288569378510910307636690n), f1size )
     ]);
-    const g2mPrefix = buildCurve(module, "g2m", "f2m", pG2b);
+    const g2mPrefix = buildCurve(module, "g2m", "f2m", pG2b, 1);
 
 
     function buildGTimesFr(fnName, opMul) {
