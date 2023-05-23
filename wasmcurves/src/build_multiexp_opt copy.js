@@ -37,20 +37,10 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         f.setReturnType("i32");
         const pTSizes = module.alloc([
             17, 17, 17, 17, 17, 17, 17, 17,
-            17, 17, 16, 16, 14, 12, 11, 11,
+            17, 17, 16, 16, 14, 13, 12, 12,
             11, 11, 10, 9, 8, 7, 7, 6,
-        //  15  14  13  12
             5, 4, 3, 2, 1, 1, 1, 1
         ]);
-        // bls12381
-        // const pTSizes = module.alloc([
-        //     17, 17, 17, 17, 17, 17, 17, 17,
-        //     17, 17, 16, 16, 14, 13, 12, 12,
-        //     11, 11, 10, 9, 8, 7, 7, 6,
-        //     5, 4, 3, 2, 1, 1, 1, 1
-        // ]);
-
-        // wasmcurve
         // const pTSizes = module.alloc([
         //     17, 17, 17, 17,   17, 17, 17, 17,
         //     17, 17, 16, 16,   15, 14, 13, 13,
@@ -2127,155 +2117,6 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         );
     }
 
-    function buildInitialized() {
-        const f = module.addFunction(fnName + "_initialized");
-        // Pointer to the input point vector
-        f.addParam("pPoints", "i32");
-        // Pointer to the input scalar vector
-        f.addParam("pScalars", "i32");
-        // Number of points
-        f.addParam("numPoints", "i32");
-        // Pointer to the resultinig G1 point
-        f.addParam("pResult", "i32");
-        // Pointer to a 2-d array of point schedules
-        f.addParam("pPointSchedules", "i32");
-        // Pointer to a 2-d array of point schedules
-        // TODO: Try to merge pMetadata with pPointSchedule
-        f.addParam("pMetadata", "i32");
-        // Pointer to an array of the number of points in each round. 
-        f.addParam("pRoundCounts", "i32");
-        // Pointer to a 2-d array of the number of points in each bucket for each chunk. Shape: numChunks * numBuckets
-        f.addParam("pBucketCounts", "i32");
-        // Pointer to a 1-d array of the number of buckets with at least 1 point for each chunk. Shape: numChunks
-        f.addParam("pNumNonZeroBuckets", "i32");
-        // Number of chunks
-        f.addParam("numChunks", "i32");
-        // Number of bits in a chunk
-        f.addParam("chunkSize", "i32");
-        // Number of buckets
-        f.addParam("numBuckets", "i32");
-        // Number of bytes of the scalar
-        f.addLocal("scalarSize", "i32");
-        const c = f.getCodeBuilder();
-        f.addCode(
-            c.if(c.i32_eqz(c.getLocal("numPoints")),
-                [
-                    ...c.call(prefix + "_zero", c.getLocal("pResult")),
-                    ...c.ret([])
-                ]
-            ),
-            c.setLocal("scalarSize", c.i32_const(n8r)),
-            c.call(fnName + "_computeSchedule",
-                c.getLocal("pScalars"),
-                c.getLocal("numPoints"),
-                c.getLocal("scalarSize"),
-                c.getLocal("chunkSize"),
-                c.getLocal("numChunks"),
-                c.getLocal("pPointSchedules"),
-                c.getLocal("pRoundCounts"),
-            ),
-            c.call(fnName + "_organizeBuckets",
-                c.getLocal("pPointSchedules"),
-                c.getLocal("numPoints"),
-                c.getLocal("numChunks"),
-                c.getLocal("numBuckets"),
-                c.getLocal("pMetadata"),
-                c.getLocal("pBucketCounts"),
-            ),
-            c.call(prefix + "_utility_countNonZero",
-                c.getLocal("pBucketCounts"),
-                c.getLocal("numChunks"),
-                c.getLocal("numBuckets"),
-                c.getLocal("pNumNonZeroBuckets"),
-            ),
-        );
-    }
-
-
-    function buildMutiexpChunks_wrapper() {
-        const f = module.addFunction(fnName + "_multiExpChunks_wrapper");
-        // Pointer to a 2-d array of point schedules
-        f.addParam("pPointSchedules", "i32");
-        // Pointer to the input point vector
-        f.addParam("pPoints", "i32");
-        // Pointer to a 1-d array of the number of buckets with at least 1 point for each chunk. Shape: numChunks
-        f.addParam("pNumNonZeroBuckets", "i32");
-        // Pointer to a 2-d array of the number of points in each bucket for each chunk. Shape: numChunk * numBuckets
-        f.addParam("pBucketCounts", "i32");
-        // Number of points
-        f.addParam("numPoints", "i32");
-        // Number of bits in a chunk
-        f.addParam("chunkSize", "i32");
-        // Number of chunks
-        f.addParam("numChunks", "i32"); 
-        // Number of buckets
-        f.addParam("numBuckets", "i32");
-        // Pointer to the resulting G1 point
-        f.addParam("pResult", "i32");
-        // Pointer to an accumulator
-        f.addParam("pAccumulator", "i32");
-        // Pointer to running sum
-        f.addParam("pRunningSum", "i32");
-        // Pointer to a 1-d array of bit offsets. Shape: maxBucketBits+1
-        // Assumption: This has not been initialized. Just for reusing memory.
-        f.addParam("pBitOffsets", "i32");
-        // Pointer to a 1-d array of point schedules for a specific round. This stores
-        // the processed point schedules from `ConstructAdditionChains`. Shape: numPoints
-        // Assumption: pPointScheduleAlt has not been initialized. Just for reusing memory.
-        f.addParam("pPointScheduleAlt", "i32");
-        // Pointer to a 1-d array of G1 points as the scratch space. Lengh: numPoints
-        f.addParam("pPointPairs1", "i32");
-        // Pointer to a 1-d array of G1 points as the scratch space. Lengh: numPoints
-        f.addParam("pPointPairs2", "i32");
-        // Round index
-        f.addParam("roundIdx", "i32");
-        // Index
-        f.addLocal("k", "i32");
-        const c = f.getCodeBuilder();
-        f.addCode(
-            c.call(prefix + "_zero", c.getLocal("pResult")),
-            c.call(fnName + "_multiExpSingleChunk",
-                c.i32_add(
-                    c.getLocal("pPointSchedules"),
-                    c.i32_shl(
-                        c.i32_mul(
-                            c.getLocal("roundIdx"),
-                            c.getLocal("numPoints"),
-                        ),
-                        c.i32_const(3),
-                    ),
-                ),
-                c.getLocal("pPoints"),
-                c.call(prefix + "_utility_loadI32",
-                    c.getLocal("pNumNonZeroBuckets"),
-                    c.getLocal("roundIdx"),
-                ),
-                c.i32_add(
-                    c.getLocal("pBucketCounts"),
-                    c.i32_shl(
-                        c.i32_mul(
-                            c.getLocal("roundIdx"),
-                            c.getLocal("numBuckets"),
-                        ),
-                        c.i32_const(2),
-                    ),
-                ),
-                c.getLocal("numPoints"),
-                c.getLocal("chunkSize"),
-                c.getLocal("numChunks"),
-                c.getLocal("numBuckets"),
-                c.getLocal("roundIdx"),
-                c.getLocal("pAccumulator"),
-                c.getLocal("pResult"),
-                c.getLocal("pRunningSum"),
-                c.getLocal("pBitOffsets"),
-                c.getLocal("pPointScheduleAlt"),
-                c.getLocal("pPointPairs1"),
-                c.getLocal("pPointPairs2"),
-            ),
-        );
-    }
-
     // Tests if getChunk is correct.
     function buildTestGetChunk() {
         const f = module.addFunction(fnName + "_testGetChunk");
@@ -2365,9 +2206,4 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     module.exportFunction(fnName + "_multiExpChunks");
     module.exportFunction(fnName + "_multiExp");
     module.exportFunction(fnName + "_testGetChunk");
-
-    buildMutiexpChunks_wrapper();
-    module.exportFunction(fnName + "_multiExpChunks_wrapper");
-    buildInitialized();
-    module.exportFunction(fnName + "_initialized");
 };
