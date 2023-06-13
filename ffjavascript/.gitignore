@@ -67,3 +67,5 @@ tmp
 # Workspace files are user-specific
 *.sublime-workspace
 
+.github
+.vscode

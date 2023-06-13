@@ -1065,6 +1065,8 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         const X1_MINUS_X3_MUL_M = c.i32_const(module.alloc(n8));
         const M_square = c.i32_const(module.alloc(n8));
         const x1_equal_x2 = c.i32_const(module.alloc(n8));
+        const InitialP1 = c.i32_const(module.alloc(n8*2));
+        const InitialP2 = c.i32_const(module.alloc(n8*2));
         f.addCode(
             // alloc memory
             c.setLocal("pScratchSpace", c.i32_load(c.i32_const(0))),
@@ -1198,61 +1200,93 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
                 c.setLocal("x2", c.i32_add(c.getLocal("itPairs"), c.i32_const(n8 * 2))),//x1+x2
                 c.setLocal("y2", c.i32_add(c.getLocal("itPairs"), c.i32_const(n8 * 3))),//y2-y1
                 c.call(prefixField + "_sub", c.getLocal("x2"), c.getLocal("x1"), x1_equal_x2),
-                c.call(prefixField + "_sub", x1_equal_x2, c.getLocal("x1"), x1_equal_x2),
+                c.call(prefixField + "_sub", x1_equal_x2, c.getLocal("x1"), x1_equal_x2),//x2-x1
+                
+                c.call(prefixField + "_copy",c.getLocal("x1"), InitialP1),
+                c.call(prefixField + "_copy",c.getLocal("y1"), c.i32_add(c.i32_const(n8), InitialP1)),
+                c.call(prefixField + "_sub", c.getLocal("x2"), c.getLocal("x1"), InitialP2),
+                c.call(prefixField + "_add", c.getLocal("y2"), c.getLocal("y1"), c.i32_add(c.i32_const(n8), InitialP2)),
                 c.if(
-                    c.call(prefixField + "_isZero", x1_equal_x2),
-                    // m = 3x^2+a / 2y1.  
-                    // a==0 in BLS12381 and BN254
+                    c.call(prefix+"_isZeroAffine",InitialP1),
+                    // P1 is zero point
                     [
-                        ...c.call(
-                            prefixField + "_square",
-                            c.getLocal("x1"),
-                            X1_square
-                        ),
-                        ...c.call(
-                            prefixField + "_add",
-                            X1_square,
-                            X1_square,
-                            X1_squareX1_square,
-                        ),
-                        ...c.call(
-                            prefixField + "_add",
-                            X1_square,
-                            X1_squareX1_square,
-                            X1_squareX1_squareX1_square,
-                        ),
-                        ...c.call(
-                            prefixField + "_mul",
-                            X1_squareX1_squareX1_square,
-                            c.getLocal("itInverse"),
-                            M,
-                        ),
 
-                    ],
-                    // m = y2-y1 / (x2-x1)
-                    [
-                        ...c.call(
-                            prefixField + "_mul",
-                            c.getLocal("y2"),
-                            c.getLocal("itInverse"),
-                            M
-                        ),
+                        ...c.call(prefix+"_copyAffine",InitialP2, c.getLocal("itRes")),
+                        ...c.setLocal("itPairs", c.i32_sub(c.getLocal("itPairs"), c.i32_const(n8 * 2 * 2))),
+                        ...c.setLocal("itRes", c.i32_sub(c.getLocal("itRes"), c.i32_const(n8 * 2))),// store one element each time
+                        ...c.setLocal("itInverse", c.i32_sub(c.getLocal("itInverse"), c.i32_const(n8))),
+                        ...c.setLocal("i", c.i32_sub(c.getLocal("i"), c.i32_const(2))),
+                    
+                    ],                 
+                    c.if(
+                        c.call(prefix+"_isZeroAffine",InitialP2),
+                        // P1 is non-zero point, P2 is zero point
+                        [
+                            ...c.call(prefix+"_copyAffine",InitialP1, c.getLocal("itRes")),
+                            ...c.setLocal("itPairs", c.i32_sub(c.getLocal("itPairs"), c.i32_const(n8 * 2 * 2))),
+                            ...c.setLocal("itRes", c.i32_sub(c.getLocal("itRes"), c.i32_const(n8 * 2))),// store one element each time
+                            ...c.setLocal("itInverse", c.i32_sub(c.getLocal("itInverse"), c.i32_const(n8))),
+                            ...c.setLocal("i", c.i32_sub(c.getLocal("i"), c.i32_const(2))),
+                        ],
+                        [
+                            ...c.if(
+                                c.call(prefixField + "_isZero", x1_equal_x2),
+                                // m = 3x^2+a / 2y1.  
+                                // a==0 in BLS12381 and BN254
+                                [
+                                    ...c.call(
+                                        prefixField + "_square",
+                                        c.getLocal("x1"),
+                                        X1_square
+                                    ),
+                                    ...c.call(
+                                        prefixField + "_add",
+                                        X1_square,
+                                        X1_square,
+                                        X1_squareX1_square,
+                                    ),
+                                    ...c.call(
+                                        prefixField + "_add",
+                                        X1_square,
+                                        X1_squareX1_square,
+                                        X1_squareX1_squareX1_square,
+                                    ),
+                                    ...c.call(
+                                        prefixField + "_mul",
+                                        X1_squareX1_squareX1_square,
+                                        c.getLocal("itInverse"),
+                                        M,
+                                    ),
+            
+                                ],
+                                // m = y2-y1 / (x2-x1)
+                                [
+                                    ...c.call(
+                                        prefixField + "_mul",
+                                        c.getLocal("y2"),
+                                        c.getLocal("itInverse"),
+                                        M
+                                    ),
+            
+                                ]
+                            ),
+                            // store x3  
+                            // x3 = m^2 - x1 - x2
+                            ...c.call(prefixField + "_square", M, M_square),
+                            ...c.call(prefixField + "_sub", M_square, c.getLocal("x2"), c.getLocal("itRes")),
+                            // store y3
+                            // y3 = m * (x1 - x3) - y1
+                            ...c.call(prefixField + "_sub", c.getLocal("x1"), c.getLocal("itRes"), X1_MINUS_X3),
+                            ...c.call(prefixField + "_mul", M, X1_MINUS_X3, X1_MINUS_X3_MUL_M),
+                            ...c.call(prefixField + "_sub", X1_MINUS_X3_MUL_M, c.getLocal("y1"), c.i32_add(c.getLocal("itRes"), c.i32_const(n8))),
+                            ...c.setLocal("itPairs", c.i32_sub(c.getLocal("itPairs"), c.i32_const(n8 * 2 * 2))),
+                            ...c.setLocal("itRes", c.i32_sub(c.getLocal("itRes"), c.i32_const(n8 * 2))),// store one element each time
+                            ...c.setLocal("itInverse", c.i32_sub(c.getLocal("itInverse"), c.i32_const(n8))),
+                            ...c.setLocal("i", c.i32_sub(c.getLocal("i"), c.i32_const(2))),
+                        ]
+                    ),
 
-                    ]
                 ),
-                // store x3  
-                // x3 = m^2 - x1 - x2
-                c.call(prefixField + "_square", M, M_square),
-                c.call(prefixField + "_sub", M_square, c.getLocal("x2"), c.getLocal("itRes")),
-                // store y3
-                // y3 = m * (x1 - x3) - y1
-                c.call(prefixField + "_sub", c.getLocal("x1"), c.getLocal("itRes"), X1_MINUS_X3),
-                c.call(prefixField + "_mul", M, X1_MINUS_X3, X1_MINUS_X3_MUL_M),
-                c.call(prefixField + "_sub", X1_MINUS_X3_MUL_M, c.getLocal("y1"), c.i32_add(c.getLocal("itRes"), c.i32_const(n8))),
-                c.setLocal("itPairs", c.i32_sub(c.getLocal("itPairs"), c.i32_const(n8 * 2 * 2))),
-                c.setLocal("itRes", c.i32_sub(c.getLocal("itRes"), c.i32_const(n8 * 2))),// store one element each time
-                c.setLocal("itInverse", c.i32_sub(c.getLocal("itInverse"), c.i32_const(n8))),
-                c.setLocal("i", c.i32_sub(c.getLocal("i"), c.i32_const(2))),
                 c.br(0)
             )),
             c.i32_store(
@@ -2127,155 +2161,6 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
         );
     }
 
-    function buildInitialized() {
-        const f = module.addFunction(fnName + "_initialized");
-        // Pointer to the input point vector
-        f.addParam("pPoints", "i32");
-        // Pointer to the input scalar vector
-        f.addParam("pScalars", "i32");
-        // Number of points
-        f.addParam("numPoints", "i32");
-        // Pointer to the resultinig G1 point
-        f.addParam("pResult", "i32");
-        // Pointer to a 2-d array of point schedules
-        f.addParam("pPointSchedules", "i32");
-        // Pointer to a 2-d array of point schedules
-        // TODO: Try to merge pMetadata with pPointSchedule
-        f.addParam("pMetadata", "i32");
-        // Pointer to an array of the number of points in each round. 
-        f.addParam("pRoundCounts", "i32");
-        // Pointer to a 2-d array of the number of points in each bucket for each chunk. Shape: numChunks * numBuckets
-        f.addParam("pBucketCounts", "i32");
-        // Pointer to a 1-d array of the number of buckets with at least 1 point for each chunk. Shape: numChunks
-        f.addParam("pNumNonZeroBuckets", "i32");
-        // Number of chunks
-        f.addParam("numChunks", "i32");
-        // Number of bits in a chunk
-        f.addParam("chunkSize", "i32");
-        // Number of buckets
-        f.addParam("numBuckets", "i32");
-        // Number of bytes of the scalar
-        f.addLocal("scalarSize", "i32");
-        const c = f.getCodeBuilder();
-        f.addCode(
-            c.if(c.i32_eqz(c.getLocal("numPoints")),
-                [
-                    ...c.call(prefix + "_zero", c.getLocal("pResult")),
-                    ...c.ret([])
-                ]
-            ),
-            c.setLocal("scalarSize", c.i32_const(n8r)),
-            c.call(fnName + "_computeSchedule",
-                c.getLocal("pScalars"),
-                c.getLocal("numPoints"),
-                c.getLocal("scalarSize"),
-                c.getLocal("chunkSize"),
-                c.getLocal("numChunks"),
-                c.getLocal("pPointSchedules"),
-                c.getLocal("pRoundCounts"),
-            ),
-            c.call(fnName + "_organizeBuckets",
-                c.getLocal("pPointSchedules"),
-                c.getLocal("numPoints"),
-                c.getLocal("numChunks"),
-                c.getLocal("numBuckets"),
-                c.getLocal("pMetadata"),
-                c.getLocal("pBucketCounts"),
-            ),
-            c.call(prefix + "_utility_countNonZero",
-                c.getLocal("pBucketCounts"),
-                c.getLocal("numChunks"),
-                c.getLocal("numBuckets"),
-                c.getLocal("pNumNonZeroBuckets"),
-            ),
-        );
-    }
-
-
-    function buildMutiexpChunks_wrapper() {
-        const f = module.addFunction(fnName + "_multiExpChunks_wrapper");
-        // Pointer to a 2-d array of point schedules
-        f.addParam("pPointSchedules", "i32");
-        // Pointer to the input point vector
-        f.addParam("pPoints", "i32");
-        // Pointer to a 1-d array of the number of buckets with at least 1 point for each chunk. Shape: numChunks
-        f.addParam("pNumNonZeroBuckets", "i32");
-        // Pointer to a 2-d array of the number of points in each bucket for each chunk. Shape: numChunk * numBuckets
-        f.addParam("pBucketCounts", "i32");
-        // Number of points
-        f.addParam("numPoints", "i32");
-        // Number of bits in a chunk
-        f.addParam("chunkSize", "i32");
-        // Number of chunks
-        f.addParam("numChunks", "i32"); 
-        // Number of buckets
-        f.addParam("numBuckets", "i32");
-        // Pointer to the resulting G1 point
-        f.addParam("pResult", "i32");
-        // Pointer to an accumulator
-        f.addParam("pAccumulator", "i32");
-        // Pointer to running sum
-        f.addParam("pRunningSum", "i32");
-        // Pointer to a 1-d array of bit offsets. Shape: maxBucketBits+1
-        // Assumption: This has not been initialized. Just for reusing memory.
-        f.addParam("pBitOffsets", "i32");
-        // Pointer to a 1-d array of point schedules for a specific round. This stores
-        // the processed point schedules from `ConstructAdditionChains`. Shape: numPoints
-        // Assumption: pPointScheduleAlt has not been initialized. Just for reusing memory.
-        f.addParam("pPointScheduleAlt", "i32");
-        // Pointer to a 1-d array of G1 points as the scratch space. Lengh: numPoints
-        f.addParam("pPointPairs1", "i32");
-        // Pointer to a 1-d array of G1 points as the scratch space. Lengh: numPoints
-        f.addParam("pPointPairs2", "i32");
-        // Round index
-        f.addParam("roundIdx", "i32");
-        // Index
-        f.addLocal("k", "i32");
-        const c = f.getCodeBuilder();
-        f.addCode(
-            c.call(prefix + "_zero", c.getLocal("pResult")),
-            c.call(fnName + "_multiExpSingleChunk",
-                c.i32_add(
-                    c.getLocal("pPointSchedules"),
-                    c.i32_shl(
-                        c.i32_mul(
-                            c.getLocal("roundIdx"),
-                            c.getLocal("numPoints"),
-                        ),
-                        c.i32_const(3),
-                    ),
-                ),
-                c.getLocal("pPoints"),
-                c.call(prefix + "_utility_loadI32",
-                    c.getLocal("pNumNonZeroBuckets"),
-                    c.getLocal("roundIdx"),
-                ),
-                c.i32_add(
-                    c.getLocal("pBucketCounts"),
-                    c.i32_shl(
-                        c.i32_mul(
-                            c.getLocal("roundIdx"),
-                            c.getLocal("numBuckets"),
-                        ),
-                        c.i32_const(2),
-                    ),
-                ),
-                c.getLocal("numPoints"),
-                c.getLocal("chunkSize"),
-                c.getLocal("numChunks"),
-                c.getLocal("numBuckets"),
-                c.getLocal("roundIdx"),
-                c.getLocal("pAccumulator"),
-                c.getLocal("pResult"),
-                c.getLocal("pRunningSum"),
-                c.getLocal("pBitOffsets"),
-                c.getLocal("pPointScheduleAlt"),
-                c.getLocal("pPointPairs1"),
-                c.getLocal("pPointPairs2"),
-            ),
-        );
-    }
-
     // Tests if getChunk is correct.
     function buildTestGetChunk() {
         const f = module.addFunction(fnName + "_testGetChunk");
@@ -2365,9 +2250,4 @@ module.exports = function buildMultiexpOpt(module, prefix, fnName, opAdd, n8b) {
     module.exportFunction(fnName + "_multiExpChunks");
     module.exportFunction(fnName + "_multiExp");
     module.exportFunction(fnName + "_testGetChunk");
-
-    buildMutiexpChunks_wrapper();
-    module.exportFunction(fnName + "_multiExpChunks_wrapper");
-    buildInitialized();
-    module.exportFunction(fnName + "_initialized");
 };

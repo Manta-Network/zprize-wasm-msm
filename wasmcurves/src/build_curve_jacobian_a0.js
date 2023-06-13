@@ -97,7 +97,7 @@ module.exports = function buildCurve(module, prefix, prefixField, pB, ec_type) {
         }
     }
 
-
+ 
     function buildCopyAffine() {
         const f = module.addFunction(prefix + "_copyAffine");
         f.addParam("ps", "i32");
