@@ -11,7 +11,7 @@ const buildQAP = require("../build_qap");
 const buildApplyKey = require("../build_applykey");
 const { bitLength, modInv, isOdd, isNegative } = require("../bigint.js");
 
-module.exports = function buildBN128(module, _prefix) {
+module.exports = function buildBN128(module, _prefix, lessbit = false) {
 
     const prefix = _prefix || "bn128";
 
@@ -88,6 +88,9 @@ module.exports = function buildBN128(module, _prefix) {
     buildApplyKey(module, "g2m_batchApplyKeyMixed", "g2m", "frm", n8*2*2, n8*3*2, n8, "g2m_timesFrAffine");
 
     function toMontgomery(a) {
+        if(lessbit){
+            return BigInt(a) * ( 1n << BigInt(29*9)) % q;
+        }
         return BigInt(a) * ( 1n << BigInt(f1size*8)) % q;
     }
 
